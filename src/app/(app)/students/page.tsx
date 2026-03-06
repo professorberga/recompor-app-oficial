@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Search, UserPlus, Filter, MoreHorizontal, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle, X, Calendar, ClipboardCheck, GraduationCap, History, Info } from "lucide-react"
+import { Search, UserPlus, Filter, MoreHorizontal, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle, X, Calendar, ClipboardCheck, GraduationCap, History, Info, FileDown } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,8 @@ import { personalizedLearningSuggestions, PersonalizedLearningSuggestionsOutput 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar' },
@@ -82,6 +84,7 @@ function StudentsContent() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isOccurrenceOpen, setIsOccurrenceOpen] = useState(false)
@@ -95,8 +98,8 @@ function StudentsContent() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const printRef = useRef<HTMLDivElement>(null)
 
-  // Sincronizar Ficha com parâmetro de URL ?id=...
   useEffect(() => {
     const studentId = searchParams.get('id')
     if (studentId) {
@@ -108,7 +111,6 @@ function StudentsContent() {
     }
   }, [searchParams, students])
 
-  // Limpar bloqueios do body ao fechar diálogos
   useEffect(() => {
     if (!isRegisterOpen && !isOccurrenceOpen && !isFichaOpen) {
       const timer = setTimeout(() => {
@@ -180,7 +182,6 @@ function StudentsContent() {
     setSelectedStudent(student); 
     setAiInsight(null); 
     setIsFichaOpen(true); 
-    // Atualizar URL sem recarregar para manter link compartilhável
     router.replace(`/students?id=${student.id}`, { scroll: false })
   }
 
@@ -216,6 +217,41 @@ function StudentsContent() {
     } finally {
       setIsAiLoading(false)
     }
+  }
+
+  const handleExportPDF = async () => {
+    if (!selectedStudent) return
+    setIsExporting(true)
+    toast({ title: "Gerando PDF...", description: "Preparando o histórico completo para exportação." })
+    
+    // Pequeno delay para garantir que o DOM oculto esteja pronto
+    setTimeout(async () => {
+      try {
+        if (!printRef.current) throw new Error("Elemento de impressão não encontrado")
+        
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false
+        })
+        
+        const imgData = canvas.toDataURL('image/png')
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+        pdf.save(`Historico_${selectedStudent.name.replace(/\s+/g, '_')}.pdf`)
+        
+        toast({ title: "Exportação Concluída", description: "O histórico foi salvo com sucesso." })
+      } catch (error) {
+        console.error(error)
+        toast({ title: "Erro na Exportação", description: "Não foi possível gerar o PDF.", variant: "destructive" })
+      } finally {
+        setIsExporting(false)
+      }
+    }, 500)
   }
 
   return (
@@ -363,21 +399,32 @@ function StudentsContent() {
       }}>
         <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
           <DialogHeader className="p-8 bg-primary text-primary-foreground shrink-0 relative">
-            <div className="flex items-center gap-6">
-              <div className="h-24 w-24 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 overflow-hidden shadow-2xl">
-                {selectedStudent?.photo ? <img src={selectedStudent.photo} alt="" className="w-full h-full object-cover" /> : <span className="text-4xl font-bold">{selectedStudent?.name.charAt(0)}</span>}
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <DialogTitle className="text-3xl font-black">{selectedStudent?.name}</DialogTitle>
-                  <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/40">{selectedStudent?.status}</Badge>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="h-24 w-24 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 overflow-hidden shadow-2xl">
+                  {selectedStudent?.photo ? <img src={selectedStudent.photo} alt="" className="w-full h-full object-cover" /> : <span className="text-4xl font-bold">{selectedStudent?.name.charAt(0)}</span>}
                 </div>
-                <div className="flex items-center gap-4 text-primary-foreground/80 font-medium">
-                  <span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4" /> {selectedStudent?.class}</span>
-                  <span className="flex items-center gap-1.5"><Info className="h-4 w-4" /> RA: {selectedStudent?.ra}-{selectedStudent?.raDigit}</span>
-                  <span className="flex items-center gap-1.5"><History className="h-4 w-4" /> Tutor: {selectedStudent?.tutor}</span>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <DialogTitle className="text-3xl font-black">{selectedStudent?.name}</DialogTitle>
+                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/40">{selectedStudent?.status}</Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-primary-foreground/80 font-medium">
+                    <span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4" /> {selectedStudent?.class}</span>
+                    <span className="flex items-center gap-1.5"><Info className="h-4 w-4" /> RA: {selectedStudent?.ra}-{selectedStudent?.raDigit}</span>
+                    <span className="flex items-center gap-1.5"><History className="h-4 w-4" /> Tutor: {selectedStudent?.tutor}</span>
+                  </div>
                 </div>
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20 gap-2 font-bold"
+                onClick={handleExportPDF}
+                disabled={isExporting}
+              >
+                <FileDown className="h-4 w-4" /> {isExporting ? "Gerando..." : "Exportar PDF"}
+              </Button>
             </div>
           </DialogHeader>
 
@@ -526,7 +573,6 @@ function StudentsContent() {
                           <h5 className="font-bold text-accent mb-2 uppercase text-xs tracking-widest">Resumo do Percurso</h5>
                           <p className="text-sm leading-relaxed text-foreground/80">{aiInsight.progressSummary}</p>
                         </div>
-                        {/* Outros campos da IA... */}
                       </div>
                     ) : (
                       <div className="py-20 flex flex-col items-center justify-center text-center space-y-4 opacity-40">
@@ -541,6 +587,99 @@ function StudentsContent() {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      {/* Área Oculta para Geração do PDF */}
+      <div className="absolute opacity-0 pointer-events-none -left-[9999px] top-0">
+        <div ref={printRef} className="w-[800px] p-12 bg-white text-black space-y-10">
+          <div className="border-b-8 border-primary pb-8 flex justify-between items-end">
+            <div className="space-y-2">
+              <h1 className="text-5xl font-black uppercase tracking-tighter text-primary">Histórico Escolar</h1>
+              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Monitor do BEEM • Relatório Consolidado</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Data de Emissão</p>
+              <p className="font-bold">{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-8 bg-muted/10 p-6 rounded-2xl border border-border/50">
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">Estudante</p><p className="text-2xl font-black">{selectedStudent?.name}</p></div>
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">RA</p><p className="text-xl font-bold">{selectedStudent?.ra}-{selectedStudent?.raDigit}</p></div>
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">Turma</p><p className="text-lg font-medium">{selectedStudent?.class}</p></div>
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">Docente Responsável</p><p className="text-lg font-medium">{selectedStudent?.tutor}</p></div>
+          </div>
+
+          <div className="space-y-10">
+            <section>
+              <h2 className="text-xl font-black mb-4 border-l-4 border-primary pl-4 uppercase tracking-tight">Desempenho por Competência (Bloom)</h2>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-muted/20 text-left border-b border-border">
+                    <th className="py-2 px-4 text-xs font-bold uppercase">Competência</th>
+                    <th className="py-2 px-4 text-xs font-bold uppercase">Nível</th>
+                    <th className="py-2 px-4 text-xs font-bold uppercase">Nota</th>
+                    <th className="py-2 px-4 text-xs font-bold uppercase text-right">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedStudent?.history?.assessments.map((item: any, idx: number) => (
+                    <tr key={idx} className="border-b border-border/30">
+                      <td className="py-3 px-4 font-bold">{item.competency} <span className="text-[10px] text-muted-foreground font-normal">({item.subject})</span></td>
+                      <td className="py-3 px-4"><span className="text-xs font-bold uppercase px-2 py-0.5 bg-muted rounded">{item.level}</span></td>
+                      <td className="py-3 px-4 font-black">{item.score}</td>
+                      <td className="py-3 px-4 text-right text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black mb-4 border-l-4 border-primary pl-4 uppercase tracking-tight">Registro de Frequência</h2>
+              <div className="grid grid-cols-4 gap-4">
+                {selectedStudent?.history?.attendance.map((att: any, idx: number) => (
+                  <div key={idx} className="p-3 border rounded-xl flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-muted-foreground">{new Date(att.date).toLocaleDateString()}</span>
+                    <span className={`text-xs font-black uppercase ${att.status === 'present' ? 'text-green-600' : 'text-red-600'}`}>
+                      {att.status === 'present' ? 'Presente' : 'Falta'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-black mb-4 border-l-4 border-primary pl-4 uppercase tracking-tight">Ocorrências e Observações</h2>
+              <div className="space-y-4">
+                {selectedStudent?.history?.occurrences.map((occ: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-muted/20 rounded-xl border border-border/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded">{occ.type}</span>
+                      <span className="text-[10px] text-muted-foreground font-bold">{new Date(occ.date).toLocaleDateString()}</span>
+                    </div>
+                    <p className="text-sm italic text-foreground/80 leading-relaxed">"{occ.description}"</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+            
+            {aiInsight && (
+              <section className="p-8 bg-accent/5 border border-accent/20 rounded-3xl space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-6 w-6 text-accent" />
+                  <h2 className="text-2xl font-black text-accent uppercase tracking-tighter">Análise Pedagógica IA</h2>
+                </div>
+                <p className="text-sm leading-relaxed text-foreground/90 italic font-medium">"{aiInsight.progressSummary}"</p>
+              </section>
+            )}
+          </div>
+          
+          <div className="pt-12 text-[10px] text-center text-muted-foreground border-t border-dashed space-y-1">
+            <p className="font-bold uppercase tracking-widest">Documento Gerado Eletronicamente pelo Monitor do BEEM</p>
+            <p>ID de Autenticação: {Math.random().toString(36).substring(2, 15).toUpperCase()}</p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
