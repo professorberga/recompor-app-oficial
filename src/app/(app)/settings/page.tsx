@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -18,7 +17,9 @@ import {
   Trash2,
   Check,
   MoreHorizontal,
-  Search
+  Search,
+  Pencil,
+  Key
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -72,6 +73,7 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<SystemUser[]>(INITIAL_USERS)
   const [searchTerm, setSearchTerm] = useState("")
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<SystemUser | null>(null)
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -93,7 +95,7 @@ export default function SettingsPage() {
     }, 800)
   }
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!newUser.name || !newUser.email) {
@@ -101,31 +103,61 @@ export default function SettingsPage() {
       return
     }
 
-    const user: SystemUser = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      status: 'Ativo'
+    if (editingUser) {
+      setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...newUser } : u))
+      toast({
+        title: "Usuário Atualizado",
+        description: `Os dados de ${newUser.name} foram salvos com sucesso.`,
+      })
+    } else {
+      const user: SystemUser = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        status: 'Ativo'
+      }
+      setUsers([user, ...users])
+      toast({
+        title: "Usuário Cadastrado",
+        description: `O ${user.role} ${user.name} foi adicionado com sucesso.`,
+      })
     }
 
-    setUsers([user, ...users])
     setIsUserDialogOpen(false)
+    setEditingUser(null)
     setNewUser({ name: "", email: "", role: "Professor" })
-    
-    toast({
-      title: "Usuário Cadastrado",
-      description: `O ${user.role} ${user.name} foi adicionado com sucesso.`,
+  }
+
+  const openEditUserDialog = (user: SystemUser) => {
+    setEditingUser(user)
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      role: user.role
     })
+    setIsUserDialogOpen(true)
   }
 
   const deleteUser = (id: string) => {
-    if (users.find(u => u.id === id)?.role === 'Admin') {
-      toast({ title: "Ação Negada", description: "Não é possível remover um administrador.", variant: "destructive" })
+    const userToDelete = users.find(u => u.id === id)
+    if (userToDelete?.email === 'marciobergamini@prof.educacao.sp.gov.br') {
+      toast({ 
+        title: "Ação Negada", 
+        description: "Não é possível remover o administrador principal do sistema.", 
+        variant: "destructive" 
+      })
       return
     }
     setUsers(users.filter(u => u.id !== id))
     toast({ title: "Usuário Removido" })
+  }
+
+  const handleResetPassword = (name: string) => {
+    toast({
+      title: "Senha Resetada",
+      description: `Um e-mail de redefinição foi enviado para ${name}.`,
+    })
   }
 
   const filteredUsers = users.filter(u => 
@@ -240,7 +272,13 @@ export default function SettingsPage() {
                 <CardTitle>Gestão de Usuários</CardTitle>
                 <CardDescription>Adicione ou remova permissões de acesso ao sistema.</CardDescription>
               </div>
-              <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+              <Dialog open={isUserDialogOpen} onOpenChange={(open) => {
+                setIsUserDialogOpen(open)
+                if (!open) {
+                  setEditingUser(null)
+                  setNewUser({ name: "", email: "", role: "Professor" })
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2 shadow-lg">
                     <UserPlus className="h-4 w-4" /> Novo Usuário
@@ -248,12 +286,12 @@ export default function SettingsPage() {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px] bg-white">
                   <DialogHeader>
-                    <DialogTitle>Cadastrar Usuário</DialogTitle>
+                    <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Usuário'}</DialogTitle>
                     <DialogDescription>
-                      Adicione um novo professor ou administrador ao Monitor do BEEM.
+                      {editingUser ? 'Atualize as informações do usuário selecionado.' : 'Adicione um novo professor ou administrador ao Recompor+.'}
                     </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleAddUser} className="space-y-4 py-4">
+                  <form onSubmit={handleUserSubmit} className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Nome Completo</Label>
                       <Input 
@@ -273,6 +311,7 @@ export default function SettingsPage() {
                         value={newUser.email}
                         onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                         required
+                        disabled={editingUser?.email === 'marciobergamini@prof.educacao.sp.gov.br'}
                       />
                     </div>
                     <div className="space-y-2">
@@ -280,6 +319,7 @@ export default function SettingsPage() {
                       <Select 
                         value={newUser.role} 
                         onValueChange={(v: any) => setNewUser({...newUser, role: v})}
+                        disabled={editingUser?.email === 'marciobergamini@prof.educacao.sp.gov.br'}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -291,7 +331,9 @@ export default function SettingsPage() {
                       </Select>
                     </div>
                     <DialogFooter className="pt-4">
-                      <Button type="submit" className="w-full">Finalizar Cadastro</Button>
+                      <Button type="submit" className="w-full">
+                        {editingUser ? 'Salvar Alterações' : 'Finalizar Cadastro'}
+                      </Button>
                     </DialogFooter>
                   </form>
                 </DialogContent>
@@ -354,8 +396,12 @@ export default function SettingsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Editar Dados</DropdownMenuItem>
-                              <DropdownMenuItem>Resetar Senha</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditUserDialog(user)}>
+                                <Pencil className="h-4 w-4 mr-2" /> Editar Dados
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleResetPassword(user.name)}>
+                                <Key className="h-4 w-4 mr-2" /> Resetar Senha
+                              </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive"
                                 onClick={() => deleteUser(user.id)}
