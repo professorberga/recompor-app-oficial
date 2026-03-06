@@ -1,19 +1,20 @@
 
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   BrainCircuit, 
-  FileDown, 
   Sparkles, 
   Plus, 
   ClipboardList, 
-  GraduationCap, 
-  Search,
   ChevronRight,
   Save,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Trash2,
+  PlusCircle,
+  LayoutList,
+  Target
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
 import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
@@ -46,6 +48,18 @@ const MOCK_STUDENTS = [
   { id: '5', name: 'Eduardo Pereira Costa', ra: '567890' },
 ]
 
+interface RubricLevel {
+  id: string;
+  label: string;
+  points: number;
+}
+
+interface RubricCriterion {
+  id: string;
+  title: string;
+  levels: RubricLevel[];
+}
+
 interface AssessmentRecord {
   id: string;
   title: string;
@@ -53,8 +67,9 @@ interface AssessmentRecord {
   classId: string;
   bloomLevel: string;
   date: string;
-  rubric?: string;
-  grades: Record<string, number>; // studentId -> score
+  rubric: RubricCriterion[];
+  grades: Record<string, number>; // studentId -> total score
+  studentCriterionGrades: Record<string, Record<string, string>>; // studentId -> criterionId -> levelId
 }
 
 export default function AssessmentPage() {
@@ -64,7 +79,7 @@ export default function AssessmentPage() {
   // IA Generator State
   const [subjectIA, setSubjectIA] = useState<"Portuguese" | "Math">("Portuguese")
   const [competencyIA, setCompetencyIA] = useState("")
-  const [bloomLevelIA, setBloomLevelIA] = useState<any>("Remember")
+  const [bloomLevelIA, setBloomLevelIA] = useState<string>("Remember")
   const [isLoadingIA, setIsLoadingIA] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<string[]>([])
   
@@ -77,27 +92,43 @@ export default function AssessmentPage() {
       classId: '1',
       bloomLevel: 'Analyze',
       date: '2024-10-25',
-      rubric: 'Avaliar a capacidade de identificar metáforas e ironias no texto literário.',
-      grades: { '1': 8.5, '2': 7.0, '3': 9.0 }
+      rubric: [
+        {
+          id: 'c1',
+          title: 'Identificação de Metáforas',
+          levels: [
+            { id: 'l1', label: 'Não identifica', points: 0 },
+            { id: 'l2', label: 'Identifica parcialmente', points: 5 },
+            { id: 'l3', label: 'Identifica plenamente', points: 10 },
+          ]
+        }
+      ],
+      grades: { '1': 10, '2': 5 },
+      studentCriterionGrades: {
+        '1': { 'c1': 'l3' },
+        '2': { 'c1': 'l2' }
+      }
     }
   ])
+  
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false)
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   
+  // New Assessment Form State
   const [newAssessment, setNewAssessment] = useState({
     title: "",
     subject: "Portuguese" as "Portuguese" | "Math",
     classId: "1",
     bloomLevel: "Understand",
     date: new Date().toISOString().split('T')[0],
-    rubric: ""
   })
+  const [newRubric, setNewRubric] = useState<RubricCriterion[]>([])
 
-  const [tempGrades, setTempGrades] = useState<Record<string, string>>({})
+  // Temporary grades state for the grading dialog
+  const [tempGrades, setTempGrades] = useState<Record<string, Record<string, string>>>({})
 
   const { toast } = useToast()
-  const printRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -115,7 +146,7 @@ export default function AssessmentPage() {
       const result = await generateBloomAssessmentItems({
         subject: subjectIA,
         competency: competencyIA,
-        bloomLevel: bloomLevelIA,
+        bloomLevel: bloomLevelIA as any,
         numItems: 3
       })
       setGeneratedItems(result.items)
@@ -125,6 +156,40 @@ export default function AssessmentPage() {
     } finally {
       setIsLoadingIA(false)
     }
+  }
+
+  // Rubric Builder Actions
+  const addCriterion = () => {
+    const id = Math.random().toString(36).substr(2, 9)
+    setNewRubric([...newRubric, {
+      id,
+      title: "",
+      levels: [
+        { id: Math.random().toString(36).substr(2, 9), label: "Insuficiente", points: 0 },
+        { id: Math.random().toString(36).substr(2, 9), label: "Satisfatório", points: 5 },
+        { id: Math.random().toString(36).substr(2, 9), label: "Excelente", points: 10 },
+      ]
+    }])
+  }
+
+  const removeCriterion = (id: string) => {
+    setNewRubric(newRubric.filter(c => c.id !== id))
+  }
+
+  const updateCriterionTitle = (id: string, title: string) => {
+    setNewRubric(newRubric.map(c => c.id === id ? { ...c, title } : c))
+  }
+
+  const updateLevel = (criterionId: string, levelId: string, updates: Partial<RubricLevel>) => {
+    setNewRubric(newRubric.map(c => {
+      if (c.id === criterionId) {
+        return {
+          ...c,
+          levels: c.levels.map(l => l.id === levelId ? { ...l, ...updates } : l)
+        }
+      }
+      return c
+    }))
   }
 
   // Create New Assessment
@@ -138,7 +203,9 @@ export default function AssessmentPage() {
     const assessment: AssessmentRecord = {
       id: Math.random().toString(36).substr(2, 9),
       ...newAssessment,
-      grades: {}
+      rubric: newRubric,
+      grades: {},
+      studentCriterionGrades: {}
     }
 
     setAssessments([assessment, ...assessments])
@@ -149,19 +216,15 @@ export default function AssessmentPage() {
       classId: "1",
       bloomLevel: "Understand",
       date: new Date().toISOString().split('T')[0],
-      rubric: ""
     })
-    toast({ title: "Avaliação Criada", description: "Agora você pode lançar as notas dos alunos." })
+    setNewRubric([])
+    toast({ title: "Avaliação Criada", description: "Agora você pode lançar as notas baseadas na rubrica." })
   }
 
   // Open Grades Dialog
   const openGradesDialog = (assessment: AssessmentRecord) => {
     setSelectedAssessment(assessment)
-    const initialGrades: Record<string, string> = {}
-    MOCK_STUDENTS.forEach(s => {
-      initialGrades[s.id] = assessment.grades[s.id]?.toString() || ""
-    })
-    setTempGrades(initialGrades)
+    setTempGrades(assessment.studentCriterionGrades || {})
     setIsGradesDialogOpen(true)
   }
 
@@ -169,17 +232,29 @@ export default function AssessmentPage() {
   const handleSaveGrades = () => {
     if (!selectedAssessment) return
 
-    const updatedGrades: Record<string, number> = {}
-    Object.entries(tempGrades).forEach(([id, val]) => {
-      if (val !== "") updatedGrades[id] = parseFloat(val)
+    const finalGrades: Record<string, number> = {}
+    
+    // Calculate final grade per student based on selected levels
+    Object.entries(tempGrades).forEach(([studentId, criterionSelection]) => {
+      let total = 0
+      Object.entries(criterionSelection).forEach(([criterionId, levelId]) => {
+        const criterion = selectedAssessment.rubric.find(c => c.id === criterionId)
+        const level = criterion?.levels.find(l => l.id === levelId)
+        if (level) total += level.points
+      })
+      finalGrades[studentId] = total
     })
 
     setAssessments(assessments.map(a => 
-      a.id === selectedAssessment.id ? { ...a, grades: updatedGrades } : a
+      a.id === selectedAssessment.id ? { 
+        ...a, 
+        grades: finalGrades, 
+        studentCriterionGrades: tempGrades 
+      } : a
     ))
     
     setIsGradesDialogOpen(false)
-    toast({ title: "Notas Registradas", description: "As notas foram salvas com sucesso." })
+    toast({ title: "Notas Registradas", description: "As notas foram calculadas e salvas." })
   }
 
   if (!mounted) return null
@@ -189,7 +264,7 @@ export default function AssessmentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações & Notas</h2>
-          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico e utilize a IA para criar atividades.</p>
+          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas estruturadas e IA.</p>
         </div>
         
         <div className="flex gap-2">
@@ -199,57 +274,112 @@ export default function AssessmentPage() {
                 <Plus className="h-4 w-4" /> Nova Avaliação
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] bg-white">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[700px] bg-white max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="p-6 pb-2">
                 <DialogTitle>Criar Registro de Avaliação</DialogTitle>
-                <DialogDescription>Defina os parâmetros da atividade para lançar notas posteriormente.</DialogDescription>
+                <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleCreateAssessment} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Título da Avaliação</Label>
-                  <Input 
-                    placeholder="Ex: Simulado de Frações" 
-                    value={newAssessment.title}
-                    onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Disciplina</Label>
-                    <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Portuguese">Português</SelectItem>
-                        <SelectItem value="Math">Matemática</SelectItem>
-                      </SelectContent>
-                    </Select>
+              <ScrollArea className="flex-1 px-6 py-4">
+                <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Título da Avaliação</Label>
+                      <Input 
+                        placeholder="Ex: Redação Argumentativa" 
+                        value={newAssessment.title}
+                        onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data da Aplicação</Label>
+                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Disciplina</Label>
+                      <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Portuguese">Português</SelectItem>
+                          <SelectItem value="Math">Matemática</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nível de Bloom</Label>
+                      <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Nível de Bloom</Label>
-                    <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                        <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
+                      </h4>
+                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
+                        <PlusCircle className="h-4 w-4" /> Adicionar Critério
+                      </Button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {newRubric.map((criterion, cIdx) => (
+                        <Card key={criterion.id} className="border bg-muted/20">
+                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+                            <Input 
+                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
+                              placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
+                              value={criterion.title}
+                              onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
+                            />
+                            <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeCriterion(criterion.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </CardHeader>
+                          <CardContent className="p-4 pt-0 space-y-3">
+                            {criterion.levels.map((level) => (
+                              <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
+                                <div className="col-span-8">
+                                  <Input 
+                                    className="h-8 text-xs" 
+                                    placeholder="Descrição do nível" 
+                                    value={level.label}
+                                    onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
+                                  />
+                                </div>
+                                <div className="col-span-4 flex items-center gap-2">
+                                  <Input 
+                                    type="number" 
+                                    className="h-8 text-xs text-center" 
+                                    placeholder="Pts"
+                                    value={level.points}
+                                    onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
+                                  />
+                                  <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      ))}
+
+                      {newRubric.length === 0 && (
+                        <div className="text-center py-8 border-2 border-dashed rounded-xl opacity-40">
+                          <p className="text-sm">Clique em "Adicionar Critério" para montar sua rubrica.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Data da Aplicação</Label>
-                  <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Rubrica / Critérios (Opcional)</Label>
-                  <Textarea 
-                    placeholder="Descreva o que será avaliado..." 
-                    value={newAssessment.rubric}
-                    onChange={(e) => setNewAssessment({...newAssessment, rubric: e.target.value})}
-                  />
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="w-full">Criar Avaliação</Button>
-                </DialogFooter>
-              </form>
+                </form>
+              </ScrollArea>
+              <DialogFooter className="p-6 bg-muted/10 border-t">
+                <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">Criar Avaliação</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -264,7 +394,7 @@ export default function AssessmentPage() {
         <TabsContent value="manager" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {assessments.map((a) => (
-              <Card key={a.id} className="border-none shadow-md bg-white hover:shadow-lg transition-all overflow-hidden">
+              <Card key={a.id} className="border-none shadow-md bg-white hover:shadow-lg transition-all overflow-hidden flex flex-col">
                 <div className={cn("h-1.5", BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.color.split(' ')[0] || "bg-primary")} />
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between mb-1">
@@ -279,10 +409,10 @@ export default function AssessmentPage() {
                     Nível: {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="pb-4">
+                <CardContent className="pb-4 flex-1">
                   <div className="bg-muted/30 p-3 rounded-lg border border-dashed border-border mb-4">
                     <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase mb-2">
-                      <span>Status de Notas</span>
+                      <span>Notas Lançadas</span>
                       <span>{Object.keys(a.grades).length}/{MOCK_STUDENTS.length}</span>
                     </div>
                     <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
@@ -292,10 +422,17 @@ export default function AssessmentPage() {
                       />
                     </div>
                   </div>
-                  {a.rubric && (
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100 italic">
-                      <Info className="h-3 w-3 shrink-0 mt-0.5 text-blue-500" />
-                      <p className="line-clamp-2">{a.rubric}</p>
+                  
+                  {a.rubric && a.rubric.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Rubrica:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {a.rubric.map(c => (
+                          <Badge key={c.id} variant="secondary" className="text-[9px] h-5 bg-blue-50 text-blue-700 border-blue-100">
+                            {c.title}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -369,7 +506,7 @@ export default function AssessmentPage() {
               </CardHeader>
               <CardContent>
                 {generatedItems.length > 0 ? (
-                  <div className="space-y-4" ref={printRef}>
+                  <div className="space-y-4">
                     {generatedItems.map((item, idx) => (
                       <div key={idx} className="p-4 rounded-xl bg-muted/20 border group">
                         <div className="flex gap-4">
@@ -393,12 +530,12 @@ export default function AssessmentPage() {
 
       {/* Grades Dialog */}
       <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>
-        <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl bg-white p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between pr-8">
               <div>
                 <DialogTitle className="text-2xl font-black">{selectedAssessment?.title}</DialogTitle>
-                <p className="text-sm text-primary-foreground/80 mt-1">Lançamento de Notas • Turma: {selectedAssessment?.classId}</p>
+                <p className="text-sm text-primary-foreground/80 mt-1">Lançamento por Rubrica • Turma: {selectedAssessment?.classId}</p>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-bold uppercase block opacity-60">Nível Bloom</span>
@@ -408,46 +545,76 @@ export default function AssessmentPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className="p-6">
-            <ScrollArea className="h-[400px] pr-4">
-              <table className="w-full">
-                <thead className="text-[10px] font-bold uppercase text-muted-foreground border-b h-10">
-                  <tr>
-                    <th className="text-left">Estudante</th>
-                    <th className="text-right w-32">Nota (0-10)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {MOCK_STUDENTS.map((student) => (
-                    <tr key={student.id} className="h-14 hover:bg-muted/5 transition-colors">
-                      <td className="font-medium text-sm">
+          
+          <div className="flex-1 overflow-hidden flex">
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-8">
+                {MOCK_STUDENTS.map((student) => {
+                  // Calculate student total score
+                  const selection = tempGrades[student.id] || {}
+                  let total = 0
+                  Object.entries(selection).forEach(([cId, lId]) => {
+                    const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
+                    const level = criterion?.levels.find(l => l.id === lId)
+                    if (level) total += level.points
+                  })
+
+                  return (
+                    <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex flex-col">
-                          {student.name}
+                          <span className="font-bold text-lg">{student.name}</span>
                           <span className="text-[10px] text-muted-foreground uppercase font-bold">RA: {student.ra}</span>
                         </div>
-                      </td>
-                      <td className="text-right">
-                        <Input 
-                          type="number" 
-                          step="0.5" 
-                          min="0" 
-                          max="10" 
-                          className="w-24 ml-auto text-center font-bold text-lg"
-                          placeholder="-"
-                          value={tempGrades[student.id] || ""}
-                          onChange={(e) => setTempGrades({...tempGrades, [student.id]: e.target.value})}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-primary">{total.toFixed(1)}</span>
+                          <span className="text-[10px] text-muted-foreground block font-bold uppercase">Nota Final</span>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4">
+                        {selectedAssessment?.rubric.map((criterion) => (
+                          <div key={criterion.id} className="space-y-2">
+                            <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+                              <Target className="h-3 w-3" /> {criterion.title}
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {criterion.levels.map((level) => {
+                                const isSelected = selection[criterion.id] === level.id
+                                return (
+                                  <Button
+                                    key={level.id}
+                                    type="button"
+                                    variant={isSelected ? "default" : "outline"}
+                                    size="sm"
+                                    className={cn(
+                                      "h-8 text-[10px] font-medium transition-all",
+                                      isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
+                                    )}
+                                    onClick={() => {
+                                      const newSelection = { ...selection, [criterion.id]: level.id }
+                                      setTempGrades({ ...tempGrades, [student.id]: newSelection })
+                                    }}
+                                  >
+                                    {level.label} ({level.points} pts)
+                                  </Button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </ScrollArea>
           </div>
+
           <DialogFooter className="p-6 bg-muted/10 border-t">
             <Button variant="outline" onClick={() => setIsGradesDialogOpen(false)}>Cancelar</Button>
-            <Button className="px-8 shadow-lg" onClick={handleSaveGrades}>
-              <Save className="h-4 w-4 mr-2" /> Salvar Notas
+            <Button className="px-8 shadow-lg font-bold" onClick={handleSaveGrades}>
+              <Save className="h-4 w-4 mr-2" /> Finalizar e Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
