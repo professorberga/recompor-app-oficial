@@ -14,7 +14,8 @@ import {
   Trash2,
   PlusCircle,
   LayoutList,
-  Target
+  Target,
+  Users
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,12 @@ const BLOOM_LEVELS = [
   { value: 'Analyze', label: 'Analisar', color: 'bg-indigo-100 text-indigo-700' },
   { value: 'Evaluate', label: 'Avaliar', color: 'bg-violet-100 text-violet-700' },
   { value: 'Create', label: 'Criar', color: 'bg-pink-100 text-pink-700' },
+]
+
+const MOCK_CLASSES = [
+  { id: '1', name: '9º Ano A' },
+  { id: '2', name: '9º Ano B' },
+  { id: '3', name: '8º Ano A' },
 ]
 
 const MOCK_STUDENTS = [
@@ -305,6 +312,20 @@ export default function AssessmentPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
+                      <Label>Turma</Label>
+                      <Select value={newAssessment.classId} onValueChange={(v) => setNewAssessment({...newAssessment, classId: v})}>
+                        <SelectTrigger>
+                          <div className="flex items-center gap-2">
+                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                            <SelectValue placeholder="Selecione a turma" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MOCK_CLASSES.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Nível de Bloom</Label>
                       <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -407,6 +428,10 @@ export default function AssessmentPage() {
                   <CardDescription className="flex items-center gap-1.5">
                     <BrainCircuit className="h-3.5 w-3.5" /> 
                     Nível: {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
+                  </CardDescription>
+                  <CardDescription className="flex items-center gap-1.5 mt-0.5">
+                    <Users className="h-3 w-3" />
+                    Turma: {MOCK_CLASSES.find(c => c.id === a.classId)?.name || 'N/A'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pb-4 flex-1">
@@ -535,7 +560,9 @@ export default function AssessmentPage() {
             <div className="flex items-center justify-between pr-8">
               <div>
                 <DialogTitle className="text-2xl font-black">{selectedAssessment?.title}</DialogTitle>
-                <p className="text-sm text-primary-foreground/80 mt-1">Lançamento por Rubrica • Turma: {selectedAssessment?.classId}</p>
+                <p className="text-sm text-primary-foreground/80 mt-1">
+                  Lançamento por Rubrica • Turma: {MOCK_CLASSES.find(c => c.id === selectedAssessment?.classId)?.name || 'N/A'}
+                </p>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-bold uppercase block opacity-60">Nível Bloom</span>
