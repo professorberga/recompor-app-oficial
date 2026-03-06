@@ -1,30 +1,157 @@
+
 "use client"
 
-import { useState } from "react"
-import { Search, UserPlus, Filter, MoreHorizontal, GraduationCap, Eye, BrainCircuit, FileText, Sparkles } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Search, UserPlus, Filter, MoreHorizontal, GraduationCap, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { personalizedLearningSuggestions, PersonalizedLearningSuggestionsOutput } from "@/ai/flows/personalized-learning-suggestions"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-const MOCK_STUDENTS = [
-  { id: '1', name: 'Ana Beatriz Silva', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Apply' },
-  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', subject: 'Português', trend: 'stable', bloomLevel: 'Understand' },
-  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Analyze' },
-  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', subject: 'Português', trend: 'down', bloomLevel: 'Remember' },
-  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', subject: 'Português', trend: 'up', bloomLevel: 'Create' },
+const BLOOM_LEVELS = [
+  { value: 'Remember', label: 'Lembrar' },
+  { value: 'Understand', label: 'Entender' },
+  { value: 'Apply', label: 'Aplicar' },
+  { value: 'Analyze', label: 'Analisar' },
+  { value: 'Evaluate', label: 'Avaliar' },
+  { value: 'Create', label: 'Criar' },
+]
+
+const MOCK_INITIAL_STUDENTS = [
+  { id: '1', name: 'Ana Beatriz Silva', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Apply', callNumber: '01', ra: '123456', raDigit: '7', tutor: 'Prof. Ricardo' },
+  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', subject: 'Português', trend: 'stable', bloomLevel: 'Understand', callNumber: '05', ra: '234567', raDigit: '8', tutor: 'Prof. Ricardo' },
+  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Analyze', callNumber: '08', ra: '345678', raDigit: '9', tutor: 'Prof. Ricardo' },
+  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', subject: 'Português', trend: 'down', bloomLevel: 'Remember', callNumber: '12', ra: '456789', raDigit: '0', tutor: 'Profa. Marina' },
+  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', subject: 'Português', trend: 'up', bloomLevel: 'Create', callNumber: '15', ra: '567890', raDigit: '1', tutor: 'Profa. Marina' },
 ]
 
 export default function StudentsPage() {
+  const [students, setStudents] = useState(MOCK_INITIAL_STUDENTS)
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const { toast } = useToast()
+
+  // Camera state
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Form state
+  const [formData, setFormData] = useState({
+    callNumber: "",
+    name: "",
+    ra: "",
+    raDigit: "",
+    class: "",
+    tutor: "",
+    bloomLevel: "Remember"
+  })
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      setHasCameraPermission(true)
+      setIsCameraActive(true)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      setHasCameraPermission(false)
+      toast({
+        variant: 'destructive',
+        title: 'Acesso à Câmera Negado',
+        description: 'Por favor, habilite as permissões de câmera no seu navegador.',
+      })
+    }
+  }
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream
+      const tracks = stream.getTracks()
+      tracks.forEach(track => track.stop())
+      videoRef.current.srcObject = null
+    }
+    setIsCameraActive(false)
+  }
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      const context = canvas.getContext('2d')
+      
+      if (context) {
+        // Para foto 3:4 (Portrait)
+        // Se o video for 16:9 ou 4:3, precisamos cropar o centro
+        const videoWidth = video.videoWidth
+        const videoHeight = video.videoHeight
+        
+        // Desejado: 3:4 -> largura = altura * 0.75
+        const targetHeight = videoHeight
+        const targetWidth = targetHeight * 0.75
+        const startX = (videoWidth - targetWidth) / 2
+
+        canvas.width = targetWidth
+        canvas.height = targetHeight
+        
+        context.drawImage(video, startX, 0, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight)
+        const dataUrl = canvas.toDataURL('image/jpeg')
+        setCapturedPhoto(dataUrl)
+        stopCamera()
+      }
+    }
+  }
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.name || !formData.ra || !formData.class) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha pelo menos o nome, RA e turma.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const newStudent = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...formData,
+      subject: 'Geral',
+      trend: 'stable',
+      photo: capturedPhoto
+    }
+
+    setStudents([newStudent as any, ...students])
+    setIsRegisterOpen(false)
+    setFormData({
+      callNumber: "",
+      name: "",
+      ra: "",
+      raDigit: "",
+      class: "",
+      tutor: "",
+      bloomLevel: "Remember"
+    })
+    setCapturedPhoto(null)
+    toast({
+      title: "Sucesso!",
+      description: `${formData.name} foi cadastrado com sucesso.`,
+    })
+  }
 
   const generateAiInsight = async (student: any) => {
     setIsAiLoading(true)
@@ -56,9 +183,146 @@ export default function StudentsPage() {
           <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
           <p className="text-muted-foreground mt-1">Acompanhe perfis individuais e histórico de aprendizagem.</p>
         </div>
-        <Button className="gap-2 shadow-lg">
-          <UserPlus className="h-4 w-4" /> Cadastrar Aluno
-        </Button>
+        
+        <Dialog open={isRegisterOpen} onOpenChange={(open) => {
+          setIsRegisterOpen(open)
+          if (!open) {
+            stopCamera()
+            setCapturedPhoto(null)
+          }
+        }}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg">
+              <UserPlus className="h-4 w-4" /> Cadastrar Aluno
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
+              <DialogTitle className="text-2xl">Novo Cadastro de Aluno</DialogTitle>
+              <DialogDescription className="text-primary-foreground/80">
+                Preencha as informações básicas para registrar o estudante no sistema.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleRegisterSubmit} className="flex-1 overflow-hidden flex flex-col">
+              <ScrollArea className="flex-1 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                  {/* Foto 3:4 Area */}
+                  <div className="md:col-span-4 flex flex-col items-center gap-4">
+                    <Label className="text-center w-full">Foto do Aluno (3:4)</Label>
+                    <div className="relative w-full aspect-[3/4] rounded-lg bg-muted border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center overflow-hidden shadow-inner group">
+                      {capturedPhoto ? (
+                        <>
+                          <img src={capturedPhoto} alt="Preview" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <Button type="button" size="sm" variant="secondary" onClick={() => {
+                              setCapturedPhoto(null)
+                              startCamera()
+                            }}>
+                              <RotateCcw className="h-4 w-4 mr-2" /> Refazer
+                            </Button>
+                          </div>
+                        </>
+                      ) : isCameraActive ? (
+                        <>
+                          <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                          <Button 
+                            type="button" 
+                            className="absolute bottom-4 rounded-full w-12 h-12 p-0 shadow-xl border-4 border-white"
+                            onClick={capturePhoto}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-red-600 animate-pulse" />
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 p-4 text-center">
+                          <Camera className="h-10 w-10 text-muted-foreground mb-2" />
+                          <p className="text-xs text-muted-foreground px-4">Posicione o aluno para o registro oficial</p>
+                          <Button type="button" variant="outline" size="sm" onClick={startCamera}>
+                            Ativar Câmera
+                          </Button>
+                        </div>
+                      )}
+                      {/* Hidden canvas for processing */}
+                      <canvas ref={canvasRef} className="hidden" />
+                    </div>
+                    {hasCameraPermission === false && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertTitle className="text-[10px] font-bold">Erro de Câmera</AlertTitle>
+                        <AlertDescription className="text-[10px]">Permissão de câmera não concedida.</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  {/* Informações Form */}
+                  <div className="md:col-span-8 space-y-4">
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-3 space-y-2">
+                        <Label htmlFor="callNumber">Nº Chamada</Label>
+                        <Input id="callNumber" placeholder="00" value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} />
+                      </div>
+                      <div className="col-span-9 space-y-2">
+                        <Label htmlFor="name">Nome Completo</Label>
+                        <Input id="name" placeholder="Nome do aluno" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="ra">Registro do Aluno (RA)</Label>
+                        <div className="flex gap-2">
+                          <Input id="ra" placeholder="000.000.000" value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} />
+                          <Input id="raDigit" className="w-16 text-center" placeholder="X" maxLength={1} value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="class">Turma</Label>
+                        <Select value={formData.class} onValueChange={(v) => setFormData({...formData, class: v})}>
+                          <SelectTrigger id="class">
+                            <SelectValue placeholder="Selecione a turma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="9º Ano A">9º Ano A</SelectItem>
+                            <SelectItem value="9º Ano B">9º Ano B</SelectItem>
+                            <SelectItem value="8º Ano A">8º Ano A</SelectItem>
+                            <SelectItem value="8º Ano B">8º Ano B</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="tutor">Professor Tutor</Label>
+                        <Input id="tutor" placeholder="Nome do tutor" value={formData.tutor} onChange={(e) => setFormData({...formData, tutor: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bloom">Nível Inicial Bloom</Label>
+                        <Select value={formData.bloomLevel} onValueChange={(v) => setFormData({...formData, bloomLevel: v})}>
+                          <SelectTrigger id="bloom">
+                            <SelectValue placeholder="Nível de Bloom" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BLOOM_LEVELS.map(level => (
+                              <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+              
+              <DialogFooter className="p-6 bg-muted/20 border-t shrink-0">
+                <Button type="button" variant="ghost" onClick={() => setIsRegisterOpen(false)}>Cancelar</Button>
+                <Button type="submit" className="gap-2 bg-primary">
+                  <Check className="h-4 w-4" /> Concluir Cadastro
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-border/50">
@@ -70,16 +334,23 @@ export default function StudentsPage() {
       </div>
 
       <div className="grid gap-4">
-        {MOCK_STUDENTS.map((student) => (
+        {students.map((student) => (
           <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden group">
             <CardContent className="p-0 flex items-center h-20">
               <div className="w-1.5 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="px-6 flex-1 grid grid-cols-4 items-center">
                 <div className="flex items-center gap-3 col-span-1">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary">
-                    {student.name.charAt(0)}
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary overflow-hidden border border-border">
+                    {student.photo ? (
+                      <img src={student.photo} alt={student.name} className="w-full h-full object-cover" />
+                    ) : (
+                      student.name.charAt(0)
+                    )}
                   </div>
-                  <span className="font-semibold text-sm truncate">{student.name}</span>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-sm truncate">{student.name}</span>
+                    <span className="text-[10px] text-muted-foreground">Chamada: {student.callNumber}</span>
+                  </div>
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Turma</span>
@@ -102,13 +373,17 @@ export default function StudentsPage() {
                     <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
                       <DialogHeader className="p-6 bg-primary text-primary-foreground">
                         <DialogTitle className="text-2xl flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
-                            {selectedStudent?.name.charAt(0)}
+                          <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md overflow-hidden">
+                            {student.photo ? (
+                              <img src={student.photo} alt={student.name} className="w-full h-full object-cover" />
+                            ) : (
+                              selectedStudent?.name.charAt(0)
+                            )}
                           </div>
                           {selectedStudent?.name}
                         </DialogTitle>
                         <DialogDescription className="text-primary-foreground/80">
-                          {selectedStudent?.class} • {selectedStudent?.subject}
+                          RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}
                         </DialogDescription>
                       </DialogHeader>
                       <ScrollArea className="flex-1 p-6">
@@ -123,8 +398,8 @@ export default function StudentsPage() {
                               <p className="text-2xl font-bold text-primary mt-1">{selectedStudent?.bloomLevel}</p>
                             </Card>
                             <Card className="p-4 bg-muted/10 border-border/50">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Participação</span>
-                              <p className="text-2xl font-bold text-primary mt-1">Alta</p>
+                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Tutor</span>
+                              <p className="text-sm font-bold text-primary mt-1 truncate">{selectedStudent?.tutor || 'Não definido'}</p>
                             </Card>
                           </div>
 
@@ -201,7 +476,12 @@ export default function StudentsPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem>Editar Aluno</DropdownMenuItem>
                       <DropdownMenuItem>Lançar Ocorrência</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Remover da Turma</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => {
+                        setStudents(students.filter(s => s.id !== student.id))
+                        toast({ title: "Removido", description: "Aluno removido da turma." })
+                      }}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Remover
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
