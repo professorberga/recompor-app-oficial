@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect, Suspense, useMemo } from "react"
@@ -699,7 +698,7 @@ function StudentsContent() {
           <div className="border-b-8 border-primary pb-8 flex justify-between items-end">
             <div className="space-y-2">
               <h1 className="text-5xl font-black uppercase tracking-tighter text-primary">Histórico Escolar</h1>
-              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Monitor do BEEM • Relatório Consolidado</p>
+              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Recompor+ • Relatório Consolidado</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-8 bg-muted/10 p-6 rounded-2xl border border-border/50">

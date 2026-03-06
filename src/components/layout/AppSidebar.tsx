@@ -1,4 +1,3 @@
-
 "use client"
 
 import {
@@ -80,6 +79,9 @@ export function AppSidebar() {
   // Simulando usuário admin logado (Marcio Bergamini)
   const isAdmin = true;
 
+  // No protótipo, o nome da escola é fixo para exibição baseada no padrão de configurações
+  const schoolName = "E.E. Professor Milton Santos";
+
   const handleLinkClick = (title: string) => {
     if (isMobile) {
       setOpenMobile(false)
@@ -90,12 +92,17 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xl shadow-lg">
-            B
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xl shadow-lg">
+            R
           </div>
-          <span className="font-headline font-bold text-lg text-primary tracking-tight group-data-[collapsible=icon]:hidden">
-            Monitor do BEEM
-          </span>
+          <div className="flex flex-col group-data-[collapsible=icon]:hidden overflow-hidden">
+            <span className="font-headline font-black text-xl text-primary tracking-tighter leading-none">
+              Recompor+
+            </span>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase truncate mt-0.5">
+              {schoolName}
+            </span>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

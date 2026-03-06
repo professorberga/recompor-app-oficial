@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -181,7 +180,7 @@ export default function AssessmentPage() {
             {generatedItems.length > 0 ? (
               <div className="space-y-4" ref={printRef}>
                 <div className="hidden print:block mb-8 border-b-2 border-primary pb-4">
-                  <h1 className="text-2xl font-bold text-primary">Monitor do BEEM - Roteiro de Atividades</h1>
+                  <h1 className="text-2xl font-bold text-primary">Recompor+ - Roteiro de Atividades</h1>
                   <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
                     <p><strong>Disciplina:</strong> {subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática'}</p>
                     <p><strong>Competência:</strong> {competency}</p>
@@ -212,7 +211,7 @@ export default function AssessmentPage() {
           </CardContent>
           {generatedItems.length > 0 && (
             <CardFooter className="border-t p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <span className="text-xs text-muted-foreground italic">Powered by Bloom Intelligence Flow</span>
+              <span className="text-xs text-muted-foreground italic">Powered by Recompor+ AI Intelligence</span>
               <div className="flex gap-2 w-full sm:w-auto">
                 <Button 
                   variant="outline" 

@@ -3,7 +3,7 @@ import './globals.css';
 import { NavigationGuard } from '@/components/layout/NavigationGuard';
 
 export const metadata: Metadata = {
-  title: 'Monitor do BEEM',
+  title: 'Recompor+',
   description: 'Diário de classe moderno para professores de Português e Matemática',
 };
 
