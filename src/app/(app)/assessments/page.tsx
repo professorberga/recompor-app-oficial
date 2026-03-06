@@ -1,22 +1,19 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { 
   BrainCircuit, 
   Sparkles, 
   Plus, 
   ClipboardList, 
-  ChevronRight,
-  Save,
-  Info,
-  CheckCircle2,
-  Trash2,
-  PlusCircle,
-  LayoutList,
-  Target,
-  Users,
+  Save, 
+  Trash2, 
+  PlusCircle, 
+  LayoutList, 
+  Target, 
   ChevronDown,
-  Check
+  CheckCircle2,
+  Info
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,7 +21,6 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -78,8 +74,8 @@ interface AssessmentRecord {
   bloomLevel: string;
   date: string;
   rubric: RubricCriterion[];
-  grades: Record<string, number>; // studentId -> total score
-  studentCriterionGrades: Record<string, Record<string, string>>; // studentId -> criterionId -> levelId
+  grades: Record<string, number>;
+  studentCriterionGrades: Record<string, Record<string, string>>;
 }
 
 export default function AssessmentPage() {
@@ -134,8 +130,6 @@ export default function AssessmentPage() {
     date: new Date().toISOString().split('T')[0],
   })
   const [newRubric, setNewRubric] = useState<RubricCriterion[]>([])
-
-  // Temporary grades state for the grading dialog
   const [tempGrades, setTempGrades] = useState<Record<string, Record<string, string>>>({})
 
   const { toast } = useToast()
@@ -144,7 +138,6 @@ export default function AssessmentPage() {
     setMounted(true)
   }, [])
 
-  // IA Generation Handler
   const handleGenerateAI = async () => {
     if (!competencyIA) {
       toast({ title: "Campo obrigatório", description: "Por favor, descreva a competência para gerar os itens.", variant: "destructive" })
@@ -168,7 +161,6 @@ export default function AssessmentPage() {
     }
   }
 
-  // Rubric Builder Actions
   const addCriterion = () => {
     const id = Math.random().toString(36).substr(2, 9)
     setNewRubric([...newRubric, {
@@ -202,7 +194,6 @@ export default function AssessmentPage() {
     }))
   }
 
-  // Create New Assessment
   const handleCreateAssessment = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newAssessment.title) {
@@ -232,23 +223,19 @@ export default function AssessmentPage() {
       date: new Date().toISOString().split('T')[0],
     })
     setNewRubric([])
-    toast({ title: "Avaliação Criada", description: "A avaliação foi registrada para as turmas selecionadas." })
+    toast({ title: "Avaliação Criada", description: "A avaliação foi registrada com sucesso." })
   }
 
-  // Open Grades Dialog
   const openGradesDialog = (assessment: AssessmentRecord) => {
     setSelectedAssessment(assessment)
     setTempGrades(assessment.studentCriterionGrades || {})
     setIsGradesDialogOpen(true)
   }
 
-  // Save Grades
   const handleSaveGrades = () => {
     if (!selectedAssessment) return
 
     const finalGrades: Record<string, number> = {}
-    
-    // Calculate final grade per student based on selected levels
     Object.entries(tempGrades).forEach(([studentId, criterionSelection]) => {
       let total = 0
       Object.entries(criterionSelection).forEach(([criterionId, levelId]) => {
@@ -281,177 +268,184 @@ export default function AssessmentPage() {
           <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas estruturadas e IA.</p>
         </div>
         
-        <div className="flex gap-2">
-          <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 shadow-lg">
-                <Plus className="h-4 w-4" /> Nova Avaliação
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px] w-[95vw] bg-white h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl">
-              <DialogHeader className="p-6 pb-2 shrink-0 border-b">
-                <DialogTitle>Criar Registro de Avaliação</DialogTitle>
-                <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
-              </DialogHeader>
-              
-              <ScrollArea className="flex-1 w-full">
-                <div className="p-6">
-                  <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Título da Avaliação</Label>
-                        <Input 
-                          placeholder="Ex: Redação Argumentativa" 
-                          value={newAssessment.title}
-                          onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Data da Aplicação</Label>
-                        <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Disciplina</Label>
-                        <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Portuguese">Português</SelectItem>
-                            <SelectItem value="Math">Matemática</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Turmas Vinculadas</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-between h-10 font-normal">
-                              <span className="truncate">
-                                {newAssessment.classIds.length === 0 
-                                  ? "Selecionar turmas" 
-                                  : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
-                              </span>
-                              <ChevronDown className="h-4 w-4 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[300px] p-2 bg-white" align="start">
-                            <div className="space-y-1">
-                              {MOCK_CLASSES.map((cls) => (
-                                <div key={cls.id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors">
-                                  <Checkbox 
-                                    id={`class-${cls.id}`} 
-                                    checked={newAssessment.classIds.includes(cls.id)}
-                                    onCheckedChange={(checked) => {
-                                      const ids = checked 
-                                        ? [...newAssessment.classIds, cls.id]
-                                        : newAssessment.classIds.filter(id => id !== cls.id);
-                                      setNewAssessment({...newAssessment, classIds: ids});
-                                    }}
-                                  />
-                                  <label 
-                                    htmlFor={`class-${cls.id}`}
-                                    className="text-sm font-medium leading-none cursor-pointer flex-1"
-                                  >
-                                    {cls.name}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Nível de Bloom</Label>
-                        <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
+        <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg">
+              <Plus className="h-4 w-4" /> Nova Avaliação
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-[750px] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl">
+            <DialogHeader className="p-6 pb-2 border-b shrink-0">
+              <DialogTitle>Criar Registro de Avaliação</DialogTitle>
+              <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
+            </DialogHeader>
+            
+            <ScrollArea className="flex-1 w-full">
+              <div className="p-6">
+                <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Título da Avaliação</Label>
+                      <Input 
+                        placeholder="Ex: Redação Argumentativa" 
+                        value={newAssessment.title}
+                        onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
+                      />
                     </div>
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-                          <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
-                        </h4>
-                        <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
-                          <PlusCircle className="h-4 w-4" /> Adicionar Critério
-                        </Button>
-                      </div>
-
-                      <div className="space-y-6">
-                        {newRubric.map((criterion, cIdx) => (
-                          <Card key={criterion.id} className="border bg-muted/20">
-                            <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-                              <Input 
-                                className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
-                                placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
-                                value={criterion.title}
-                                onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
-                              />
-                              <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeCriterion(criterion.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </CardHeader>
-                            <CardContent className="p-4 pt-0 space-y-3">
-                              {criterion.levels.map((level) => (
-                                <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
-                                  <div className="col-span-8">
-                                    <Input 
-                                      className="h-8 text-xs" 
-                                      placeholder="Descrição do nível" 
-                                      value={level.label}
-                                      onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
-                                    />
-                                  </div>
-                                  <div className="col-span-4 flex items-center gap-2">
-                                    <Input 
-                                      type="number" 
-                                      className="h-8 text-xs text-center" 
-                                      placeholder="Pts"
-                                      value={level.points}
-                                      onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
-                                    />
-                                    <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </CardContent>
-                          </Card>
-                        ))}
-
-                        {newRubric.length === 0 && (
-                          <div className="text-center py-8 border-2 border-dashed rounded-xl opacity-40">
-                            <p className="text-sm">Clique em "Adicionar Critério" para montar sua rubrica.</p>
+                    <div className="space-y-2">
+                      <Label>Data da Aplicação</Label>
+                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Disciplina</Label>
+                      <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Portuguese">Português</SelectItem>
+                          <SelectItem value="Math">Matemática</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Turmas Vinculadas</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between h-10 font-normal">
+                            <span className="truncate">
+                              {newAssessment.classIds.length === 0 
+                                ? "Selecionar turmas" 
+                                : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
+                            </span>
+                            <ChevronDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-2 bg-white shadow-xl" align="start">
+                          <div className="space-y-1">
+                            {MOCK_CLASSES.map((cls) => (
+                              <div 
+                                key={cls.id} 
+                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  const isSelected = newAssessment.classIds.includes(cls.id);
+                                  const ids = isSelected 
+                                    ? newAssessment.classIds.filter(id => id !== cls.id)
+                                    : [...newAssessment.classIds, cls.id];
+                                  setNewAssessment({...newAssessment, classIds: ids});
+                                }}
+                              >
+                                <Checkbox 
+                                  id={`class-${cls.id}`} 
+                                  checked={newAssessment.classIds.includes(cls.id)}
+                                  onCheckedChange={() => {}} // Handle on parent div for better area
+                                />
+                                <label className="text-sm font-medium leading-none cursor-pointer flex-1">
+                                  {cls.name}
+                                </label>
+                              </div>
+                            ))}
                           </div>
-                        )}
-                      </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                  </form>
-                </div>
-              </ScrollArea>
+                    <div className="space-y-2">
+                      <Label>Nível de Bloom</Label>
+                      <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
-                <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">Criar Avaliação</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+                  <Separator className="my-6" />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between sticky top-0 bg-white py-2 z-10 border-b">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                        <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
+                      </h4>
+                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
+                        <PlusCircle className="h-4 w-4" /> Adicionar Critério
+                      </Button>
+                    </div>
+
+                    <div className="space-y-6 pt-2">
+                      {newRubric.map((criterion, cIdx) => (
+                        <Card key={criterion.id} className="border bg-muted/20 shadow-sm">
+                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+                            <Input 
+                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
+                              placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
+                              value={criterion.title}
+                              onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
+                            />
+                            <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10" onClick={() => removeCriterion(criterion.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </CardHeader>
+                          <CardContent className="p-4 pt-0 space-y-3">
+                            {criterion.levels.map((level) => (
+                              <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
+                                <div className="col-span-8">
+                                  <Input 
+                                    className="h-8 text-xs bg-white" 
+                                    placeholder="Descrição do nível" 
+                                    value={level.label}
+                                    onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
+                                  />
+                                </div>
+                                <div className="col-span-4 flex items-center gap-2">
+                                  <Input 
+                                    type="number" 
+                                    className="h-8 text-xs text-center bg-white" 
+                                    placeholder="Pts"
+                                    value={level.points}
+                                    onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
+                                  />
+                                  <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      ))}
+
+                      {newRubric.length === 0 && (
+                        <div className="text-center py-12 border-2 border-dashed rounded-xl opacity-40 bg-muted/10">
+                          <p className="text-sm font-medium">Clique em "Adicionar Critério" para montar sua rubrica.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </ScrollArea>
+
+            <DialogFooter className="p-6 bg-muted/5 border-t shrink-0">
+              <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">
+                Criar Avaliação
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 bg-white border shadow-sm">
-          <TabsTrigger value="manager" className="gap-2 font-bold"><ClipboardList className="h-4 w-4" /> Diário de Avaliações</TabsTrigger>
-          <TabsTrigger value="generator" className="gap-2 font-bold"><Sparkles className="h-4 w-4 text-accent" /> Gerador IA Bloom</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 h-12 bg-white border shadow-sm p-1">
+          <TabsTrigger value="manager" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+            <ClipboardList className="h-4 w-4" /> Diário de Avaliações
+          </TabsTrigger>
+          <TabsTrigger value="generator" className="gap-2 font-bold data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+            <Sparkles className="h-4 w-4" /> Gerador IA Bloom
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="manager" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {assessments.map((a) => (
-              <Card key={a.id} className="border-none shadow-md bg-white hover:shadow-lg transition-all overflow-hidden flex flex-col">
+              <Card key={a.id} className="border-none shadow-md bg-white hover:shadow-lg transition-all overflow-hidden flex flex-col group">
                 <div className={cn("h-1.5", BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.color.split(' ')[0] || "bg-primary")} />
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between mb-1">
@@ -460,7 +454,7 @@ export default function AssessmentPage() {
                     </Badge>
                     <span className="text-[10px] text-muted-foreground font-bold">{new Date(a.date).toLocaleDateString('pt-BR')}</span>
                   </div>
-                  <CardTitle className="text-lg line-clamp-1">{a.title}</CardTitle>
+                  <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">{a.title}</CardTitle>
                   <CardDescription className="flex items-center gap-1.5">
                     <BrainCircuit className="h-3.5 w-3.5" /> 
                     Nível: {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
@@ -500,8 +494,8 @@ export default function AssessmentPage() {
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="pt-0 border-t bg-muted/10">
-                  <Button variant="ghost" className="w-full h-12 gap-2 text-primary font-bold hover:bg-primary/5" onClick={() => openGradesDialog(a)}>
+                <CardFooter className="pt-0 border-t bg-muted/10 p-0">
+                  <Button variant="ghost" className="w-full h-12 gap-2 text-primary font-bold hover:bg-primary/5 rounded-none" onClick={() => openGradesDialog(a)}>
                     <CheckCircle2 className="h-4 w-4" /> Lançar Notas
                   </Button>
                 </CardFooter>
@@ -572,7 +566,7 @@ export default function AssessmentPage() {
                 {generatedItems.length > 0 ? (
                   <div className="space-y-4">
                     {generatedItems.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-xl bg-muted/20 border group">
+                      <div key={idx} className="p-4 rounded-xl bg-muted/20 border group hover:border-accent/40 transition-colors">
                         <div className="flex gap-4">
                           <span className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">{idx + 1}</span>
                           <p className="text-sm leading-relaxed">{item}</p>
@@ -615,7 +609,6 @@ export default function AssessmentPage() {
           <ScrollArea className="flex-1 w-full">
             <div className="p-6 space-y-8">
               {MOCK_STUDENTS.map((student) => {
-                // Calculate student total score
                 const selection = tempGrades[student.id] || {}
                 let total = 0
                 Object.entries(selection).forEach(([cId, lId]) => {
