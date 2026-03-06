@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Search, UserPlus, Filter, MoreHorizontal, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle, X } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -58,6 +57,21 @@ export default function StudentsPage() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Failsafe contra travamento de UI (Pointer Events)
+  useEffect(() => {
+    if (!isRegisterOpen && !isOccurrenceOpen && !isFichaOpen) {
+      console.log("[StudentsPage] Todos os diálogos fechados. Garantindo interatividade.");
+      setTimeout(() => {
+        if (typeof document !== 'undefined') {
+          document.body.style.pointerEvents = "auto";
+          document.body.style.overflow = "auto";
+          document.body.removeAttribute('data-scroll-locked');
+          document.body.removeAttribute('aria-hidden');
+        }
+      }, 100);
+    }
+  }, [isRegisterOpen, isOccurrenceOpen, isFichaOpen]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -279,11 +293,9 @@ export default function StudentsPage() {
         ))}
       </div>
 
-      {/* --- ALL DIALOGS MOVED OUTSIDE THE LOOP --- */}
-
       {/* Cadastro/Edição Dialog */}
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { setIsRegisterOpen(open); if (!open) stopCamera(); }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative">
             <DialogTitle className="text-2xl">{isEditing ? 'Editar Aluno' : 'Novo Cadastro'}</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Informações oficiais do estudante.</DialogDescription>
