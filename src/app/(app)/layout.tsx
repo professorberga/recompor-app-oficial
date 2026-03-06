@@ -1,10 +1,15 @@
 "use client"
 
+import { useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { Toaster } from "@/components/ui/toaster"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    console.log("[AppLayout] Componente montado");
+  }, []);
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">

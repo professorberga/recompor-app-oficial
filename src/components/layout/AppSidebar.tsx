@@ -64,8 +64,10 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { setOpenMobile, isMobile } = useSidebar()
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (title: string) => {
+    console.log(`[AppSidebar] Clique no menu: ${title}`);
     if (isMobile) {
+      console.log("[AppSidebar] Fechando menu mobile");
       setOpenMobile(false)
     }
   }
@@ -94,7 +96,7 @@ export function AppSidebar() {
                     isActive={pathname === item.url}
                     tooltip={item.title}
                     className="h-11 px-4 transition-all duration-200"
-                    onClick={handleLinkClick}
+                    onClick={() => handleLinkClick(item.title)}
                   >
                     <Link href={item.url} className="flex items-center gap-3">
                       <item.icon className={`h-5 w-5 ${pathname === item.url ? 'text-primary' : 'text-muted-foreground'}`} />

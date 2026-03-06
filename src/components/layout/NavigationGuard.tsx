@@ -11,22 +11,43 @@ export function NavigationGuard() {
   const pathname = usePathname()
 
   useEffect(() => {
+    console.log(`[NavigationGuard] Rota alterada para: ${pathname}`);
+    
     const cleanup = () => {
-      // Força a restauração da interatividade do corpo da página
-      document.body.style.pointerEvents = "auto"
-      document.body.style.overflow = "auto"
-      document.body.removeAttribute('data-scroll-locked')
+      console.log("[NavigationGuard] Executando limpeza de bloqueios de UI...");
       
-      // Remove overlays residuais que possam ter ficado órfãos
-      const overlays = document.querySelectorAll('[data-radix-focus-guard], .radix-overlay')
-      overlays.forEach(el => (el as HTMLElement).style.display = 'none')
+      // Restaura interatividade e rolagem forçadamente no body e html
+      const resetStyles = (el: HTMLElement) => {
+        el.style.pointerEvents = "auto";
+        el.style.overflow = "auto";
+        el.style.removeProperty("pointer-events");
+        el.style.removeProperty("overflow");
+        el.removeAttribute('data-scroll-locked');
+      };
+
+      resetStyles(document.body);
+      resetStyles(document.documentElement);
+      
+      // Remove overlays residuais e elementos de guarda de foco do Radix
+      const overlays = document.querySelectorAll('[data-radix-focus-guard], [data-radix-portal], .radix-overlay');
+      overlays.forEach(el => {
+        if (el instanceof HTMLElement) {
+          el.style.display = 'none';
+        }
+      });
     }
 
-    cleanup()
+    // Executa imediatamente
+    cleanup();
     
-    // Pequeno atraso para garantir que a nova rota terminou de montar
-    const timer = setTimeout(cleanup, 100)
-    return () => clearTimeout(timer)
+    // Executa novamente após um curto atraso para garantir que o Radix terminou sua transição
+    const timer = setTimeout(cleanup, 50);
+    const timer2 = setTimeout(cleanup, 200);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
   }, [pathname])
 
   return null
