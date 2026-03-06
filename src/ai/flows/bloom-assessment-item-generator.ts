@@ -30,20 +30,22 @@ const bloomAssessmentItemGeneratorPrompt = ai.definePrompt({
   name: 'bloomAssessmentItemGeneratorPrompt',
   input: { schema: BloomAssessmentItemGeneratorInputSchema },
   output: { schema: BloomAssessmentItemGeneratorOutputSchema },
-  prompt: `You are an AI assistant specialized in education, capable of generating assessment items for students based on Bloom's Taxonomy.
-Your task is to create {{numItems}} assessment items (questions or activities) for the subject of "{{subject}}", focusing on the competency: "{{competency}}".
-These items should align with Bloom's Taxonomy level of "{{bloomLevel}}".
+  prompt: `Você é um assistente de IA especializado em educação, capaz de gerar itens de avaliação para alunos com base na Taxonomia de Bloom.
+Sua tarefa é criar {{numItems}} itens de avaliação (questões ou atividades) para a disciplina de "{{#if (eq subject 'Portuguese')}}Língua Portuguesa{{else}}Matemática{{/if}}", focando na competência: "{{competency}}".
+Esses itens devem estar alinhados ao nível da Taxonomia de Bloom: "{{bloomLevel}}".
 
-Examples for Bloom's Taxonomy levels:
-- Remember: Recall facts and basic concepts (e.g., "List the main characters in the story.")
-- Understand: Explain ideas or concepts (e.g., "Explain why the character made that decision.")
-- Apply: Use information in new situations (e.g., "If you were the character, how would you solve this problem?")
-- Analyze: Draw connections among ideas (e.g., "Compare and contrast the motivations of the two main characters.")
-- Evaluate: Justify a stand or decision (e.g., "Do you agree with the author's message? Why or why not?")
-- Create: Produce new or original work (e.g., "Write a short story continuing the plot after the book ends.")
+IMPORTANTE: Toda a saída (questões, enunciados e atividades) deve ser escrita estritamente em Português do Brasil (pt-BR).
 
-Ensure the generated items are appropriate for the specified subject and competency.
-The output should be a JSON object with a single key 'items', which is an array of strings.`
+Exemplos para níveis da Taxonomia de Bloom:
+- Remember (Lembrar): Recordar fatos e conceitos básicos (ex: "Liste os personagens principais da história.")
+- Understand (Entender): Explicar ideias ou conceitos (ex: "Explique por que o personagem tomou essa decisão.")
+- Apply (Aplicar): Usar informações em novas situações (ex: "Se você fosse o personagem, como resolveria este problema?")
+- Analyze (Analisar): Estabelecer conexões entre ideias (ex: "Compare e contraste as motivações dos dois personagens principais.")
+- Evaluate (Avaliar): Justificar uma posição ou decisão (ex: "Você concorda com a mensagem do autor? Por quê?")
+- Create (Criar): Produzir um trabalho novo ou original (ex: "Escreva um conto continuando a trama após o fim do livro.")
+
+Certifique-se de que os itens gerados sejam apropriados para a disciplina e competência especificadas.
+A saída deve ser um objeto JSON com uma única chave 'items', que é uma matriz de strings.`
 });
 
 // Genkit Flow definition
