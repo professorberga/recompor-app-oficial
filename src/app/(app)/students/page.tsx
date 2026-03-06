@@ -1,13 +1,13 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Search, UserPlus, Filter, MoreHorizontal, GraduationCap, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2 } from "lucide-react"
+import { Search, UserPlus, Filter, MoreHorizontal, GraduationCap, Eye, BrainCircuit, FileText, Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
@@ -44,6 +44,10 @@ export default function StudentsPage() {
   const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+  const [isOccurrenceOpen, setIsOccurrenceOpen] = useState(false)
+  const [occurrenceText, setOccurrenceText] = useState("")
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const { toast } = useToast()
 
   // Camera state
@@ -119,6 +123,29 @@ export default function StudentsPage() {
     }
   }
 
+  const handleEditClick = (student: any) => {
+    setIsEditing(true)
+    setEditingId(student.id)
+    setFormData({
+      callNumber: student.callNumber,
+      name: student.name,
+      ra: student.ra,
+      raDigit: student.raDigit,
+      class: student.class,
+      tutor: student.tutor,
+      bloomLevel: student.bloomLevel,
+      status: student.status
+    })
+    setCapturedPhoto(student.photo || null)
+    setIsRegisterOpen(true)
+  }
+
+  const handleOccurrenceClick = (student: any) => {
+    setSelectedStudent(student)
+    setOccurrenceText("")
+    setIsOccurrenceOpen(true)
+  }
+
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name || !formData.ra || !formData.class) {
@@ -130,16 +157,46 @@ export default function StudentsPage() {
       return
     }
 
-    const newStudent = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...formData,
-      subject: 'Geral',
-      trend: 'stable',
-      photo: capturedPhoto
+    if (isEditing && editingId) {
+      setStudents(students.map(s => s.id === editingId ? { ...s, ...formData, photo: capturedPhoto } : s))
+      toast({
+        title: "Atualizado!",
+        description: `Os dados de ${formData.name} foram atualizados.`,
+      })
+    } else {
+      const newStudent = {
+        id: Math.random().toString(36).substr(2, 9),
+        ...formData,
+        subject: 'Geral',
+        trend: 'stable',
+        photo: capturedPhoto
+      }
+      setStudents([newStudent as any, ...students])
+      toast({
+        title: "Sucesso!",
+        description: `${formData.name} foi cadastrado com sucesso.`,
+      })
     }
 
-    setStudents([newStudent as any, ...students])
     setIsRegisterOpen(false)
+    resetForm()
+  }
+
+  const handleOccurrenceSubmit = () => {
+    if (!occurrenceText.trim()) {
+      toast({ title: "Erro", description: "O texto da ocorrência não pode estar vazio.", variant: "destructive" })
+      return
+    }
+
+    // Em uma app real, salvaríamos isso no Firestore
+    toast({
+      title: "Ocorrência Lançada",
+      description: `A ocorrência para ${selectedStudent?.name} foi registrada com sucesso no diário.`,
+    })
+    setIsOccurrenceOpen(false)
+  }
+
+  const resetForm = () => {
     setFormData({
       callNumber: "",
       name: "",
@@ -151,10 +208,9 @@ export default function StudentsPage() {
       status: "Ativo"
     })
     setCapturedPhoto(null)
-    toast({
-      title: "Sucesso!",
-      description: `${formData.name} foi cadastrado com sucesso.`,
-    })
+    setIsEditing(false)
+    setEditingId(null)
+    stopCamera()
   }
 
   const generateAiInsight = async (student: any) => {
@@ -190,10 +246,7 @@ export default function StudentsPage() {
         
         <Dialog open={isRegisterOpen} onOpenChange={(open) => {
           setIsRegisterOpen(open)
-          if (!open) {
-            stopCamera()
-            setCapturedPhoto(null)
-          }
+          if (!open) resetForm()
         }}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-lg">
@@ -202,9 +255,9 @@ export default function StudentsPage() {
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
-              <DialogTitle className="text-2xl">Novo Cadastro de Aluno</DialogTitle>
+              <DialogTitle className="text-2xl">{isEditing ? 'Editar Aluno' : 'Novo Cadastro de Aluno'}</DialogTitle>
               <DialogDescription className="text-primary-foreground/80">
-                Preencha as informações básicas para registrar o estudante no sistema.
+                {isEditing ? 'Atualize as informações do estudante no sistema.' : 'Preencha as informações básicas para registrar o estudante no sistema.'}
               </DialogDescription>
             </DialogHeader>
             
@@ -248,12 +301,6 @@ export default function StudentsPage() {
                       )}
                       <canvas ref={canvasRef} className="hidden" />
                     </div>
-                    {hasCameraPermission === false && (
-                      <Alert variant="destructive" className="mt-2">
-                        <AlertTitle className="text-[10px] font-bold">Erro de Câmera</AlertTitle>
-                        <AlertDescription className="text-[10px]">Permissão de câmera não concedida.</AlertDescription>
-                      </Alert>
-                    )}
                   </div>
 
                   <div className="md:col-span-8 space-y-4">
@@ -334,13 +381,42 @@ export default function StudentsPage() {
               <DialogFooter className="p-6 bg-muted/20 border-t shrink-0">
                 <Button type="button" variant="ghost" onClick={() => setIsRegisterOpen(false)}>Cancelar</Button>
                 <Button type="submit" className="gap-2 bg-primary">
-                  <Check className="h-4 w-4" /> Concluir Cadastro
+                  <Check className="h-4 w-4" /> {isEditing ? 'Salvar Alterações' : 'Concluir Cadastro'}
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
+
+      <Dialog open={isOccurrenceOpen} onOpenChange={setIsOccurrenceOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              Lançar Ocorrência
+            </DialogTitle>
+            <DialogDescription>
+              Registre uma ocorrência pedagógica para {selectedStudent?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Descrição da Ocorrência</Label>
+              <Textarea 
+                placeholder="Descreva o comportamento ou situação observada..." 
+                className="min-h-[150px]"
+                value={occurrenceText}
+                onChange={(e) => setOccurrenceText(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsOccurrenceOpen(false)}>Cancelar</Button>
+            <Button onClick={handleOccurrenceSubmit} className="bg-amber-600 hover:bg-amber-700">Registrar no Diário</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-border/50">
         <div className="relative flex-1">
@@ -498,8 +574,12 @@ export default function StudentsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Editar Aluno</DropdownMenuItem>
-                      <DropdownMenuItem>Lançar Ocorrência</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditClick(student)}>
+                        <Pencil className="h-4 w-4 mr-2" /> Editar Aluno
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOccurrenceClick(student)}>
+                        <AlertCircle className="h-4 w-4 mr-2" /> Lançar Ocorrência
+                      </DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive" onClick={() => {
                         setStudents(students.filter(s => s.id !== student.id))
                         toast({ title: "Removido", description: "Aluno removido da turma." })
