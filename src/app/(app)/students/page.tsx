@@ -25,12 +25,17 @@ const BLOOM_LEVELS = [
   { value: 'Create', label: 'Criar' },
 ]
 
+const STATUS_OPTIONS = [
+  { value: 'Ativo', label: 'Ativo' },
+  { value: 'Transferido', label: 'Transferido' },
+]
+
 const MOCK_INITIAL_STUDENTS = [
-  { id: '1', name: 'Ana Beatriz Silva', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Apply', callNumber: '01', ra: '123456', raDigit: '7', tutor: 'Prof. Ricardo' },
-  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', subject: 'Português', trend: 'stable', bloomLevel: 'Understand', callNumber: '05', ra: '234567', raDigit: '8', tutor: 'Prof. Ricardo' },
-  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Analyze', callNumber: '08', ra: '345678', raDigit: '9', tutor: 'Prof. Ricardo' },
-  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', subject: 'Português', trend: 'down', bloomLevel: 'Remember', callNumber: '12', ra: '456789', raDigit: '0', tutor: 'Profa. Marina' },
-  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', subject: 'Português', trend: 'up', bloomLevel: 'Create', callNumber: '15', ra: '567890', raDigit: '1', tutor: 'Profa. Marina' },
+  { id: '1', name: 'Ana Beatriz Silva', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Apply', callNumber: '01', ra: '123456', raDigit: '7', tutor: 'Prof. Ricardo', status: 'Ativo' },
+  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', subject: 'Português', trend: 'stable', bloomLevel: 'Understand', callNumber: '05', ra: '234567', raDigit: '8', tutor: 'Prof. Ricardo', status: 'Ativo' },
+  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Analyze', callNumber: '08', ra: '345678', raDigit: '9', tutor: 'Prof. Ricardo', status: 'Ativo' },
+  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', subject: 'Português', trend: 'down', bloomLevel: 'Remember', callNumber: '12', ra: '456789', raDigit: '0', tutor: 'Profa. Marina', status: 'Transferido' },
+  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', subject: 'Português', trend: 'up', bloomLevel: 'Create', callNumber: '15', ra: '567890', raDigit: '1', tutor: 'Profa. Marina', status: 'Ativo' },
 ]
 
 export default function StudentsPage() {
@@ -56,7 +61,8 @@ export default function StudentsPage() {
     raDigit: "",
     class: "",
     tutor: "",
-    bloomLevel: "Remember"
+    bloomLevel: "Remember",
+    status: "Ativo"
   })
 
   const startCamera = async () => {
@@ -95,12 +101,9 @@ export default function StudentsPage() {
       const context = canvas.getContext('2d')
       
       if (context) {
-        // Para foto 3:4 (Portrait)
-        // Se o video for 16:9 ou 4:3, precisamos cropar o centro
         const videoWidth = video.videoWidth
         const videoHeight = video.videoHeight
         
-        // Desejado: 3:4 -> largura = altura * 0.75
         const targetHeight = videoHeight
         const targetWidth = targetHeight * 0.75
         const startX = (videoWidth - targetWidth) / 2
@@ -144,7 +147,8 @@ export default function StudentsPage() {
       raDigit: "",
       class: "",
       tutor: "",
-      bloomLevel: "Remember"
+      bloomLevel: "Remember",
+      status: "Ativo"
     })
     setCapturedPhoto(null)
     toast({
@@ -207,7 +211,6 @@ export default function StudentsPage() {
             <form onSubmit={handleRegisterSubmit} className="flex-1 overflow-hidden flex flex-col">
               <ScrollArea className="flex-1 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                  {/* Foto 3:4 Area */}
                   <div className="md:col-span-4 flex flex-col items-center gap-4">
                     <Label className="text-center w-full">Foto do Aluno (3:4)</Label>
                     <div className="relative w-full aspect-[3/4] rounded-lg bg-muted border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center overflow-hidden shadow-inner group">
@@ -243,7 +246,6 @@ export default function StudentsPage() {
                           </Button>
                         </div>
                       )}
-                      {/* Hidden canvas for processing */}
                       <canvas ref={canvasRef} className="hidden" />
                     </div>
                     {hasCameraPermission === false && (
@@ -254,7 +256,6 @@ export default function StudentsPage() {
                     )}
                   </div>
 
-                  {/* Informações Form */}
                   <div className="md:col-span-8 space-y-4">
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-3 space-y-2">
@@ -297,6 +298,22 @@ export default function StudentsPage() {
                         <Input id="tutor" placeholder="Nome do tutor" value={formData.tutor} onChange={(e) => setFormData({...formData, tutor: e.target.value})} />
                       </div>
                       <div className="space-y-2">
+                        <Label htmlFor="status">Situação do Aluno</Label>
+                        <Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}>
+                          <SelectTrigger id="status">
+                            <SelectValue placeholder="Situação" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
                         <Label htmlFor="bloom">Nível Inicial Bloom</Label>
                         <Select value={formData.bloomLevel} onValueChange={(v) => setFormData({...formData, bloomLevel: v})}>
                           <SelectTrigger id="bloom">
@@ -335,19 +352,19 @@ export default function StudentsPage() {
 
       <div className="grid gap-4">
         {students.map((student) => (
-          <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden group">
+          <Card key={student.id} className={`border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden group ${student.status === 'Transferido' ? 'opacity-75 grayscale-[0.5]' : ''}`}>
             <CardContent className="p-0 flex items-center h-20">
-              <div className="w-1.5 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="px-6 flex-1 grid grid-cols-4 items-center">
+              <div className={`w-1.5 h-full ${student.status === 'Ativo' ? 'bg-primary' : 'bg-muted-foreground'} opacity-0 group-hover:opacity-100 transition-opacity`} />
+              <div className="px-6 flex-1 grid grid-cols-5 items-center">
                 <div className="flex items-center gap-3 col-span-1">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary overflow-hidden border border-border">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary overflow-hidden border border-border shrink-0">
                     {student.photo ? (
                       <img src={student.photo} alt={student.name} className="w-full h-full object-cover" />
                     ) : (
                       student.name.charAt(0)
                     )}
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className="font-semibold text-sm truncate">{student.name}</span>
                     <span className="text-[10px] text-muted-foreground">Chamada: {student.callNumber}</span>
                   </div>
@@ -357,7 +374,13 @@ export default function StudentsPage() {
                   <span className="text-sm font-medium">{student.class}</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Nível Bloom Atual</span>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Situação</span>
+                  <Badge variant={student.status === 'Ativo' ? 'secondary' : 'outline'} className={`w-fit text-[10px] h-5 ${student.status === 'Ativo' ? 'bg-green-100 text-green-700 border-green-200' : ''}`}>
+                    {student.status}
+                  </Badge>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Nível Bloom</span>
                   <Badge variant="secondary" className="w-fit text-[10px] h-5">{student.bloomLevel}</Badge>
                 </div>
                 <div className="flex items-center justify-end gap-2">
@@ -381,6 +404,7 @@ export default function StudentsPage() {
                             )}
                           </div>
                           {selectedStudent?.name}
+                          <Badge variant="outline" className="ml-2 bg-white/10 text-white border-white/20">{selectedStudent?.status}</Badge>
                         </DialogTitle>
                         <DialogDescription className="text-primary-foreground/80">
                           RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}
