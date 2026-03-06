@@ -1,15 +1,14 @@
+
 "use client"
 
-import { useState, useRef } from "react"
-import { BrainCircuit, Search, Info, Plus, Sparkles, Send, FileDown, CheckCircle2 } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { BrainCircuit, FileDown, Sparkles } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
 import { useToast } from "@/hooks/use-toast"
 
@@ -23,6 +22,7 @@ const BLOOM_LEVELS = [
 ]
 
 export default function AssessmentPage() {
+  const [mounted, setMounted] = useState(false)
   const [subject, setSubject] = useState<"Portuguese" | "Math">("Portuguese")
   const [competency, setCompetency] = useState("")
   const [bloomLevel, setBloomLevel] = useState<any>("Remember")
@@ -32,6 +32,10 @@ export default function AssessmentPage() {
   const { toast } = useToast()
   
   const printRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleGenerateAI = async () => {
     if (!competency) {
@@ -91,6 +95,15 @@ export default function AssessmentPage() {
     } finally {
       setIsExporting(false)
     }
+  }
+
+  if (!mounted) {
+    return (
+      <div className="flex flex-col gap-6 animate-pulse">
+        <div className="h-10 w-48 bg-muted rounded"></div>
+        <div className="h-4 w-96 bg-muted rounded"></div>
+      </div>
+    )
   }
 
   return (
@@ -167,7 +180,6 @@ export default function AssessmentPage() {
           <CardContent>
             {generatedItems.length > 0 ? (
               <div className="space-y-4" ref={printRef}>
-                {/* Cabeçalho oculto apenas para o PDF (será capturado pelo html2canvas) */}
                 <div className="hidden print:block mb-8 border-b-2 border-primary pb-4">
                   <h1 className="text-2xl font-bold text-primary">Monitor do BEEM - Roteiro de Atividades</h1>
                   <div className="grid grid-cols-2 gap-4 mt-4 text-sm">

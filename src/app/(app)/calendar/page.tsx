@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, BookOpen, Clock, Search, Info } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock, Search, Info } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,14 +35,14 @@ const MOCK_INITIAL_EVENTS = [
 ]
 
 export default function CalendarPage() {
+  const [mounted, setMounted] = useState(false)
   const [selectedClass, setSelectedClass] = useState("all")
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [events, setEvents] = useState(MOCK_INITIAL_EVENTS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Form State
   const [newEvent, setNewEvent] = useState({
     title: "",
     time: CLASS_SCHEDULES[0],
@@ -50,25 +51,17 @@ export default function CalendarPage() {
     content: ""
   })
 
-  // Failsafe para restaurar interatividade após fechar diálogo
   useEffect(() => {
-    if (!isDialogOpen) {
-      const timer = setTimeout(() => {
-        if (typeof document !== 'undefined') {
-          document.body.style.pointerEvents = "auto";
-          document.body.style.overflow = "auto";
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isDialogOpen]);
+    setMounted(true)
+    setCurrentDate(new Date())
+  }, [])
 
   const handlePrevDay = () => {
-    setCurrentDate(prev => addDays(prev, -1))
+    if (currentDate) setCurrentDate(prev => addDays(prev!, -1))
   }
 
   const handleNextDay = () => {
-    setCurrentDate(prev => addDays(prev, 1))
+    if (currentDate) setCurrentDate(prev => addDays(prev!, 1))
   }
 
   const handleCreateEvent = (e: React.FormEvent) => {
@@ -108,6 +101,10 @@ export default function CalendarPage() {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesClass && matchesSearch
   })
+
+  if (!mounted || !currentDate) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando calendário...</div>
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
@@ -317,11 +314,6 @@ export default function CalendarPage() {
                         <p className="text-sm text-foreground/80 leading-relaxed italic">
                           {event.content}
                         </p>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="h-8 text-xs font-bold">Ver Detalhes</Button>
-                        <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-primary">Editar Registro</Button>
                       </div>
                     </div>
                   </div>

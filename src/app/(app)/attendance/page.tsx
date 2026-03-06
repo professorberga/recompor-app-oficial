@@ -1,9 +1,10 @@
+
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -26,12 +27,18 @@ const MOCK_STUDENTS = [
 ]
 
 export default function AttendancePage() {
+  const [mounted, setMounted] = useState(false)
   const [selectedClass, setSelectedClass] = useState("1")
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [attendance, setAttendance] = useState<Record<string, 'present' | 'absent'>>(
     Object.fromEntries(MOCK_STUDENTS.map(s => [s.id, 'present']))
   )
   const { toast } = useToast()
+
+  useEffect(() => {
+    setMounted(true)
+    setCurrentDate(new Date())
+  }, [])
 
   const setStatus = (id: string, status: 'present' | 'absent') => {
     setAttendance(prev => ({
@@ -41,14 +48,15 @@ export default function AttendancePage() {
   }
 
   const handlePrevDay = () => {
-    setCurrentDate(prev => addDays(prev, -1))
+    if (currentDate) setCurrentDate(prev => addDays(prev!, -1))
   }
 
   const handleNextDay = () => {
-    setCurrentDate(prev => addDays(prev, 1))
+    if (currentDate) setCurrentDate(prev => addDays(prev!, 1))
   }
 
   const handleSave = () => {
+    if (!currentDate) return
     toast({
       title: "Chamada Registrada",
       description: `A chamada foi salva com sucesso para o dia ${format(currentDate, "dd/MM/yyyy")}.`,
@@ -60,9 +68,16 @@ export default function AttendancePage() {
   const presentCount = Object.values(attendance).filter(v => v === 'present').length
   const absentCount = Object.values(attendance).filter(v => v === 'absent').length
 
+  if (!mounted || !currentDate) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
-      {/* Filtros no Topo */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-border/50">
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           <div className="w-full md:w-72">
@@ -114,7 +129,6 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Lista de Estudantes */}
       <Card className="border-none shadow-md bg-white overflow-hidden">
         <CardContent className="p-0">
           <Table>
@@ -185,8 +199,7 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
 
-      {/* Rodapé Fixo de Resumo */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/80 backdrop-blur-md border-t border-border/50 p-4 z-40 transition-all duration-300 group-data-[collapsible=icon]:md:left-12">
+      <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/80 backdrop-blur-md border-t border-border/50 p-4 z-40 transition-all duration-300">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-12">
             <div className="flex items-center gap-3">
