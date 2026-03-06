@@ -28,10 +28,16 @@ const CLASS_SCHEDULES = [
   "15:10 às 16:00",
 ]
 
+const ACTIVITY_TYPES = [
+  { value: 'Regular', label: 'Aula Regular', color: 'bg-primary text-primary-foreground' },
+  { value: 'Tutoria', label: 'Projeto Tutoria', color: 'bg-indigo-500 text-white' },
+  { value: 'Monitoria', label: 'Monitor do BEEM', color: 'bg-emerald-500 text-white' },
+]
+
 const MOCK_INITIAL_EVENTS = [
-  { id: '1', title: 'Interpretação de Texto', time: '07:00 às 07:50', classId: '1', class: '9º Ano A', type: 'Lesson', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
-  { id: '2', title: 'Sintaxe e Gramática', time: '07:50 às 08:40', classId: '2', class: '9º Ano B', type: 'Lesson', content: 'Estudo aprofundado de orações subordinadas e concordância verbal.' },
-  { id: '3', title: 'Plantão de Dúvidas', time: '14:20 às 15:10', classId: 'all', class: 'Geral', type: 'Support', content: 'Atendimento individual para esclarecimento de dúvidas sobre o projeto de leitura.' },
+  { id: '1', title: 'Interpretação de Texto', time: '07:00 às 07:50', classId: '1', class: '9º Ano A', type: 'Regular', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
+  { id: '2', title: 'Sintaxe e Gramática', time: '07:50 às 08:40', classId: '2', class: '9º Ano B', type: 'Tutoria', content: 'Acompanhamento individualizado de sintaxe para alunos em nível de recomposição.' },
+  { id: '3', title: 'Reforço de Matemática', time: '14:20 às 15:10', classId: '3', class: '8º Ano A', type: 'Monitoria', content: 'Monitoria do BEEM para resolução de problemas envolvendo frações e porcentagem.' },
 ]
 
 export default function CalendarPage() {
@@ -47,7 +53,7 @@ export default function CalendarPage() {
     title: "",
     time: CLASS_SCHEDULES[0],
     classId: "1",
-    type: "Lesson" as "Lesson" | "Support",
+    type: "Regular",
     content: ""
   })
 
@@ -88,11 +94,11 @@ export default function CalendarPage() {
 
     setEvents([createdEvent, ...events])
     setIsDialogOpen(false)
-    setNewEvent({ title: "", time: CLASS_SCHEDULES[0], classId: "1", type: "Lesson", content: "" })
+    setNewEvent({ title: "", time: CLASS_SCHEDULES[0], classId: "1", type: "Regular", content: "" })
     
     toast({
       title: "Planejamento Criado!",
-      description: `A aula "${createdEvent.title}" foi agendada com sucesso.`,
+      description: `O registro de "${createdEvent.title}" foi agendado com sucesso.`,
     })
   }
 
@@ -111,7 +117,7 @@ export default function CalendarPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Calendário & Conteúdos</h2>
-          <p className="text-muted-foreground mt-1">Planeje suas aulas e gerencie o cronograma curricular.</p>
+          <p className="text-muted-foreground mt-1">Planeje suas aulas e gerencie o cronograma de atividades.</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -187,8 +193,11 @@ export default function CalendarPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Lesson">Aula Regular</SelectItem>
-                    <SelectItem value="Support">Apoio Pedagógico</SelectItem>
+                    {ACTIVITY_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -276,7 +285,7 @@ export default function CalendarPage() {
             <div>
               <CardTitle>Cronograma do Dia</CardTitle>
               <CardDescription>
-                {selectedClass === "all" ? "Exibindo todas as aulas para este dia" : `Exibindo cronograma da turma selecionada`}
+                {selectedClass === "all" ? "Exibindo todos os registros para este dia" : `Exibindo registros da turma selecionada`}
               </CardDescription>
             </div>
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
@@ -286,38 +295,42 @@ export default function CalendarPage() {
           <CardContent className="pt-6">
             <ScrollArea className="h-auto pr-4">
               <div className="space-y-8">
-                {filteredEvents.map((event) => (
-                  <div key={event.id} className="relative pl-8 pb-8 border-l-2 border-primary/20 last:pb-0 group">
-                    <div className="absolute left-[-9px] top-0 h-4 w-4 rounded-full bg-white border-2 border-primary group-hover:bg-primary transition-colors shadow-sm" />
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={event.type === 'Lesson' ? 'default' : 'secondary'} className="text-[10px] uppercase font-bold tracking-tighter px-2">
-                            {event.type === 'Lesson' ? 'Aula Regular' : 'Apoio'}
-                          </Badge>
-                          <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                            {event.class}
+                {filteredEvents.map((event) => {
+                  const activityType = ACTIVITY_TYPES.find(t => t.value === event.type) || ACTIVITY_TYPES[0];
+                  
+                  return (
+                    <div key={event.id} className="relative pl-8 pb-8 border-l-2 border-primary/20 last:pb-0 group">
+                      <div className="absolute left-[-9px] top-0 h-4 w-4 rounded-full bg-white border-2 border-primary group-hover:bg-primary transition-colors shadow-sm" />
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge className={`text-[10px] uppercase font-bold tracking-tighter px-2 border-none shadow-sm ${activityType.color}`}>
+                              {activityType.label}
+                            </Badge>
+                            <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                              {event.class}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                            <Clock className="h-3.5 w-3.5" /> {event.time}
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
-                          <Clock className="h-3.5 w-3.5" /> {event.time}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <h4 className="text-xl font-black group-hover:text-primary transition-colors leading-tight">
-                          {event.title}
-                        </h4>
-                      </div>
+                        
+                        <div className="space-y-1">
+                          <h4 className="text-xl font-black group-hover:text-primary transition-colors leading-tight">
+                            {event.title}
+                          </h4>
+                        </div>
 
-                      <div className="p-4 bg-muted/30 rounded-xl border border-border/40 group-hover:border-primary/20 transition-colors">
-                        <p className="text-sm text-foreground/80 leading-relaxed italic">
-                          {event.content}
-                        </p>
+                        <div className="p-4 bg-muted/30 rounded-xl border border-border/40 group-hover:border-primary/20 transition-colors">
+                          <p className="text-sm text-foreground/80 leading-relaxed italic">
+                            {event.content}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {filteredEvents.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
