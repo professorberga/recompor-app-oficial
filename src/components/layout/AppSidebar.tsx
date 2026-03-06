@@ -1,3 +1,4 @@
+
 "use client"
 
 import {
@@ -26,6 +27,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar
 } from "@/components/ui/sidebar"
 
 const items = [
@@ -63,6 +65,13 @@ const items = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { setOpenMobile, isMobile } = useSidebar()
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
@@ -88,6 +97,7 @@ export function AppSidebar() {
                     isActive={pathname === item.url}
                     tooltip={item.title}
                     className="h-11 px-4 transition-all duration-200"
+                    onClick={handleLinkClick}
                   >
                     <Link href={item.url} className="flex items-center gap-3">
                       <item.icon className={`h-5 w-5 ${pathname === item.url ? 'text-primary' : 'text-muted-foreground'}`} />
