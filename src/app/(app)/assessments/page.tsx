@@ -75,7 +75,7 @@ interface AssessmentRecord {
   id: string;
   title: string;
   subject: "Portuguese" | "Math";
-  classIds: string[]; // Alterado para array
+  classIds: string[];
   bloomLevel: string;
   date: string;
   rubric: RubricCriterion[];
@@ -289,8 +289,8 @@ export default function AssessmentPage() {
                 <Plus className="h-4 w-4" /> Nova Avaliação
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px] bg-white max-h-[90vh] flex flex-col p-0">
-              <DialogHeader className="p-6 pb-2">
+            <DialogContent className="sm:max-w-[700px] bg-white h-[90vh] sm:h-auto sm:max-h-[90vh] flex flex-col p-0 overflow-hidden">
+              <DialogHeader className="p-6 pb-2 shrink-0">
                 <DialogTitle>Criar Registro de Avaliação</DialogTitle>
                 <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
               </DialogHeader>
@@ -320,7 +320,7 @@ export default function AssessmentPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Turmas Vinculedas</Label>
+                      <Label>Turmas Vinculadas</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full justify-between h-10 font-normal">
@@ -431,7 +431,7 @@ export default function AssessmentPage() {
                   </div>
                 </form>
               </ScrollArea>
-              <DialogFooter className="p-6 bg-muted/10 border-t">
+              <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
                 <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">Criar Avaliação</Button>
               </DialogFooter>
             </DialogContent>
@@ -674,7 +674,7 @@ export default function AssessmentPage() {
             </ScrollArea>
           </div>
 
-          <DialogFooter className="p-6 bg-muted/10 border-t">
+          <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
             <Button variant="outline" onClick={() => setIsGradesDialogOpen(false)}>Cancelar</Button>
             <Button className="px-8 shadow-lg font-bold" onClick={handleSaveGrades}>
               <Save className="h-4 w-4 mr-2" /> Finalizar e Salvar
