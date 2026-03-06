@@ -1,6 +1,8 @@
+
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -49,47 +51,40 @@ export default function AttendancePage() {
   const absentCount = Object.values(attendance).filter(v => v === 'absent').length
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-20">
-      {/* Header com Filtros e Calendário */}
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
+      {/* Filtros no Topo */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-border/50">
-        <div className="space-y-4 flex-1">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-primary">Chamada Diária</h2>
-            <p className="text-sm text-muted-foreground">Registre a frequência dos estudantes.</p>
+        <div className="flex flex-col md:flex-row gap-4 flex-1">
+          <div className="w-full md:w-72">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Turma</label>
+            <Select value={selectedClass} onValueChange={setSelectedClass}>
+              <SelectTrigger className="bg-muted/30 border-none h-10">
+                <SelectValue placeholder="Selecione a turma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">9º Ano A - Português</SelectItem>
+                <SelectItem value="2">9º Ano B - Português</SelectItem>
+                <SelectItem value="3">8º Ano A - Matemática</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-64">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Turma</label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger className="bg-muted/30 border-none h-10">
-                  <SelectValue placeholder="Selecione a turma" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">9º Ano A - Português</SelectItem>
-                  <SelectItem value="2">9º Ano B - Português</SelectItem>
-                  <SelectItem value="3">8º Ano A - Matemática</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Data</label>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" className="h-10 w-10"><ChevronLeft className="h-4 w-4" /></Button>
-                <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md border-none font-medium min-w-[180px] justify-center text-sm">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <span>{new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</span>
-                </div>
-                <Button variant="outline" size="icon" className="h-10 w-10"><ChevronRight className="h-4 w-4" /></Button>
+          <div className="flex flex-col">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Data da Aula</label>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-10 w-10"><ChevronLeft className="h-4 w-4" /></Button>
+              <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md border-none font-medium min-w-[180px] justify-center text-sm">
+                <Calendar className="h-4 w-4 text-primary" />
+                <span>{new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</span>
               </div>
+              <Button variant="outline" size="icon" className="h-10 w-10"><ChevronRight className="h-4 w-4" /></Button>
             </div>
           </div>
         </div>
 
-        <div className="relative w-full md:w-72">
+        <div className="relative w-full md:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Filtrar por nome..." className="pl-10 h-10 bg-muted/10 border-border" />
+          <Input placeholder="Filtrar aluno..." className="pl-10 h-10 bg-muted/10 border-border" />
         </div>
       </div>
 
@@ -102,7 +97,7 @@ export default function AttendancePage() {
                 <TableHead className="w-[80px] text-center font-bold text-xs uppercase">Nº</TableHead>
                 <TableHead className="font-bold text-xs uppercase">Estudante</TableHead>
                 <TableHead className="text-center font-bold text-xs uppercase">Freq. Anual</TableHead>
-                <TableHead className="w-[180px] text-center font-bold text-xs uppercase">Chamada</TableHead>
+                <TableHead className="w-[200px] text-center font-bold text-xs uppercase">Chamada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,27 +106,31 @@ export default function AttendancePage() {
                   <TableCell className="text-center font-medium text-muted-foreground">{idx + 1}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-semibold text-foreground">{student.name}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase">RA: {student.ra}-{student.raDigit}</span>
+                      <Link 
+                        href={`/students?id=${student.id}`}
+                        className="font-semibold text-foreground hover:text-primary hover:underline transition-colors text-left"
+                      >
+                        {student.name}
+                      </Link>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">RA: {student.ra}-{student.raDigit}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant="outline" className={cn(
-                      "text-[10px] h-6 px-2",
-                      student.attendance < 80 ? "border-red-500 text-red-600 bg-red-50" : "border-muted-foreground/20"
+                      "text-[10px] h-6 px-2 font-bold",
+                      student.attendance < 80 ? "border-red-500 text-red-600 bg-red-50" : "border-muted-foreground/20 text-muted-foreground"
                     )}>
                       {student.attendance}%
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-center gap-6">
-                      {/* Botão P (Presente) */}
                       <button
                         onClick={() => setStatus(student.id, 'present')}
                         className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg transition-all shadow-sm border-2",
+                          "w-10 h-10 rounded-full flex items-center justify-center font-black text-lg transition-all border-2",
                           attendance[student.id] === 'present' 
-                            ? "bg-green-500 border-green-600 text-white scale-110" 
+                            ? "bg-green-500 border-green-600 text-white scale-110 shadow-lg shadow-green-200" 
                             : "bg-white border-muted/50 text-muted-foreground hover:bg-green-50"
                         )}
                         title="Presente"
@@ -139,13 +138,12 @@ export default function AttendancePage() {
                         P
                       </button>
                       
-                      {/* Botão F (Falta) */}
                       <button
                         onClick={() => setStatus(student.id, 'absent')}
                         className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg transition-all shadow-sm border-2",
+                          "w-10 h-10 rounded-full flex items-center justify-center font-black text-lg transition-all border-2",
                           attendance[student.id] === 'absent' 
-                            ? "bg-red-500 border-red-600 text-white scale-110" 
+                            ? "bg-red-500 border-red-600 text-white scale-110 shadow-lg shadow-red-200" 
                             : "bg-white border-muted/50 text-muted-foreground hover:bg-red-50"
                         )}
                         title="Falta"
@@ -161,39 +159,39 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
 
-      {/* Footer com Resumo e Botão Salvar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white rounded-xl shadow-lg border-2 border-primary/10 mt-2">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 shadow-inner">
-              <UserCheck className="h-6 w-6" />
+      {/* Rodapé Fixo de Resumo */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/80 backdrop-blur-md border-t border-border/50 p-4 z-40 transition-all duration-300 group-data-[collapsible=icon]:md:left-12">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-12">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                <UserCheck className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-green-700 leading-none">{presentCount}</span>
+                <span className="text-[10px] font-bold text-green-600 uppercase">Presentes</span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-2xl font-black text-green-700 leading-none">{presentCount}</span>
-              <span className="text-[10px] font-bold text-green-600 uppercase tracking-tighter">Presentes</span>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                <UserX className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-red-700 leading-none">{absentCount}</span>
+                <span className="text-[10px] font-bold text-red-600 uppercase">Faltas</span>
+              </div>
             </div>
           </div>
-          
-          <div className="h-8 w-[1px] bg-border hidden md:block" />
 
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 shadow-inner">
-              <UserX className="h-6 w-6" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-2xl font-black text-red-700 leading-none">{absentCount}</span>
-              <span className="text-[10px] font-bold text-red-600 uppercase tracking-tighter">Ausentes</span>
-            </div>
-          </div>
+          <Button 
+            size="lg" 
+            className="w-full md:w-auto px-12 h-12 text-md font-bold gap-3 shadow-xl hover:scale-105 active:scale-95 transition-all" 
+            onClick={handleSave}
+          >
+            <Save className="h-5 w-5" /> Salvar Chamada
+          </Button>
         </div>
-
-        <Button 
-          size="lg" 
-          className="w-full md:w-auto px-10 h-14 text-lg font-bold gap-3 shadow-[0_4px_14px_0_rgba(var(--primary),0.39)] hover:scale-105 transition-transform" 
-          onClick={handleSave}
-        >
-          <Save className="h-5 w-5" /> Salvar Chamada
-        </Button>
       </div>
     </div>
   )
