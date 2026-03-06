@@ -33,24 +33,29 @@ const BloomPromptInputSchema = BloomAssessmentItemGeneratorInputSchema.extend({
 // Prompt definition
 const bloomAssessmentItemGeneratorPrompt = ai.definePrompt({
   name: 'bloomAssessmentItemGeneratorPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: BloomPromptInputSchema },
   output: { schema: BloomAssessmentItemGeneratorOutputSchema },
-  prompt: `Você é um assistente de IA especializado em educação, capaz de gerar itens de avaliação para alunos com base na Taxonomia de Bloom.
-Sua tarefa é criar {{numItems}} itens de avaliação (questões ou atividades) para a disciplina de "{{subjectLabel}}", focando na competência: "{{competency}}".
-Esses itens devem estar alinhados ao nível da Taxonomia de Bloom: "{{bloomLevel}}".
+  config: {
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+    ],
+  },
+  prompt: `Você é um assistente de IA especializado em educação brasileira (BNCC), capaz de gerar itens de avaliação pedagógica.
+Sua tarefa é criar {{numItems}} itens de avaliação para a disciplina de "{{subjectLabel}}", focando na competência: "{{competency}}".
+Estes itens devem ser elaborados para o nível da Taxonomia de Bloom: "{{bloomLevel}}".
 
-IMPORTANTE: Toda a saída (questões, enunciados e atividades) deve ser escrita estritamente em Português do Brasil (pt-BR).
+REGRAS IMPORTANTES:
+1. Toda a saída deve estar em Português do Brasil (pt-BR).
+2. O conteúdo deve ser apropriado para o ambiente escolar.
+3. Se o nível for 'Remember', peça definições ou fatos.
+4. Se o nível for 'Apply', crie problemas práticos.
+5. Se o nível for 'Create', peça a produção de algo novo.
 
-Exemplos para níveis da Taxonomia de Bloom:
-- Remember (Lembrar): Recordar fatos e conceitos básicos (ex: "Liste os personagens principais da história.")
-- Understand (Entender): Explicar ideias ou conceitos (ex: "Explique por que o personagem tomou essa decisão.")
-- Apply (Aplicar): Usar informações em novas situações (ex: "Se você fosse o personagem, como resolveria este problema?")
-- Analyze (Analisar): Estabelecer conexões entre ideias (ex: "Compare e contraste as motivações dos dois personagens principais.")
-- Evaluate (Avaliar): Justificar uma posição ou decisão (ex: "Você concorda com a mensagem do autor? Por quê?")
-- Create (Criar): Produzir um trabalho novo ou original (ex: "Escreva um conto continuando a trama após o fim do livro.")
-
-Certifique-se de que os itens gerados sejam apropriados para a disciplina e competência especificadas.
-A saída deve ser um objeto JSON com uma única chave 'items', que é uma matriz de strings.`
+As questões devem ser claras, diretas e prontas para uso em sala de aula.`
 });
 
 // Genkit Flow definition
@@ -61,12 +66,22 @@ const bloomAssessmentItemGeneratorFlow = ai.defineFlow(
     outputSchema: BloomAssessmentItemGeneratorOutputSchema,
   },
   async (input) => {
-    const subjectLabel = input.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática';
-    const { output } = await bloomAssessmentItemGeneratorPrompt({
-      ...input,
-      subjectLabel
-    });
-    return output!;
+    try {
+      const subjectLabel = input.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática';
+      const { output } = await bloomAssessmentItemGeneratorPrompt({
+        ...input,
+        subjectLabel
+      });
+      
+      if (!output) {
+        throw new Error('IA não retornou itens de avaliação.');
+      }
+      
+      return output;
+    } catch (error) {
+      console.error("[Flow Error] bloomAssessmentItemGeneratorFlow:", error);
+      throw error;
+    }
   }
 );
 

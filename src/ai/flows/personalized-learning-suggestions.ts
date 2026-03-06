@@ -3,67 +3,66 @@
  * @fileOverview This file implements a Genkit flow for the AI Learning Insight Assistant.
  * It synthesizes student assessment data and observational notes to generate
  * personalized learning suggestions and progress summaries.
- *
- * - personalizedLearningSuggestions - The main function to trigger the AI insight generation.
- * - PersonalizedLearningSuggestionsInput - The input type for the function.
- * - PersonalizedLearningSuggestionsOutput - The return type for the function.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const AssessmentEntrySchema = z.object({
-  competency: z.string().describe("The Bloom's Taxonomy competency level (e.g., 'Remembering', 'Understanding', 'Applying')."),
+  competency: z.string().describe("The Bloom's Taxonomy competency level."),
   skill: z.string().describe('The specific skill assessed.'),
-  score: z.number().describe('A numerical score or achievement level for the skill (e.g., 0-100).'),
-  notes: z.string().optional().describe('Optional specific notes for this assessment.'),
+  score: z.number().describe('A numerical score for the skill.'),
+  notes: z.string().optional().describe('Optional specific notes.'),
 });
 
 const PersonalizedLearningSuggestionsInputSchema = z.object({
   studentName: z.string().describe('The full name of the student.'),
-  assessmentData: z.array(AssessmentEntrySchema).describe('An array of assessment results, including competency, skill, score, and notes.'),
-  observationalNotes: z.array(z.string()).describe('An array of qualitative observational notes about the student.'),
-  teacherInstructions: z.string().optional().describe('Optional specific instructions or focus areas from the teacher for the AI.'),
+  assessmentData: z.array(AssessmentEntrySchema).describe('An array of assessment results.'),
+  observationalNotes: z.array(z.string()).describe('An array of qualitative observational notes.'),
+  teacherInstructions: z.string().optional().describe('Optional instructions from the teacher.'),
 });
 export type PersonalizedLearningSuggestionsInput = z.infer<typeof PersonalizedLearningSuggestionsInputSchema>;
 
 const PersonalizedLearningSuggestionsOutputSchema = z.object({
-  progressSummary: z.string().describe('A comprehensive summary of the student\u0027s overall progress and current standing.'),
-  strengths: z.array(z.string()).describe('A list of identified strengths of the student.'),
-  areasForImprovement: z.array(z.string()).describe('A list of areas where the student needs improvement or further development.'),
-  learningSuggestions: z.array(z.string()).describe('A list of personalized and actionable learning suggestions for the student.'),
+  progressSummary: z.string().describe('Summary of the student\'s progress.'),
+  strengths: z.array(z.string()).describe('Identified strengths.'),
+  areasForImprovement: z.array(z.string()).describe('Areas for development.'),
+  learningSuggestions: z.array(z.string()).describe('Actionable learning suggestions.'),
 });
 export type PersonalizedLearningSuggestionsOutput = z.infer<typeof PersonalizedLearningSuggestionsOutputSchema>;
 
-export async function personalizedLearningSuggestions(input: PersonalizedLearningSuggestionsInput): Promise<PersonalizedLearningSuggestionsOutput> {
-  return personalizedLearningSuggestionsFlow(input);
-}
-
 const personalizedLearningSuggestionsPrompt = ai.definePrompt({
   name: 'personalizedLearningSuggestionsPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: PersonalizedLearningSuggestionsInputSchema },
   output: { schema: PersonalizedLearningSuggestionsOutputSchema },
-  prompt: `You are an AI Learning Insight Assistant designed to help teachers provide targeted feedback and support to students. Your task is to analyze assessment data and observational notes for a student and then generate personalized learning suggestions and a comprehensive progress summary.
+  config: {
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+    ],
+  },
+  prompt: `Você é um Assistente de Insights de Aprendizagem. Analise os dados do estudante e gere um relatório em Português do Brasil.
 
-Student Name: {{{studentName}}}
+Estudante: {{studentName}}
 
-Assessment Data:
+Dados de Avaliação:
 {{#each assessmentData}}
-- Competency: {{{this.competency}}}, Skill: {{{this.skill}}}, Score: {{{this.score}}}{{#if this.notes}}, Notes: {{{this.notes}}}{{/if}}
+- Competência: {{this.competency}}, Habilidade: {{this.skill}}, Nota: {{this.score}}
 {{/each}}
 
-Observational Notes:
+Notas Observacionais:
 {{#each observationalNotes}}
-- {{{this}}}
+- {{this}}
 {{/each}}
 
 {{#if teacherInstructions}}
-Teacher's specific instructions/focus areas: {{{teacherInstructions}}}
+Foco Adicional: {{teacherInstructions}}
 {{/if}}
 
-Based on the provided information, identify the student's key strengths and areas for improvement. Then, draft a concise progress summary and provide actionable, personalized learning suggestions. Ensure the suggestions are constructive and aim to foster the student's growth.
-
-Your output should strictly adhere to the JSON schema for PersonalizedLearningSuggestionsOutput.`,
+Gere um resumo construtivo, identifique forças, pontos de atenção e sugira 3 atividades práticas para o desenvolvimento do aluno.`,
 });
 
 const personalizedLearningSuggestionsFlow = ai.defineFlow(
@@ -73,7 +72,17 @@ const personalizedLearningSuggestionsFlow = ai.defineFlow(
     outputSchema: PersonalizedLearningSuggestionsOutputSchema,
   },
   async (input) => {
-    const { output } = await personalizedLearningSuggestionsPrompt(input);
-    return output!;
+    try {
+      const { output } = await personalizedLearningSuggestionsPrompt(input);
+      if (!output) throw new Error('Falha na geração de insights.');
+      return output;
+    } catch (error) {
+      console.error("[Flow Error] personalizedLearningSuggestionsFlow:", error);
+      throw error;
+    }
   },
 );
+
+export async function personalizedLearningSuggestions(input: PersonalizedLearningSuggestionsInput): Promise<PersonalizedLearningSuggestionsOutput> {
+  return personalizedLearningSuggestionsFlow(input);
+}
