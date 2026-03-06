@@ -1,16 +1,13 @@
-
 "use client"
 
 import {
   BookOpen,
   Calendar,
   CheckSquare,
-  ChevronRight,
   GraduationCap,
   LayoutDashboard,
   Users,
   BrainCircuit,
-  Settings,
   UserCircle
 } from "lucide-react"
 import Link from "next/link"
@@ -33,7 +30,7 @@ import {
 const items = [
   {
     title: "Dashboard",
-    url: "/",
+    url: "/dashboard",
     icon: LayoutDashboard,
   },
   {

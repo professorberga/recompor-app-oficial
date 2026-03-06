@@ -5,7 +5,6 @@ import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
 
-// Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
 
 export type ChartConfig = {
@@ -26,11 +25,9 @@ const ChartContext = React.createContext<ChartContextProps | null>(null)
 
 function useChart() {
   const context = React.useContext(ChartContext)
-
   if (!context) {
     throw new Error("useChart must be used within a <ChartContainer />")
   }
-
   return context
 }
 
@@ -44,21 +41,25 @@ const ChartContainer = React.forwardRef<
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
-  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const [chartId, setChartId] = React.useState<string>("")
+
+  // Estabiliza o ID após a montagem para evitar erros de hidratação
+  React.useEffect(() => {
+    setChartId(`chart-${id || uniqueId.replace(/:/g, "")}`)
+  }, [id, uniqueId])
 
   return (
     <ChartContext.Provider value={{ config }}>
       <div
         data-chart={chartId}
         ref={ref}
-        suppressHydrationWarning
         className={cn(
           "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
         )}
         {...props}
       >
-        <ChartStyle id={chartId} config={config} />
+        {chartId && <ChartStyle id={chartId} config={config} />}
         <RechartsPrimitive.ResponsiveContainer>
           {children}
         </RechartsPrimitive.ResponsiveContainer>
@@ -69,23 +70,16 @@ const ChartContainer = React.forwardRef<
 ChartContainer.displayName = "Chart"
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const [isMounted, setIsMounted] = React.useState(false)
-
-  React.useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color
   )
 
-  if (!colorConfig.length || !isMounted) {
+  if (!colorConfig.length) {
     return null
   }
 
   return (
     <style
-      suppressHydrationWarning
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
@@ -324,7 +318,6 @@ const ChartLegendContent = React.forwardRef<
 )
 ChartLegendContent.displayName = "ChartLegend"
 
-// Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
   payload: unknown,
@@ -333,16 +326,13 @@ function getPayloadConfigFromPayload(
   if (typeof payload !== "object" || payload === null) {
     return undefined
   }
-
   const payloadPayload =
     "payload" in payload &&
     typeof payload.payload === "object" &&
     payload.payload !== null
       ? payload.payload
       : undefined
-
   let configLabelKey: string = key
-
   if (
     key in payload &&
     typeof payload[key as keyof typeof payload] === "string"
@@ -357,7 +347,6 @@ function getPayloadConfigFromPayload(
       key as keyof typeof payloadPayload
     ] as string
   }
-
   return configLabelKey in config
     ? config[configLabelKey]
     : config[key as keyof typeof config]
