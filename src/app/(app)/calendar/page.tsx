@@ -15,10 +15,22 @@ import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
 
+const CLASS_SCHEDULES = [
+  "07:00 às 07:50",
+  "07:50 às 08:40",
+  "08:40 às 09:30",
+  "09:45 às 10:35",
+  "10:35 às 11:25",
+  "12:25 às 13:15",
+  "13:15 às 14:05",
+  "14:20 às 15:10",
+  "15:10 às 16:00",
+]
+
 const MOCK_INITIAL_EVENTS = [
-  { id: '1', title: 'Interpretação de Texto', time: '08:00 - 09:30', classId: '1', class: '9º Ano A', type: 'Lesson', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
-  { id: '2', title: 'Sintaxe e Gramática', time: '10:00 - 11:30', classId: '2', class: '9º Ano B', type: 'Lesson', content: 'Estudo aprofundado de orações subordinadas e concordância verbal.' },
-  { id: '3', title: 'Plantão de Dúvidas', time: '14:00 - 15:00', classId: 'all', class: 'Geral', type: 'Support', content: 'Atendimento individual para esclarecimento de dúvidas sobre o projeto de leitura.' },
+  { id: '1', title: 'Interpretação de Texto', time: '07:00 às 07:50', classId: '1', class: '9º Ano A', type: 'Lesson', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
+  { id: '2', title: 'Sintaxe e Gramática', time: '07:50 às 08:40', classId: '2', class: '9º Ano B', type: 'Lesson', content: 'Estudo aprofundado de orações subordinadas e concordância verbal.' },
+  { id: '3', title: 'Plantão de Dúvidas', time: '14:20 às 15:10', classId: 'all', class: 'Geral', type: 'Support', content: 'Atendimento individual para esclarecimento de dúvidas sobre o projeto de leitura.' },
 ]
 
 export default function CalendarPage() {
@@ -32,7 +44,7 @@ export default function CalendarPage() {
   // Form State
   const [newEvent, setNewEvent] = useState({
     title: "",
-    time: "08:00 - 09:30",
+    time: CLASS_SCHEDULES[0],
     classId: "1",
     type: "Lesson" as "Lesson" | "Support",
     content: ""
@@ -83,7 +95,7 @@ export default function CalendarPage() {
 
     setEvents([createdEvent, ...events])
     setIsDialogOpen(false)
-    setNewEvent({ title: "", time: "08:00 - 09:30", classId: "1", type: "Lesson", content: "" })
+    setNewEvent({ title: "", time: CLASS_SCHEDULES[0], classId: "1", type: "Lesson", content: "" })
     
     toast({
       title: "Planejamento Criado!",
@@ -149,13 +161,22 @@ export default function CalendarPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="time">Horário</Label>
-                  <Input 
-                    id="time" 
-                    placeholder="08:00 - 09:30" 
-                    value={newEvent.time}
-                    onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
-                  />
+                  <Label htmlFor="time">Horário da Aula</Label>
+                  <Select 
+                    value={newEvent.time} 
+                    onValueChange={(v) => setNewEvent({...newEvent, time: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CLASS_SCHEDULES.map((schedule) => (
+                        <SelectItem key={schedule} value={schedule}>
+                          {schedule}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
