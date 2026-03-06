@@ -64,18 +64,23 @@ export function AppSidebar() {
   const { setOpenMobile, isMobile } = useSidebar()
 
   const handleLinkClick = (title: string) => {
-    console.log(`[AppSidebar] Clique no menu: ${title}`);
+    console.log(`[AppSidebar] Navegando para: ${title}`);
     
-    // Limpeza agressiva imediata no clique para evitar UI Freeze
+    // Limpeza forçada imediata de travas de UI antes de mudar de rota
     if (typeof document !== 'undefined') {
       document.body.style.pointerEvents = "auto";
       document.body.style.overflow = "auto";
       document.body.removeAttribute('data-scroll-locked');
       document.body.removeAttribute('aria-hidden');
+      
+      // Remove overlays residuais
+      const overlays = document.querySelectorAll('[data-radix-portal], .radix-overlay');
+      overlays.forEach(el => {
+        if (el instanceof HTMLElement) el.style.display = 'none';
+      });
     }
 
     if (isMobile) {
-      console.log("[AppSidebar] Fechando menu mobile");
       setOpenMobile(false)
     }
   }

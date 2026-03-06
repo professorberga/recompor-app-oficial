@@ -41,6 +41,7 @@ const ChartContainer = React.forwardRef<
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const [isMounted, setIsMounted] = React.useState(false)
+  // Usamos um ID estável para evitar erros de hidratação
   const chartId = React.useId().replace(/:/g, "")
 
   React.useEffect(() => {
@@ -58,6 +59,7 @@ const ChartContainer = React.forwardRef<
         )}
         {...props}
       >
+        {/* Renderizamos o estilo apenas no cliente após a montagem para evitar mismatch de hidratação */}
         {isMounted && <ChartStyle id={chartId} config={config} />}
         <RechartsPrimitive.ResponsiveContainer>
           {children}

@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation"
 
 /**
  * NavigationGuard: Garante que a interface permaneça interativa após navegação.
- * Resolve problemas onde o Radix UI (Dialog, Sheet, Tooltip) deixa o body bloqueado.
+ * Resolve o problema de "UI Freeze" causado por resíduos de Modais/Dialogs do Radix UI.
  */
 export function NavigationGuard() {
   const pathname = usePathname()
 
   useEffect(() => {
-    console.log(`[NavigationGuard] Navegação para: ${pathname}`);
+    console.log(`[NavigationGuard] Mudança de rota detectada para: ${pathname}`);
     
     const forceCleanup = () => {
       if (typeof document === 'undefined') return;
@@ -26,16 +26,16 @@ export function NavigationGuard() {
         el.removeAttribute('aria-hidden');
       });
 
-      // Remove overlays fantasmas
+      // Remove overlays fantasmas de portais
       const overlays = document.querySelectorAll('[data-radix-focus-guard], [data-radix-portal], .radix-overlay');
       overlays.forEach(el => {
         if (el instanceof HTMLElement) el.style.display = 'none';
       });
     };
 
-    // Executa imediatamente e após pequenos delays
+    // Executa em múltiplos tempos para garantir a limpeza após o término da transição do Next.js
     forceCleanup();
-    const timers = [10, 100, 500].map(d => setTimeout(forceCleanup, d));
+    const timers = [0, 50, 200, 500].map(d => setTimeout(forceCleanup, d));
     
     return () => timers.forEach(t => clearTimeout(t));
   }, [pathname]);
