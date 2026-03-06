@@ -25,13 +25,18 @@ const BloomAssessmentItemGeneratorOutputSchema = z.object({
 });
 export type BloomAssessmentItemGeneratorOutput = z.infer<typeof BloomAssessmentItemGeneratorOutputSchema>;
 
+// Schema for prompt input (includes calculated label)
+const BloomPromptInputSchema = BloomAssessmentItemGeneratorInputSchema.extend({
+  subjectLabel: z.string()
+});
+
 // Prompt definition
 const bloomAssessmentItemGeneratorPrompt = ai.definePrompt({
   name: 'bloomAssessmentItemGeneratorPrompt',
-  input: { schema: BloomAssessmentItemGeneratorInputSchema },
+  input: { schema: BloomPromptInputSchema },
   output: { schema: BloomAssessmentItemGeneratorOutputSchema },
   prompt: `Você é um assistente de IA especializado em educação, capaz de gerar itens de avaliação para alunos com base na Taxonomia de Bloom.
-Sua tarefa é criar {{numItems}} itens de avaliação (questões ou atividades) para a disciplina de "{{#if (eq subject 'Portuguese')}}Língua Portuguesa{{else}}Matemática{{/if}}", focando na competência: "{{competency}}".
+Sua tarefa é criar {{numItems}} itens de avaliação (questões ou atividades) para a disciplina de "{{subjectLabel}}", focando na competência: "{{competency}}".
 Esses itens devem estar alinhados ao nível da Taxonomia de Bloom: "{{bloomLevel}}".
 
 IMPORTANTE: Toda a saída (questões, enunciados e atividades) deve ser escrita estritamente em Português do Brasil (pt-BR).
@@ -56,7 +61,11 @@ const bloomAssessmentItemGeneratorFlow = ai.defineFlow(
     outputSchema: BloomAssessmentItemGeneratorOutputSchema,
   },
   async (input) => {
-    const { output } = await bloomAssessmentItemGeneratorPrompt(input);
+    const subjectLabel = input.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática';
+    const { output } = await bloomAssessmentItemGeneratorPrompt({
+      ...input,
+      subjectLabel
+    });
     return output!;
   }
 );
