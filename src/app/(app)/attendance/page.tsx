@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,19 +26,42 @@ const MOCK_STUDENTS = [
   { id: '8', name: 'Helena Mendes Castro', ra: '890123', raDigit: '4', attendance: 94 },
 ]
 
+type AttendanceState = Record<string, 'present' | 'absent'>;
+type AttendanceHistory = Record<string, AttendanceState>; // Key: "YYYY-MM-DD:classId"
+
 export default function AttendancePage() {
   const [mounted, setMounted] = useState(false)
   const [selectedClass, setSelectedClass] = useState("1")
   const [currentDate, setCurrentDate] = useState<Date | null>(null)
-  const [attendance, setAttendance] = useState<Record<string, 'present' | 'absent'>>(
-    Object.fromEntries(MOCK_STUDENTS.map(s => [s.id, 'present']))
-  )
+  const [searchTerm, setSearchTerm] = useState("")
+  
+  // Local UI state for the current view
+  const [attendance, setAttendance] = useState<AttendanceState>({})
+  
+  // Persistent history state (simulated)
+  const [history, setHistory] = useState<AttendanceHistory>({})
+  
   const { toast } = useToast()
 
   useEffect(() => {
     setMounted(true)
     setCurrentDate(new Date())
   }, [])
+
+  // Load attendance when date or class changes
+  useEffect(() => {
+    if (!currentDate || !mounted) return;
+
+    const dateKey = `${format(currentDate, "yyyy-MM-dd")}:${selectedClass}`;
+    
+    if (history[dateKey]) {
+      setAttendance(history[dateKey]);
+    } else {
+      // Initialize with all present if no history exists for this specific day/class
+      const initialState = Object.fromEntries(MOCK_STUDENTS.map(s => [s.id, 'present'])) as AttendanceState;
+      setAttendance(initialState);
+    }
+  }, [currentDate, selectedClass, history, mounted]);
 
   const setStatus = (id: string, status: 'present' | 'absent') => {
     setAttendance(prev => ({
@@ -57,6 +80,14 @@ export default function AttendancePage() {
 
   const handleSave = () => {
     if (!currentDate) return
+    
+    const dateKey = `${format(currentDate, "yyyy-MM-dd")}:${selectedClass}`;
+    
+    setHistory(prev => ({
+      ...prev,
+      [dateKey]: { ...attendance }
+    }));
+
     toast({
       title: "Chamada Registrada",
       description: `A chamada foi salva com sucesso para o dia ${format(currentDate, "dd/MM/yyyy")}.`,
@@ -67,6 +98,11 @@ export default function AttendancePage() {
 
   const presentCount = Object.values(attendance).filter(v => v === 'present').length
   const absentCount = Object.values(attendance).filter(v => v === 'absent').length
+
+  const filteredStudents = MOCK_STUDENTS.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    s.ra.includes(searchTerm)
+  )
 
   if (!mounted || !currentDate) {
     return (
@@ -125,7 +161,12 @@ export default function AttendancePage() {
 
         <div className="relative w-full md:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Filtrar aluno..." className="pl-10 h-10 bg-muted/10 border-border" />
+          <Input 
+            placeholder="Filtrar aluno..." 
+            className="pl-10 h-10 bg-muted/10 border-border" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
 
@@ -141,7 +182,7 @@ export default function AttendancePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {MOCK_STUDENTS.map((student, idx) => (
+              {filteredStudents.map((student, idx) => (
                 <TableRow key={student.id} className="group hover:bg-muted/10 transition-colors h-16 border-b border-border/40">
                   <TableCell className="text-center font-medium text-muted-foreground">{idx + 1}</TableCell>
                   <TableCell>
@@ -218,7 +259,7 @@ export default function AttendancePage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black text-red-700 leading-none">{absentCount}</span>
-                <span className="text-[10px] font-bold text-red-600 uppercase">Faltas</span>
+                <span className="text-[10px] font-bold text-green-600 uppercase">Faltas</span>
               </div>
             </div>
           </div>
