@@ -8,10 +8,8 @@ import {
   LayoutDashboard,
   Users,
   BrainCircuit,
-  UserCircle,
   Settings,
   ShieldCheck,
-  UserCog
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -65,12 +63,6 @@ const items = [
     title: "Calendário & Conteúdo",
     url: "/calendar",
     icon: Calendar,
-    adminOnly: false
-  },
-  {
-    title: "Usuários",
-    url: "/users",
-    icon: UserCog,
     adminOnly: false
   },
   {
