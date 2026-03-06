@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -12,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { addDays, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 const MOCK_STUDENTS = [
   { id: '1', name: 'Ana Beatriz Silva', ra: '123456', raDigit: '7', attendance: 95 },
@@ -26,6 +27,7 @@ const MOCK_STUDENTS = [
 
 export default function AttendancePage() {
   const [selectedClass, setSelectedClass] = useState("1")
+  const [currentDate, setCurrentDate] = useState(new Date())
   const [attendance, setAttendance] = useState<Record<string, 'present' | 'absent'>>(
     Object.fromEntries(MOCK_STUDENTS.map(s => [s.id, 'present']))
   )
@@ -38,10 +40,18 @@ export default function AttendancePage() {
     }))
   }
 
+  const handlePrevDay = () => {
+    setCurrentDate(prev => addDays(prev, -1))
+  }
+
+  const handleNextDay = () => {
+    setCurrentDate(prev => addDays(prev, 1))
+  }
+
   const handleSave = () => {
     toast({
       title: "Chamada Registrada",
-      description: `A chamada foi salva com sucesso para o dia ${new Date().toLocaleDateString()}.`,
+      description: `A chamada foi salva com sucesso para o dia ${format(currentDate, "dd/MM/yyyy")}.`,
       variant: "default",
       className: "bg-green-50 border-green-200 text-green-900 shadow-lg"
     })
@@ -72,12 +82,28 @@ export default function AttendancePage() {
           <div className="flex flex-col">
             <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Data da Aula</label>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="h-10 w-10"><ChevronLeft className="h-4 w-4" /></Button>
-              <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md border-none font-medium min-w-[180px] justify-center text-sm">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-10 w-10"
+                onClick={handlePrevDay}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md border-none font-medium min-w-[200px] justify-center text-sm">
                 <Calendar className="h-4 w-4 text-primary" />
-                <span>{new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</span>
+                <span className="capitalize">
+                  {format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
+                </span>
               </div>
-              <Button variant="outline" size="icon" className="h-10 w-10"><ChevronRight className="h-4 w-4" /></Button>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-10 w-10"
+                onClick={handleNextDay}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
