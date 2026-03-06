@@ -1,6 +1,8 @@
+
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Users, AlertTriangle, ArrowRight } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -75,7 +77,14 @@ export function AbsenteeCard() {
             <TableBody>
               {MOCK_ABSENTEES.map((student) => (
                 <TableRow key={student.id} className="hover:bg-red-50/30 transition-colors">
-                  <TableCell className="font-bold">{student.name}</TableCell>
+                  <TableCell>
+                    <Link 
+                      href={`/students?id=${student.id}`}
+                      className="font-bold hover:text-primary hover:underline transition-colors"
+                    >
+                      {student.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{student.class}</TableCell>
                   <TableCell className="text-center">
                     <span className="text-lg font-black text-red-600">{student.absences}</span>

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useRef, useEffect, Suspense } from "react"
+import { useState, useRef, useEffect, Suspense, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { 
   Search, UserPlus, Filter, MoreHorizontal, Eye, BrainCircuit, FileText, 
@@ -43,6 +43,7 @@ const MOCK_INITIAL_STUDENTS = [
     id: '1', 
     name: 'Ana Beatriz Silva', 
     class: '9º Ano A', 
+    classId: '1',
     subject: 'Português', 
     trend: 'up', 
     bloomLevel: 'Apply', 
@@ -74,10 +75,10 @@ const MOCK_INITIAL_STUDENTS = [
       ]
     }
   },
-  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', subject: 'Português', trend: 'stable', bloomLevel: 'Understand', callNumber: '05', ra: '234567', raDigit: '8', tutor: 'Prof. Ricardo', status: 'Ativo' },
-  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', subject: 'Português', trend: 'up', bloomLevel: 'Analyze', callNumber: '08', ra: '345678', raDigit: '9', tutor: 'Prof. Ricardo', status: 'Ativo' },
-  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', subject: 'Português', trend: 'down', bloomLevel: 'Remember', callNumber: '12', ra: '456789', raDigit: '0', tutor: 'Profa. Marina', status: 'Transferido' },
-  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', subject: 'Português', trend: 'up', bloomLevel: 'Create', callNumber: '15', ra: '567890', raDigit: '1', tutor: 'Profa. Marina', status: 'Ativo' },
+  { id: '2', name: 'Bruno Oliveira Souza', class: '9º Ano A', classId: '1', subject: 'Português', trend: 'stable', bloomLevel: 'Understand', callNumber: '05', ra: '234567', raDigit: '8', tutor: 'Prof. Ricardo', status: 'Ativo' },
+  { id: '3', name: 'Carlos Eduardo Santos', class: '9º Ano A', classId: '1', subject: 'Português', trend: 'up', bloomLevel: 'Analyze', callNumber: '08', ra: '345678', raDigit: '9', tutor: 'Prof. Ricardo', status: 'Ativo' },
+  { id: '4', name: 'Daniela Lima Ferreira', class: '9º Ano B', classId: '2', subject: 'Português', trend: 'down', bloomLevel: 'Remember', callNumber: '12', ra: '456789', raDigit: '0', tutor: 'Profa. Marina', status: 'Transferido' },
+  { id: '5', name: 'Eduardo Pereira Costa', class: '9º Ano B', classId: '2', subject: 'Português', trend: 'up', bloomLevel: 'Create', callNumber: '15', ra: '567890', raDigit: '1', tutor: 'Profa. Marina', status: 'Ativo' },
 ]
 
 function StudentsContent() {
@@ -86,6 +87,7 @@ function StudentsContent() {
   const { toast } = useToast()
   
   const [students, setStudents] = useState(MOCK_INITIAL_STUDENTS)
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
@@ -115,8 +117,22 @@ function StudentsContent() {
     status: "Ativo"
   })
 
+  // Filtering Logic
+  const classFilter = searchParams.get('class')
+  
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           student.ra.includes(searchTerm) ||
+                           student.class.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesClass = !classFilter || student.classId === classFilter
+      
+      return matchesSearch && matchesClass
+    })
+  }, [students, searchTerm, classFilter])
+
   useEffect(() => {
-    console.log("[StudentsContent] Mounted");
     const studentId = searchParams.get('id')
     if (studentId) {
       const student = students.find(s => s.id === studentId)
@@ -127,7 +143,6 @@ function StudentsContent() {
     }
   }, [searchParams, students])
 
-  // Cleanup for pointer events lock
   useEffect(() => {
     if (!isRegisterOpen && !isOccurrenceOpen && !isFichaOpen) {
       const timer = setTimeout(() => {
@@ -224,7 +239,6 @@ function StudentsContent() {
       })
       setAiInsight(result)
     } catch (error) {
-      console.error("[generateAiInsight] Error:", error);
       toast({ title: "Erro na IA", description: "Não foi possível gerar a análise agora.", variant: "destructive" })
     } finally {
       setIsAiLoading(false)
@@ -234,35 +248,28 @@ function StudentsContent() {
   const handleExportPDF = async () => {
     if (!selectedStudent || !printRef.current) return
     setIsExporting(true)
-    toast({ title: "Gerando PDF...", description: "Isso pode levar alguns segundos." })
-    
     try {
-      // Dynamic imports for browser-only libraries to fix SSR issues
       const { default: jsPDF } = await import('jspdf')
       const { default: html2canvas } = await import('html2canvas')
       
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false
-      })
-      
+      const canvas = await html2canvas(printRef.current, { scale: 2 })
       const imgData = canvas.toDataURL('image/png')
       const pdf = new jsPDF('p', 'mm', 'a4')
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-      pdf.save(`Historico_${selectedStudent.name.replace(/\s+/g, '_')}.pdf`)
-      
-      toast({ title: "Sucesso", description: "O histórico foi exportado com sucesso." })
+      pdf.save(`Historico_${selectedStudent.name}.pdf`)
+      toast({ title: "Exportação concluída" })
     } catch (error) {
-      console.error("[handleExportPDF] Error:", error);
-      toast({ title: "Erro", description: "Não foi possível gerar o PDF.", variant: "destructive" })
+      toast({ title: "Erro na exportação", variant: "destructive" })
     } finally {
       setIsExporting(false)
     }
+  }
+
+  const clearClassFilter = () => {
+    router.replace('/students', { scroll: false })
   }
 
   return (
@@ -270,7 +277,9 @@ function StudentsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-          <p className="text-muted-foreground mt-1">Acompanhe perfis individuais e histórico de aprendizagem.</p>
+          <p className="text-muted-foreground mt-1">
+            {classFilter ? `Exibindo alunos da turma selecionada` : `Acompanhe perfis individuais e histórico de aprendizagem.`}
+          </p>
         </div>
         <Button className="gap-2 shadow-lg" onClick={openCreateDialog}>
           <UserPlus className="h-4 w-4" /> Cadastrar Aluno
@@ -280,13 +289,23 @@ function StudentsContent() {
       <div className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-border/50">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou turma..." className="pl-10 bg-muted/20 border-none" />
+          <Input 
+            placeholder="Buscar por nome, RA ou turma..." 
+            className="pl-10 bg-muted/20 border-none" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        <Button variant="outline" className="gap-2"><Filter className="h-4 w-4" /> Filtros</Button>
+        {classFilter && (
+          <Button variant="secondary" className="gap-2 bg-primary/10 text-primary border-primary/20" onClick={clearClassFilter}>
+            <X className="h-4 w-4" /> Limpar Filtro de Turma
+          </Button>
+        )}
+        <Button variant="outline" className="gap-2"><Filter className="h-4 w-4" /> Filtros Avançados</Button>
       </div>
 
       <div className="grid gap-4">
-        {students.map((student) => (
+        {filteredStudents.map((student) => (
           <Card key={student.id} className={`border-none shadow-sm hover:shadow-md transition-shadow bg-white overflow-hidden group ${student.status === 'Transferido' ? 'opacity-75 grayscale-[0.3]' : ''}`}>
             <CardContent className="p-0 flex items-center h-20">
               <div className={`w-1 h-full ${student.status === 'Ativo' ? 'bg-primary' : 'bg-muted-foreground'} opacity-0 group-hover:opacity-100 transition-opacity`} />
@@ -362,6 +381,13 @@ function StudentsContent() {
             </CardContent>
           </Card>
         ))}
+
+        {filteredStudents.length === 0 && (
+          <div className="py-20 text-center opacity-30 flex flex-col items-center">
+            <Info className="h-12 w-12 mb-4" />
+            <p className="font-medium">Nenhum aluno encontrado para os critérios selecionados.</p>
+          </div>
+        )}
       </div>
 
       {/* Register/Edit Dialog */}
@@ -668,7 +694,6 @@ function StudentsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Hidden Export Area */}
       <div className="absolute opacity-0 pointer-events-none -left-[9999px] top-0">
         <div ref={printRef} className="w-[800px] p-12 bg-white text-black space-y-10">
           <div className="border-b-8 border-primary pb-8 flex justify-between items-end">
@@ -681,7 +706,6 @@ function StudentsContent() {
             <div><p className="text-[10px] font-bold text-muted-foreground uppercase">Estudante</p><p className="text-2xl font-black">{selectedStudent?.name}</p></div>
             <div><p className="text-[10px] font-bold text-muted-foreground uppercase">RA</p><p className="text-xl font-bold">{selectedStudent?.ra}-{selectedStudent?.raDigit}</p></div>
           </div>
-          {/* Summary table for PDF omitted for brevity but logic is established */}
         </div>
       </div>
     </div>
