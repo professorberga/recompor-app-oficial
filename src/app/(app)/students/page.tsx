@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -58,18 +59,21 @@ export default function StudentsPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Failsafe contra travamento de UI (Pointer Events)
+  // FIX: Garantir interatividade global após fechar qualquer modal ou menu
   useEffect(() => {
     if (!isRegisterOpen && !isOccurrenceOpen && !isFichaOpen) {
-      console.log("[StudentsPage] Todos os diálogos fechados. Garantindo interatividade.");
-      setTimeout(() => {
+      const forceCleanup = () => {
         if (typeof document !== 'undefined') {
           document.body.style.pointerEvents = "auto";
           document.body.style.overflow = "auto";
+          // Remove atributos de trava do Radix
           document.body.removeAttribute('data-scroll-locked');
-          document.body.removeAttribute('aria-hidden');
+          document.documentElement.style.pointerEvents = "auto";
         }
-      }, 100);
+      };
+      
+      const timer = setTimeout(forceCleanup, 100);
+      return () => clearTimeout(timer);
     }
   }, [isRegisterOpen, isOccurrenceOpen, isFichaOpen]);
 
@@ -268,7 +272,8 @@ export default function StudentsPage() {
                     <Eye className="h-3.5 w-3.5" /> Ficha
                   </Button>
                   
-                  <DropdownMenu>
+                  {/* FIX: modal={false} impede que o DropdownMenu bloqueie o ponteiro do body */}
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <MoreHorizontal className="h-4 w-4" />
