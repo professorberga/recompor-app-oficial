@@ -9,7 +9,9 @@ import {
   Users,
   BrainCircuit,
   UserCircle,
-  Settings
+  Settings,
+  ShieldCheck,
+  UserCog
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -33,60 +35,60 @@ const items = [
     title: "Dashboard",
     url: "/dashboard",
     icon: LayoutDashboard,
+    adminOnly: false
   },
   {
     title: "Turmas",
     url: "/classes",
     icon: BookOpen,
+    adminOnly: false
   },
   {
     title: "Alunos",
     url: "/students",
     icon: Users,
+    adminOnly: false
   },
   {
     title: "Avaliações Bloom",
     url: "/assessments",
     icon: BrainCircuit,
+    adminOnly: false
   },
   {
     title: "Chamada",
     url: "/attendance",
     icon: CheckSquare,
+    adminOnly: false
   },
   {
     title: "Calendário & Conteúdo",
     url: "/calendar",
     icon: Calendar,
+    adminOnly: false
+  },
+  {
+    title: "Usuários",
+    url: "/users",
+    icon: UserCog,
+    adminOnly: false
   },
   {
     title: "Configurações",
     url: "/settings",
     icon: Settings,
+    adminOnly: true
   },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { setOpenMobile, isMobile } = useSidebar()
+  
+  // Simulando usuário admin logado (Marcio Bergamini)
+  const isAdmin = true;
 
   const handleLinkClick = (title: string) => {
-    console.log(`[AppSidebar] Navegando para: ${title}`);
-    
-    // Limpeza forçada imediata de travas de UI antes de mudar de rota
-    if (typeof document !== 'undefined') {
-      document.body.style.pointerEvents = "auto";
-      document.body.style.overflow = "auto";
-      document.body.removeAttribute('data-scroll-locked');
-      document.body.removeAttribute('aria-hidden');
-      
-      // Remove overlays residuais
-      const overlays = document.querySelectorAll('[data-radix-portal], .radix-overlay');
-      overlays.forEach(el => {
-        if (el instanceof HTMLElement) el.style.display = 'none';
-      });
-    }
-
     if (isMobile) {
       setOpenMobile(false)
     }
@@ -106,7 +108,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Painel de Controle</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -120,6 +122,9 @@ export function AppSidebar() {
                     <Link href={item.url} className="flex items-center gap-3">
                       <item.icon className={`h-5 w-5 ${pathname === item.url ? 'text-primary' : 'text-muted-foreground'}`} />
                       <span className="font-medium">{item.title}</span>
+                      {item.adminOnly && (
+                        <ShieldCheck className="h-3 w-3 ml-auto text-primary opacity-50" />
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -131,9 +136,16 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-border mt-auto">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="h-11 px-4">
-              <UserCircle className="h-5 w-5 text-muted-foreground" />
-              <span className="font-medium group-data-[collapsible=icon]:hidden">Professor Admin</span>
+            <SidebarMenuButton className="h-14 px-4 bg-muted/30 hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
+                  MB
+                </div>
+                <div className="flex flex-col group-data-[collapsible=icon]:hidden">
+                  <span className="font-bold text-xs truncate max-w-[120px]">Marcio Bergamini</span>
+                  <span className="text-[10px] text-primary font-bold uppercase tracking-tighter">Administrador</span>
+                </div>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
