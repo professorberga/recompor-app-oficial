@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -21,7 +20,6 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,7 +38,7 @@ const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
   { value: 'Understand', label: 'Entender', color: 'bg-cyan-100 text-cyan-700' },
   { value: 'Apply', label: 'Aplicar', color: 'bg-teal-100 text-teal-700' },
-  { value: 'Analyze', label: 'Analisar', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'Analyze', label: 'Analisar', color: 'bg-indigo-100 text-cyan-700' },
   { value: 'Evaluate', label: 'Avaliar', color: 'bg-violet-100 text-violet-700' },
   { value: 'Create', label: 'Criar', color: 'bg-pink-100 text-pink-700' },
 ]
@@ -289,148 +287,152 @@ export default function AssessmentPage() {
                 <Plus className="h-4 w-4" /> Nova Avaliação
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px] bg-white h-[90vh] sm:h-auto sm:max-h-[90vh] flex flex-col p-0 overflow-hidden">
-              <DialogHeader className="p-6 pb-2 shrink-0">
+            <DialogContent className="sm:max-w-[700px] w-[95vw] bg-white h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl">
+              <DialogHeader className="p-6 pb-2 shrink-0 border-b">
                 <DialogTitle>Criar Registro de Avaliação</DialogTitle>
                 <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
               </DialogHeader>
-              <ScrollArea className="flex-1 px-6 py-4">
-                <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Título da Avaliação</Label>
-                      <Input 
-                        placeholder="Ex: Redação Argumentativa" 
-                        value={newAssessment.title}
-                        onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Data da Aplicação</Label>
-                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Disciplina</Label>
-                      <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Portuguese">Português</SelectItem>
-                          <SelectItem value="Math">Matemática</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Turmas Vinculadas</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between h-10 font-normal">
-                            <span className="truncate">
-                              {newAssessment.classIds.length === 0 
-                                ? "Selecionar turmas" 
-                                : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
-                            </span>
-                            <ChevronDown className="h-4 w-4 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-2 bg-white" align="start">
-                          <div className="space-y-1">
-                            {MOCK_CLASSES.map((cls) => (
-                              <div key={cls.id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors">
-                                <Checkbox 
-                                  id={`class-${cls.id}`} 
-                                  checked={newAssessment.classIds.includes(cls.id)}
-                                  onCheckedChange={(checked) => {
-                                    const ids = checked 
-                                      ? [...newAssessment.classIds, cls.id]
-                                      : newAssessment.classIds.filter(id => id !== cls.id);
-                                    setNewAssessment({...newAssessment, classIds: ids});
-                                  }}
-                                />
-                                <label 
-                                  htmlFor={`class-${cls.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
-                                >
-                                  {cls.name}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Nível de Bloom</Label>
-                      <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-                        <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
-                      </h4>
-                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
-                        <PlusCircle className="h-4 w-4" /> Adicionar Critério
-                      </Button>
-                    </div>
-
-                    <div className="space-y-6">
-                      {newRubric.map((criterion, cIdx) => (
-                        <Card key={criterion.id} className="border bg-muted/20">
-                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-                            <Input 
-                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
-                              placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
-                              value={criterion.title}
-                              onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
-                            />
-                            <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeCriterion(criterion.id)}>
-                              <Trash2 className="h-4 w-4" />
+              
+              <ScrollArea className="flex-1 w-full">
+                <div className="p-6">
+                  <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Título da Avaliação</Label>
+                        <Input 
+                          placeholder="Ex: Redação Argumentativa" 
+                          value={newAssessment.title}
+                          onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Data da Aplicação</Label>
+                        <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Disciplina</Label>
+                        <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Portuguese">Português</SelectItem>
+                            <SelectItem value="Math">Matemática</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Turmas Vinculadas</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between h-10 font-normal">
+                              <span className="truncate">
+                                {newAssessment.classIds.length === 0 
+                                  ? "Selecionar turmas" 
+                                  : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
+                              </span>
+                              <ChevronDown className="h-4 w-4 opacity-50" />
                             </Button>
-                          </CardHeader>
-                          <CardContent className="p-4 pt-0 space-y-3">
-                            {criterion.levels.map((level) => (
-                              <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
-                                <div className="col-span-8">
-                                  <Input 
-                                    className="h-8 text-xs" 
-                                    placeholder="Descrição do nível" 
-                                    value={level.label}
-                                    onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-2 bg-white" align="start">
+                            <div className="space-y-1">
+                              {MOCK_CLASSES.map((cls) => (
+                                <div key={cls.id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors">
+                                  <Checkbox 
+                                    id={`class-${cls.id}`} 
+                                    checked={newAssessment.classIds.includes(cls.id)}
+                                    onCheckedChange={(checked) => {
+                                      const ids = checked 
+                                        ? [...newAssessment.classIds, cls.id]
+                                        : newAssessment.classIds.filter(id => id !== cls.id);
+                                      setNewAssessment({...newAssessment, classIds: ids});
+                                    }}
                                   />
+                                  <label 
+                                    htmlFor={`class-${cls.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer flex-1"
+                                  >
+                                    {cls.name}
+                                  </label>
                                 </div>
-                                <div className="col-span-4 flex items-center gap-2">
-                                  <Input 
-                                    type="number" 
-                                    className="h-8 text-xs text-center" 
-                                    placeholder="Pts"
-                                    value={level.points}
-                                    onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
-                                  />
-                                  <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
-                                </div>
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      ))}
-
-                      {newRubric.length === 0 && (
-                        <div className="text-center py-8 border-2 border-dashed rounded-xl opacity-40">
-                          <p className="text-sm">Clique em "Adicionar Critério" para montar sua rubrica.</p>
-                        </div>
-                      )}
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nível de Bloom</Label>
+                        <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                </form>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                          <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
+                        </h4>
+                        <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
+                          <PlusCircle className="h-4 w-4" /> Adicionar Critério
+                        </Button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {newRubric.map((criterion, cIdx) => (
+                          <Card key={criterion.id} className="border bg-muted/20">
+                            <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+                              <Input 
+                                className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
+                                placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
+                                value={criterion.title}
+                                onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
+                              />
+                              <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeCriterion(criterion.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0 space-y-3">
+                              {criterion.levels.map((level) => (
+                                <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
+                                  <div className="col-span-8">
+                                    <Input 
+                                      className="h-8 text-xs" 
+                                      placeholder="Descrição do nível" 
+                                      value={level.label}
+                                      onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
+                                    />
+                                  </div>
+                                  <div className="col-span-4 flex items-center gap-2">
+                                    <Input 
+                                      type="number" 
+                                      className="h-8 text-xs text-center" 
+                                      placeholder="Pts"
+                                      value={level.points}
+                                      onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
+                                    />
+                                    <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+
+                        {newRubric.length === 0 && (
+                          <div className="text-center py-8 border-2 border-dashed rounded-xl opacity-40">
+                            <p className="text-sm">Clique em "Adicionar Critério" para montar sua rubrica.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </form>
+                </div>
               </ScrollArea>
+
               <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
                 <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">Criar Avaliação</Button>
               </DialogFooter>
@@ -591,7 +593,7 @@ export default function AssessmentPage() {
 
       {/* Grades Dialog */}
       <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>
-        <DialogContent className="max-w-4xl bg-white p-0 overflow-hidden flex flex-col max-h-[90vh]">
+        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between pr-8">
               <div>
@@ -600,7 +602,7 @@ export default function AssessmentPage() {
                   Lançamento por Rubrica • Turmas: {selectedAssessment?.classIds.map(id => MOCK_CLASSES.find(c => c.id === id)?.name).join(", ")}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <span className="text-[10px] font-bold uppercase block opacity-60">Nível Bloom</span>
                 <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/40">
                   {BLOOM_LEVELS.find(l => l.value === selectedAssessment?.bloomLevel)?.label}
@@ -609,70 +611,68 @@ export default function AssessmentPage() {
             </div>
           </DialogHeader>
           
-          <div className="flex-1 overflow-hidden flex">
-            <ScrollArea className="flex-1">
-              <div className="p-6 space-y-8">
-                {MOCK_STUDENTS.map((student) => {
-                  // Calculate student total score
-                  const selection = tempGrades[student.id] || {}
-                  let total = 0
-                  Object.entries(selection).forEach(([cId, lId]) => {
-                    const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
-                    const level = criterion?.levels.find(l => l.id === lId)
-                    if (level) total += level.points
-                  })
+          <ScrollArea className="flex-1 w-full">
+            <div className="p-6 space-y-8">
+              {MOCK_STUDENTS.map((student) => {
+                // Calculate student total score
+                const selection = tempGrades[student.id] || {}
+                let total = 0
+                Object.entries(selection).forEach(([cId, lId]) => {
+                  const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
+                  const level = criterion?.levels.find(l => l.id === lId)
+                  if (level) total += level.points
+                })
 
-                  return (
-                    <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-lg">{student.name}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">RA: {student.ra}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-black text-primary">{total.toFixed(1)}</span>
-                          <span className="text-[10px] text-muted-foreground block font-bold uppercase">Nota Final</span>
-                        </div>
+                return (
+                  <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-lg">{student.name}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold">RA: {student.ra}</span>
                       </div>
-
-                      <div className="grid gap-4">
-                        {selectedAssessment?.rubric.map((criterion) => (
-                          <div key={criterion.id} className="space-y-2">
-                            <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
-                              <Target className="h-3 w-3" /> {criterion.title}
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {criterion.levels.map((level) => {
-                                const isSelected = selection[criterion.id] === level.id
-                                return (
-                                  <Button
-                                    key={level.id}
-                                    type="button"
-                                    variant={isSelected ? "default" : "outline"}
-                                    size="sm"
-                                    className={cn(
-                                      "h-8 text-[10px] font-medium transition-all",
-                                      isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
-                                    )}
-                                    onClick={() => {
-                                      const newSelection = { ...selection, [criterion.id]: level.id }
-                                      setTempGrades({ ...tempGrades, [student.id]: newSelection })
-                                    }}
-                                  >
-                                    {level.label} ({level.points} pts)
-                                  </Button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="text-right">
+                        <span className="text-2xl font-black text-primary">{total.toFixed(1)}</span>
+                        <span className="text-[10px] text-muted-foreground block font-bold uppercase">Nota Final</span>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </ScrollArea>
-          </div>
+
+                    <div className="grid gap-4">
+                      {selectedAssessment?.rubric.map((criterion) => (
+                        <div key={criterion.id} className="space-y-2">
+                          <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+                            <Target className="h-3 w-3" /> {criterion.title}
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {criterion.levels.map((level) => {
+                              const isSelected = selection[criterion.id] === level.id
+                              return (
+                                <Button
+                                  key={level.id}
+                                  type="button"
+                                  variant={isSelected ? "default" : "outline"}
+                                  size="sm"
+                                  className={cn(
+                                    "h-8 text-[10px] font-medium transition-all",
+                                    isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
+                                  )}
+                                  onClick={() => {
+                                    const newSelection = { ...selection, [criterion.id]: level.id }
+                                    setTempGrades({ ...tempGrades, [student.id]: newSelection })
+                                  }}
+                                >
+                                  {level.label} ({level.points} pts)
+                                </Button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </ScrollArea>
 
           <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
             <Button variant="outline" onClick={() => setIsGradesDialogOpen(false)}>Cancelar</Button>
