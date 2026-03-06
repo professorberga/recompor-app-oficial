@@ -337,7 +337,7 @@ export default function AssessmentPage() {
                                 <Checkbox 
                                   id={`class-${cls.id}`} 
                                   checked={newAssessment.classIds.includes(cls.id)}
-                                  onCheckedChange={() => {}} // Handle on parent div for better area
+                                  onCheckedChange={() => {}} // O clique no div pai já lida com isso de forma mais robusta
                                 />
                                 <label className="text-sm font-medium leading-none cursor-pointer flex-1">
                                   {cls.name}
