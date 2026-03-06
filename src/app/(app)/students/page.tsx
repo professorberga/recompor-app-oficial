@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -43,8 +44,12 @@ export default function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
+  
+  // Dialog controls
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isOccurrenceOpen, setIsOccurrenceOpen] = useState(false)
+  const [isFichaOpen, setIsFichaOpen] = useState(false)
+  
   const [occurrenceText, setOccurrenceText] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -146,6 +151,12 @@ export default function StudentsPage() {
     setIsOccurrenceOpen(true)
   }
 
+  const handleFichaClick = (student: any) => {
+    setSelectedStudent(student)
+    setAiInsight(null)
+    setIsFichaOpen(true)
+  }
+
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name || !formData.ra || !formData.class) {
@@ -188,7 +199,6 @@ export default function StudentsPage() {
       return
     }
 
-    // Em uma app real, salvaríamos isso no Firestore
     toast({
       title: "Ocorrência Lançada",
       description: `A ocorrência para ${selectedStudent?.name} foi registrada com sucesso no diário.`,
@@ -214,6 +224,7 @@ export default function StudentsPage() {
   }
 
   const generateAiInsight = async (student: any) => {
+    if (!student) return
     setIsAiLoading(true)
     try {
       const result = await personalizedLearningSuggestions({
@@ -389,6 +400,7 @@ export default function StudentsPage() {
         </Dialog>
       </div>
 
+      {/* Ocorrência Dialog */}
       <Dialog open={isOccurrenceOpen} onOpenChange={setIsOccurrenceOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -415,6 +427,107 @@ export default function StudentsPage() {
             <Button variant="ghost" onClick={() => setIsOccurrenceOpen(false)}>Cancelar</Button>
             <Button onClick={handleOccurrenceSubmit} className="bg-amber-600 hover:bg-amber-700">Registrar no Diário</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ficha do Aluno Dialog - Single Instance for better performance */}
+      <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
+            <DialogTitle className="text-2xl flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md overflow-hidden shrink-0">
+                {selectedStudent?.photo ? (
+                  <img src={selectedStudent.photo} alt={selectedStudent.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xl font-bold">{selectedStudent?.name.charAt(0)}</span>
+                )}
+              </div>
+              <span className="truncate">{selectedStudent?.name}</span>
+              <Badge variant="outline" className="ml-2 bg-white/10 text-white border-white/20 shrink-0">{selectedStudent?.status}</Badge>
+            </DialogTitle>
+            <DialogDescription className="text-primary-foreground/80">
+              RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 p-6">
+            <div className="grid gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="p-4 bg-muted/10 border-border/50">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Frequência</span>
+                  <p className="text-2xl font-bold text-primary mt-1">94%</p>
+                </Card>
+                <Card className="p-4 bg-muted/10 border-border/50">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Média Bloom</span>
+                  <p className="text-2xl font-bold text-primary mt-1">{selectedStudent?.bloomLevel}</p>
+                </Card>
+                <Card className="p-4 bg-muted/10 border-border/50">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">Tutor</span>
+                  <p className="text-sm font-bold text-primary mt-1 truncate">{selectedStudent?.tutor || 'Não definido'}</p>
+                </Card>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-lg flex items-center gap-2">
+                    <BrainCircuit className="h-5 w-5 text-accent" />
+                    Insights Inteligentes (IA)
+                  </h4>
+                  <Button 
+                    size="sm" 
+                    className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-md gap-2"
+                    onClick={() => generateAiInsight(selectedStudent)}
+                    disabled={isAiLoading}
+                  >
+                    <Sparkles className="h-4 w-4" /> 
+                    {isAiLoading ? "Analisando..." : "Gerar Relatório IA"}
+                  </Button>
+                </div>
+
+                {aiInsight ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <Card className="p-4 border-accent/20 bg-accent/5">
+                      <h5 className="font-bold text-sm mb-2 text-accent-foreground">Resumo de Progresso</h5>
+                      <p className="text-sm leading-relaxed">{aiInsight.progressSummary}</p>
+                    </Card>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <h5 className="font-bold text-xs uppercase text-green-600">Pontos Fortes</h5>
+                        <ul className="list-disc list-inside text-sm space-y-1">
+                          {aiInsight.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <h5 className="font-bold text-xs uppercase text-amber-600">Áreas de Melhoria</h5>
+                        <ul className="list-disc list-inside text-sm space-y-1">
+                          {aiInsight.areasForImprovement.map((a, i) => <li key={i}>{a}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
+                      <h5 className="font-bold text-sm mb-2 text-primary">Sugestões de Aprendizagem</h5>
+                      <ul className="space-y-2">
+                        {aiInsight.learningSuggestions.map((s, i) => (
+                          <li key={i} className="text-sm flex gap-2">
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : !isAiLoading && (
+                  <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl border-muted">
+                    <Sparkles className="h-8 w-8 text-muted mb-2" />
+                    <p className="text-sm text-muted-foreground">Clique no botão acima para gerar uma análise profunda do estudante.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+          <div className="p-4 border-t bg-muted/20 flex justify-end gap-2 shrink-0">
+            <Button variant="outline" className="gap-2" onClick={() => setIsFichaOpen(false)}><FileText className="h-4 w-4" /> Fechar</Button>
+            <Button className="bg-primary text-primary-foreground">Salvar Observações</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -460,120 +573,17 @@ export default function StudentsPage() {
                   <Badge variant="secondary" className="w-fit text-[10px] h-5">{student.bloomLevel}</Badge>
                 </div>
                 <div className="flex items-center justify-end gap-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                        setSelectedStudent(student)
-                        setAiInsight(null)
-                      }}>
-                        <Eye className="h-4 w-4" /> Ficha
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                      <DialogHeader className="p-6 bg-primary text-primary-foreground">
-                        <DialogTitle className="text-2xl flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md overflow-hidden">
-                            {student.photo ? (
-                              <img src={student.photo} alt={student.name} className="w-full h-full object-cover" />
-                            ) : (
-                              selectedStudent?.name.charAt(0)
-                            )}
-                          </div>
-                          {selectedStudent?.name}
-                          <Badge variant="outline" className="ml-2 bg-white/10 text-white border-white/20">{selectedStudent?.status}</Badge>
-                        </DialogTitle>
-                        <DialogDescription className="text-primary-foreground/80">
-                          RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ScrollArea className="flex-1 p-6">
-                        <div className="grid gap-6">
-                          <div className="grid grid-cols-3 gap-4">
-                            <Card className="p-4 bg-muted/10 border-border/50">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Frequência</span>
-                              <p className="text-2xl font-bold text-primary mt-1">94%</p>
-                            </Card>
-                            <Card className="p-4 bg-muted/10 border-border/50">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Média Bloom</span>
-                              <p className="text-2xl font-bold text-primary mt-1">{selectedStudent?.bloomLevel}</p>
-                            </Card>
-                            <Card className="p-4 bg-muted/10 border-border/50">
-                              <span className="text-[10px] font-bold uppercase text-muted-foreground">Tutor</span>
-                              <p className="text-sm font-bold text-primary mt-1 truncate">{selectedStudent?.tutor || 'Não definido'}</p>
-                            </Card>
-                          </div>
-
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-lg flex items-center gap-2">
-                                <BrainCircuit className="h-5 w-5 text-accent" />
-                                Insights Inteligentes (IA)
-                              </h4>
-                              <Button 
-                                size="sm" 
-                                className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-md gap-2"
-                                onClick={() => generateAiInsight(selectedStudent)}
-                                disabled={isAiLoading}
-                              >
-                                <Sparkles className="h-4 w-4" /> 
-                                {isAiLoading ? "Analisando..." : "Gerar Relatório IA"}
-                              </Button>
-                            </div>
-
-                            {aiInsight ? (
-                              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
-                                <Card className="p-4 border-accent/20 bg-accent/5">
-                                  <h5 className="font-bold text-sm mb-2 text-accent-foreground">Resumo de Progresso</h5>
-                                  <p className="text-sm leading-relaxed">{aiInsight.progressSummary}</p>
-                                </Card>
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <h5 className="font-bold text-xs uppercase text-green-600">Pontos Fortes</h5>
-                                    <ul className="list-disc list-inside text-sm space-y-1">
-                                      {aiInsight.strengths.map((s, i) => <li key={i}>{s}</li>)}
-                                    </ul>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <h5 className="font-bold text-xs uppercase text-amber-600">Áreas de Melhoria</h5>
-                                    <ul className="list-disc list-inside text-sm space-y-1">
-                                      {aiInsight.areasForImprovement.map((a, i) => <li key={i}>{a}</li>)}
-                                    </ul>
-                                  </div>
-                                </div>
-                                <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
-                                  <h5 className="font-bold text-sm mb-2 text-primary">Sugestões de Aprendizagem</h5>
-                                  <ul className="space-y-2">
-                                    {aiInsight.learningSuggestions.map((s, i) => (
-                                      <li key={i} className="text-sm flex gap-2">
-                                        <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                        {s}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              </div>
-                            ) : !isAiLoading && (
-                              <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl border-muted">
-                                <Sparkles className="h-8 w-8 text-muted mb-2" />
-                                <p className="text-sm text-muted-foreground">Clique no botão acima para gerar uma análise profunda do estudante.</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </ScrollArea>
-                      <div className="p-4 border-t bg-muted/20 flex justify-end gap-2">
-                        <Button variant="outline" className="gap-2"><FileText className="h-4 w-4" /> Exportar PDF</Button>
-                        <Button className="bg-primary text-primary-foreground">Salvar Observações</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleFichaClick(student)}>
+                    <Eye className="h-4 w-4" /> Ficha
+                  </Button>
+                  
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="z-50">
                       <DropdownMenuItem onClick={() => handleEditClick(student)}>
                         <Pencil className="h-4 w-4 mr-2" /> Editar Aluno
                       </DropdownMenuItem>
