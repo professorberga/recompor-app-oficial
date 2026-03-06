@@ -66,7 +66,6 @@ export default function StudentsPage() {
         if (typeof document !== 'undefined') {
           document.body.style.pointerEvents = "auto";
           document.body.style.overflow = "auto";
-          // Remove atributos de trava do Radix
           document.body.removeAttribute('data-scroll-locked');
           document.documentElement.style.pointerEvents = "auto";
         }
@@ -304,9 +303,6 @@ export default function StudentsPage() {
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative">
             <DialogTitle className="text-2xl">{isEditing ? 'Editar Aluno' : 'Novo Cadastro'}</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Informações oficiais do estudante.</DialogDescription>
-            <Button variant="ghost" size="icon" className="absolute right-4 top-4 text-white hover:bg-white/10" onClick={() => setIsRegisterOpen(false)}>
-              <X className="h-5 w-5" />
-            </Button>
           </DialogHeader>
           <form onSubmit={handleRegisterSubmit} className="flex-1 overflow-hidden flex flex-col bg-white">
             <ScrollArea className="flex-1 p-6">
