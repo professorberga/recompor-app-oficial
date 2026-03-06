@@ -4,7 +4,6 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
-  GraduationCap,
   LayoutDashboard,
   Users,
   BrainCircuit,
@@ -66,6 +65,15 @@ export function AppSidebar() {
 
   const handleLinkClick = (title: string) => {
     console.log(`[AppSidebar] Clique no menu: ${title}`);
+    
+    // Limpeza agressiva imediata no clique para evitar UI Freeze
+    if (typeof document !== 'undefined') {
+      document.body.style.pointerEvents = "auto";
+      document.body.style.overflow = "auto";
+      document.body.removeAttribute('data-scroll-locked');
+      document.body.removeAttribute('aria-hidden');
+    }
+
     if (isMobile) {
       console.log("[AppSidebar] Fechando menu mobile");
       setOpenMobile(false)
@@ -94,7 +102,6 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url}
-                    tooltip={item.title}
                     className="h-11 px-4 transition-all duration-200"
                     onClick={() => handleLinkClick(item.title)}
                   >
