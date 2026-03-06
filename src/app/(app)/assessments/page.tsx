@@ -15,7 +15,9 @@ import {
   PlusCircle,
   LayoutList,
   Target,
-  Users
+  Users,
+  ChevronDown,
+  Check
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,6 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
 import { cn } from "@/lib/utils"
@@ -71,7 +75,7 @@ interface AssessmentRecord {
   id: string;
   title: string;
   subject: "Portuguese" | "Math";
-  classId: string;
+  classIds: string[]; // Alterado para array
   bloomLevel: string;
   date: string;
   rubric: RubricCriterion[];
@@ -96,7 +100,7 @@ export default function AssessmentPage() {
       id: 'initial-1',
       title: 'Prova de Interpretação',
       subject: 'Portuguese',
-      classId: '1',
+      classIds: ['1', '2'],
       bloomLevel: 'Analyze',
       date: '2024-10-25',
       rubric: [
@@ -126,7 +130,7 @@ export default function AssessmentPage() {
   const [newAssessment, setNewAssessment] = useState({
     title: "",
     subject: "Portuguese" as "Portuguese" | "Math",
-    classId: "1",
+    classIds: [] as string[],
     bloomLevel: "Understand",
     date: new Date().toISOString().split('T')[0],
   })
@@ -206,6 +210,10 @@ export default function AssessmentPage() {
       toast({ title: "Erro", description: "Título é obrigatório.", variant: "destructive" })
       return
     }
+    if (newAssessment.classIds.length === 0) {
+      toast({ title: "Erro", description: "Selecione pelo menos uma turma.", variant: "destructive" })
+      return
+    }
 
     const assessment: AssessmentRecord = {
       id: Math.random().toString(36).substr(2, 9),
@@ -220,12 +228,12 @@ export default function AssessmentPage() {
     setNewAssessment({
       title: "",
       subject: "Portuguese",
-      classId: "1",
+      classIds: [],
       bloomLevel: "Understand",
       date: new Date().toISOString().split('T')[0],
     })
     setNewRubric([])
-    toast({ title: "Avaliação Criada", description: "Agora você pode lançar as notas baseadas na rubrica." })
+    toast({ title: "Avaliação Criada", description: "A avaliação foi registrada para as turmas selecionadas." })
   }
 
   // Open Grades Dialog
@@ -312,18 +320,43 @@ export default function AssessmentPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Turma</Label>
-                      <Select value={newAssessment.classId} onValueChange={(v) => setNewAssessment({...newAssessment, classId: v})}>
-                        <SelectTrigger>
-                          <div className="flex items-center gap-2">
-                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                            <SelectValue placeholder="Selecione a turma" />
+                      <Label>Turmas Vinculedas</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between h-10 font-normal">
+                            <span className="truncate">
+                              {newAssessment.classIds.length === 0 
+                                ? "Selecionar turmas" 
+                                : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
+                            </span>
+                            <ChevronDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-2 bg-white" align="start">
+                          <div className="space-y-1">
+                            {MOCK_CLASSES.map((cls) => (
+                              <div key={cls.id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors">
+                                <Checkbox 
+                                  id={`class-${cls.id}`} 
+                                  checked={newAssessment.classIds.includes(cls.id)}
+                                  onCheckedChange={(checked) => {
+                                    const ids = checked 
+                                      ? [...newAssessment.classIds, cls.id]
+                                      : newAssessment.classIds.filter(id => id !== cls.id);
+                                    setNewAssessment({...newAssessment, classIds: ids});
+                                  }}
+                                />
+                                <label 
+                                  htmlFor={`class-${cls.id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
+                                >
+                                  {cls.name}
+                                </label>
+                              </div>
+                            ))}
                           </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MOCK_CLASSES.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <Label>Nível de Bloom</Label>
@@ -429,13 +462,16 @@ export default function AssessmentPage() {
                     <BrainCircuit className="h-3.5 w-3.5" /> 
                     Nível: {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
                   </CardDescription>
-                  <CardDescription className="flex items-center gap-1.5 mt-0.5">
-                    <Users className="h-3 w-3" />
-                    Turma: {MOCK_CLASSES.find(c => c.id === a.classId)?.name || 'N/A'}
-                  </CardDescription>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {a.classIds.map(cid => (
+                      <Badge key={cid} variant="secondary" className="text-[9px] h-5 bg-muted font-bold">
+                        {MOCK_CLASSES.find(c => c.id === cid)?.name || 'N/A'}
+                      </Badge>
+                    ))}
+                  </div>
                 </CardHeader>
                 <CardContent className="pb-4 flex-1">
-                  <div className="bg-muted/30 p-3 rounded-lg border border-dashed border-border mb-4">
+                  <div className="bg-muted/30 p-3 rounded-lg border border-border border-dashed mb-4">
                     <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase mb-2">
                       <span>Notas Lançadas</span>
                       <span>{Object.keys(a.grades).length}/{MOCK_STUDENTS.length}</span>
@@ -561,7 +597,7 @@ export default function AssessmentPage() {
               <div>
                 <DialogTitle className="text-2xl font-black">{selectedAssessment?.title}</DialogTitle>
                 <p className="text-sm text-primary-foreground/80 mt-1">
-                  Lançamento por Rubrica • Turma: {MOCK_CLASSES.find(c => c.id === selectedAssessment?.classId)?.name || 'N/A'}
+                  Lançamento por Rubrica • Turmas: {selectedAssessment?.classIds.map(id => MOCK_CLASSES.find(c => c.id === id)?.name).join(", ")}
                 </p>
               </div>
               <div className="text-right">
