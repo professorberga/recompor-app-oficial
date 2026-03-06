@@ -12,14 +12,14 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 const MOCK_STUDENTS = [
-  { id: '1', name: 'Ana Beatriz Silva', attendance: 95 },
-  { id: '2', name: 'Bruno Oliveira Souza', attendance: 88 },
-  { id: '3', name: 'Carlos Eduardo Santos', attendance: 92 },
-  { id: '4', name: 'Daniela Lima Ferreira', attendance: 78 },
-  { id: '5', name: 'Eduardo Pereira Costa', attendance: 98 },
-  { id: '6', name: 'Fernanda Rocha Lima', attendance: 90 },
-  { id: '7', name: 'Gabriel Alvez Martins', attendance: 85 },
-  { id: '8', name: 'Helena Mendes Castro', attendance: 94 },
+  { id: '1', name: 'Ana Beatriz Silva', ra: '123456', raDigit: '7', attendance: 95 },
+  { id: '2', name: 'Bruno Oliveira Souza', ra: '234567', raDigit: '8', attendance: 88 },
+  { id: '3', name: 'Carlos Eduardo Santos', ra: '345678', raDigit: '9', attendance: 92 },
+  { id: '4', name: 'Daniela Lima Ferreira', ra: '456789', raDigit: '0', attendance: 78 },
+  { id: '5', name: 'Eduardo Pereira Costa', ra: '567890', raDigit: '1', attendance: 98 },
+  { id: '6', name: 'Fernanda Rocha Lima', ra: '678901', raDigit: '2', attendance: 90 },
+  { id: '7', name: 'Gabriel Alvez Martins', ra: '789012', raDigit: '3', attendance: 85 },
+  { id: '8', name: 'Helena Mendes Castro', ra: '890123', raDigit: '4', attendance: 94 },
 ]
 
 export default function AttendancePage() {
@@ -112,7 +112,7 @@ export default function AttendancePage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-semibold text-foreground">{student.name}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase">ID: {student.id.padStart(4, '0')}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase">RA: {student.ra}-{student.raDigit}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
