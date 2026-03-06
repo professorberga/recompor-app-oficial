@@ -1,3 +1,4 @@
+
 "use client"
 
 import {
@@ -7,7 +8,8 @@ import {
   LayoutDashboard,
   Users,
   BrainCircuit,
-  UserCircle
+  UserCircle,
+  Settings
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -56,6 +58,11 @@ const items = [
     title: "Calendário & Conteúdo",
     url: "/calendar",
     icon: Calendar,
+  },
+  {
+    title: "Configurações",
+    url: "/settings",
+    icon: Settings,
   },
 ]
 
