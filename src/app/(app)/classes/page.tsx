@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, UserCircle } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,10 @@ import { useState } from "react"
 import Link from "next/link"
 
 const MOCK_CLASSES = [
-  { id: '1', name: '9º Ano A', subject: 'Portuguese', students: 32, iconColor: 'bg-primary' },
-  { id: '2', name: '9º Ano B', subject: 'Portuguese', students: 28, iconColor: 'bg-primary' },
-  { id: '3', name: '8º Ano A', subject: 'Math', students: 30, iconColor: 'bg-accent' },
-  { id: '4', name: '8º Ano B', subject: 'Math', students: 34, iconColor: 'bg-accent' },
+  { id: '1', name: '9º Ano A', subject: 'Portuguese', students: 32, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva' },
+  { id: '2', name: '9º Ano B', subject: 'Portuguese', students: 28, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva' },
+  { id: '3', name: '8º Ano A', subject: 'Math', students: 30, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa' },
+  { id: '4', name: '8º Ano B', subject: 'Math', students: 34, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa' },
 ]
 
 export default function ClassesPage() {
@@ -50,12 +50,12 @@ export default function ClassesPage() {
         {filteredClasses.map((cls) => (
           <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-xl transition-all duration-300">
             <div className={`h-2 ${cls.iconColor}`} />
-            <CardHeader className="flex flex-row items-center gap-4 space-y-0">
+            <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-3">
               <div className={`h-12 w-12 rounded-lg ${cls.iconColor} flex items-center justify-center text-white shadow-inner`}>
                 <BookOpen className="h-6 w-6" />
               </div>
-              <div className="flex flex-col">
-                <CardTitle className="text-xl group-hover:text-primary transition-colors">{cls.name}</CardTitle>
+              <div className="flex flex-col overflow-hidden">
+                <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{cls.name}</CardTitle>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
                     {cls.subject === 'Portuguese' ? 'Português' : 'Matemática'}
@@ -64,9 +64,13 @@ export default function ClassesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <GraduationCap className="h-4 w-4" />
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <UserCircle className="h-4 w-4 text-primary/60" />
+                  <span className="font-medium text-foreground/80">Docente: {cls.teacher}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4 text-primary/60" />
                   <span>{cls.students} Alunos</span>
                 </div>
               </div>
