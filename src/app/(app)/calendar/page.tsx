@@ -1,26 +1,55 @@
 "use client"
 
-import { useState } from "react"
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, BookOpen, Clock, Search } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, BookOpen, Clock, Search, Info } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useToast } from "@/hooks/use-toast"
 
-const MOCK_EVENTS = [
-  { id: '1', title: 'Interpretação de Texto', time: '08:00 - 09:30', classId: '1', class: '9º Ano A', type: 'Lesson' },
-  { id: '2', title: 'Sintaxe e Gramática', time: '10:00 - 11:30', classId: '2', class: '9º Ano B', type: 'Lesson' },
-  { id: '3', title: 'Plantão de Dúvidas', time: '14:00 - 15:00', classId: 'all', class: 'Geral', type: 'Support' },
+const MOCK_INITIAL_EVENTS = [
+  { id: '1', title: 'Interpretação de Texto', time: '08:00 - 09:30', classId: '1', class: '9º Ano A', type: 'Lesson', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
+  { id: '2', title: 'Sintaxe e Gramática', time: '10:00 - 11:30', classId: '2', class: '9º Ano B', type: 'Lesson', content: 'Estudo aprofundado de orações subordinadas e concordância verbal.' },
+  { id: '3', title: 'Plantão de Dúvidas', time: '14:00 - 15:00', classId: 'all', class: 'Geral', type: 'Support', content: 'Atendimento individual para esclarecimento de dúvidas sobre o projeto de leitura.' },
 ]
 
 export default function CalendarPage() {
   const [selectedClass, setSelectedClass] = useState("all")
   const [currentDate, setCurrentDate] = useState(new Date())
   const [searchTerm, setSearchTerm] = useState("")
+  const [events, setEvents] = useState(MOCK_INITIAL_EVENTS)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const { toast } = useToast()
+
+  // Form State
+  const [newEvent, setNewEvent] = useState({
+    title: "",
+    time: "08:00 - 09:30",
+    classId: "1",
+    type: "Lesson" as "Lesson" | "Support",
+    content: ""
+  })
+
+  // Failsafe para restaurar interatividade após fechar diálogo
+  useEffect(() => {
+    if (!isDialogOpen) {
+      const timer = setTimeout(() => {
+        if (typeof document !== 'undefined') {
+          document.body.style.pointerEvents = "auto";
+          document.body.style.overflow = "auto";
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isDialogOpen]);
 
   const handlePrevDay = () => {
     setCurrentDate(prev => addDays(prev, -1))
@@ -30,7 +59,39 @@ export default function CalendarPage() {
     setCurrentDate(prev => addDays(prev, 1))
   }
 
-  const filteredEvents = MOCK_EVENTS.filter(event => {
+  const handleCreateEvent = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!newEvent.title || !newEvent.content) {
+      toast({
+        title: "Campos incompletos",
+        description: "Por favor, preencha o título e o conteúdo do planejamento.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const className = newEvent.classId === 'all' ? 'Geral' : 
+                    newEvent.classId === '1' ? '9º Ano A' : 
+                    newEvent.classId === '2' ? '9º Ano B' : '8º Ano A'
+
+    const createdEvent = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...newEvent,
+      class: className
+    }
+
+    setEvents([createdEvent, ...events])
+    setIsDialogOpen(false)
+    setNewEvent({ title: "", time: "08:00 - 09:30", classId: "1", type: "Lesson", content: "" })
+    
+    toast({
+      title: "Planejamento Criado!",
+      description: `A aula "${createdEvent.title}" foi agendada com sucesso.`,
+    })
+  }
+
+  const filteredEvents = events.filter(event => {
     const matchesClass = selectedClass === "all" || event.classId === selectedClass || event.classId === "all"
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesClass && matchesSearch
@@ -43,12 +104,97 @@ export default function CalendarPage() {
           <h2 className="text-3xl font-bold tracking-tight text-primary">Calendário & Conteúdos</h2>
           <p className="text-muted-foreground mt-1">Planeje suas aulas e gerencie o cronograma curricular.</p>
         </div>
-        <Button className="gap-2 shadow-lg">
-          <Plus className="h-4 w-4" /> Novo Planejamento
-        </Button>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg">
+              <Plus className="h-4 w-4" /> Novo Planejamento
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px] bg-white">
+            <DialogHeader>
+              <DialogTitle>Novo Registro de Conteúdo</DialogTitle>
+              <DialogDescription>
+                Adicione um novo tema ou atividade ao cronograma de {format(currentDate, "dd/MM/yyyy")}.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateEvent} className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Título da Aula/Atividade</Label>
+                <Input 
+                  id="title" 
+                  placeholder="Ex: Revisão de Orações Coordenadas" 
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="class">Turma</Label>
+                  <Select 
+                    value={newEvent.classId} 
+                    onValueChange={(v) => setNewEvent({...newEvent, classId: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">9º Ano A</SelectItem>
+                      <SelectItem value="2">9º Ano B</SelectItem>
+                      <SelectItem value="3">8º Ano A</SelectItem>
+                      <SelectItem value="all">Geral / Apoio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time">Horário</Label>
+                  <Input 
+                    id="time" 
+                    placeholder="08:00 - 09:30" 
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type">Tipo de Atividade</Label>
+                <Select 
+                  value={newEvent.type} 
+                  onValueChange={(v: any) => setNewEvent({...newEvent, type: v})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Lesson">Aula Regular</SelectItem>
+                    <SelectItem value="Support">Apoio Pedagógico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="content">Conteúdo / Descrição do Plano</Label>
+                <Textarea 
+                  id="content" 
+                  placeholder="Descreva os tópicos que serão abordados..." 
+                  className="min-h-[100px]"
+                  value={newEvent.content}
+                  onChange={(e) => setNewEvent({...newEvent, content: e.target.value})}
+                  required
+                />
+              </div>
+
+              <DialogFooter className="pt-4">
+                <Button type="submit" className="w-full">Salvar Planejamento</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Filtros no Topo - Estilo igual à Chamada */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-border/50">
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           <div className="w-full md:w-72">
@@ -148,7 +294,7 @@ export default function CalendarPage() {
 
                       <div className="p-4 bg-muted/30 rounded-xl border border-border/40 group-hover:border-primary/20 transition-colors">
                         <p className="text-sm text-foreground/80 leading-relaxed italic">
-                          Conteúdo planejado: Revisão para a prova bimestral focando em análise de textos literários contemporâneos e interpretação crítica.
+                          {event.content}
                         </p>
                       </div>
                       
@@ -163,7 +309,7 @@ export default function CalendarPage() {
                 {filteredEvents.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
                     <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <CalendarIcon className="h-8 w-8" />
+                      <Info className="h-8 w-8" />
                     </div>
                     <p className="text-lg font-bold">Nenhum conteúdo agendado</p>
                     <p className="text-sm">Tente mudar a turma ou a data selecionada.</p>
