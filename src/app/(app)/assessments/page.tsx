@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -274,32 +274,33 @@ export default function AssessmentPage() {
               <Plus className="h-4 w-4" /> Nova Avaliação
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-[750px] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl">
-            <DialogHeader className="p-6 pb-2 border-b shrink-0">
+          <DialogContent className="max-w-[750px] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl border-none">
+            <DialogHeader className="p-6 pb-4 border-b shrink-0">
               <DialogTitle>Criar Registro de Avaliação</DialogTitle>
               <DialogDescription>Defina os parâmetros e a rubrica de desempenho.</DialogDescription>
             </DialogHeader>
             
-            <ScrollArea className="flex-1 w-full">
-              <div className="p-6">
-                <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ScrollArea className="flex-1 w-full bg-slate-50/30">
+              <div className="p-8">
+                <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                      <Label>Título da Avaliação</Label>
+                      <Label className="font-bold">Título da Avaliação</Label>
                       <Input 
                         placeholder="Ex: Redação Argumentativa" 
                         value={newAssessment.title}
                         onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
+                        className="bg-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Data da Aplicação</Label>
-                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} />
+                      <Label className="font-bold">Data da Aplicação</Label>
+                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} className="bg-white" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Disciplina</Label>
+                      <Label className="font-bold">Disciplina</Label>
                       <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Portuguese">Português</SelectItem>
                           <SelectItem value="Math">Matemática</SelectItem>
@@ -307,10 +308,10 @@ export default function AssessmentPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Turmas Vinculadas</Label>
+                      <Label className="font-bold">Turmas Vinculadas</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between h-10 font-normal">
+                          <Button variant="outline" className="w-full justify-between h-10 font-normal bg-white">
                             <span className="truncate">
                               {newAssessment.classIds.length === 0 
                                 ? "Selecionar turmas" 
@@ -324,22 +325,22 @@ export default function AssessmentPage() {
                             {MOCK_CLASSES.map((cls) => (
                               <div 
                                 key={cls.id} 
-                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  const isSelected = newAssessment.classIds.includes(cls.id);
-                                  const ids = isSelected 
-                                    ? newAssessment.classIds.filter(id => id !== cls.id)
-                                    : [...newAssessment.classIds, cls.id];
-                                  setNewAssessment({...newAssessment, classIds: ids});
-                                }}
+                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors"
                               >
                                 <Checkbox 
                                   id={`class-${cls.id}`} 
                                   checked={newAssessment.classIds.includes(cls.id)}
-                                  onCheckedChange={() => {}} // O clique no div pai já lida com isso de forma mais robusta
+                                  onCheckedChange={(checked) => {
+                                    const ids = checked 
+                                      ? [...newAssessment.classIds, cls.id]
+                                      : newAssessment.classIds.filter(id => id !== cls.id);
+                                    setNewAssessment({...newAssessment, classIds: ids});
+                                  }}
                                 />
-                                <label className="text-sm font-medium leading-none cursor-pointer flex-1">
+                                <label 
+                                  htmlFor={`class-${cls.id}`} 
+                                  className="text-sm font-medium leading-none cursor-pointer flex-1 py-1"
+                                >
                                   {cls.name}
                                 </label>
                               </div>
@@ -349,9 +350,9 @@ export default function AssessmentPage() {
                       </Popover>
                     </div>
                     <div className="space-y-2">
-                      <Label>Nível de Bloom</Label>
+                      <Label className="font-bold">Nível de Bloom</Label>
                       <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
                         </SelectContent>
@@ -359,25 +360,25 @@ export default function AssessmentPage() {
                     </div>
                   </div>
 
-                  <Separator className="my-6" />
+                  <Separator className="my-8" />
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between sticky top-0 bg-white py-2 z-10 border-b">
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between sticky top-0 bg-transparent py-2 z-10">
                       <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                         <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
                       </h4>
-                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2 bg-white shadow-sm">
                         <PlusCircle className="h-4 w-4" /> Adicionar Critério
                       </Button>
                     </div>
 
-                    <div className="space-y-6 pt-2">
+                    <div className="grid gap-6">
                       {newRubric.map((criterion, cIdx) => (
-                        <Card key={criterion.id} className="border bg-muted/20 shadow-sm">
-                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+                        <Card key={criterion.id} className="border shadow-sm overflow-hidden bg-white">
+                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0 bg-slate-50/50">
                             <Input 
-                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base" 
-                              placeholder={`Critério ${cIdx + 1} (ex: Coesão)`}
+                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base placeholder:text-slate-400" 
+                              placeholder={`Critério ${cIdx + 1} (ex: Coesão Textual)`}
                               value={criterion.title}
                               onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
                             />
@@ -385,13 +386,13 @@ export default function AssessmentPage() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </CardHeader>
-                          <CardContent className="p-4 pt-0 space-y-3">
+                          <CardContent className="p-4 pt-4 space-y-3">
                             {criterion.levels.map((level) => (
-                              <div key={level.id} className="grid grid-cols-12 gap-2 items-center">
+                              <div key={level.id} className="grid grid-cols-12 gap-3 items-center">
                                 <div className="col-span-8">
                                   <Input 
-                                    className="h-8 text-xs bg-white" 
-                                    placeholder="Descrição do nível" 
+                                    className="h-9 text-xs" 
+                                    placeholder="Descrição do nível de desempenho" 
                                     value={level.label}
                                     onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
                                   />
@@ -399,12 +400,12 @@ export default function AssessmentPage() {
                                 <div className="col-span-4 flex items-center gap-2">
                                   <Input 
                                     type="number" 
-                                    className="h-8 text-xs text-center bg-white" 
+                                    className="h-9 text-xs text-center font-bold" 
                                     placeholder="Pts"
                                     value={level.points}
                                     onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
                                   />
-                                  <span className="text-[10px] font-bold text-muted-foreground">PTS</span>
+                                  <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">PONTOS</span>
                                 </div>
                               </div>
                             ))}
@@ -413,19 +414,22 @@ export default function AssessmentPage() {
                       ))}
 
                       {newRubric.length === 0 && (
-                        <div className="text-center py-12 border-2 border-dashed rounded-xl opacity-40 bg-muted/10">
-                          <p className="text-sm font-medium">Clique em "Adicionar Critério" para montar sua rubrica.</p>
+                        <div className="text-center py-16 border-2 border-dashed rounded-xl opacity-40 bg-white/50">
+                          <LayoutList className="h-10 w-10 mx-auto mb-2 text-primary/50" />
+                          <p className="text-sm font-medium">A estrutura de sua rubrica aparecerá aqui.</p>
+                          <p className="text-xs text-muted-foreground">Clique em "Adicionar Critério" para começar.</p>
                         </div>
                       )}
                     </div>
                   </div>
                 </form>
               </div>
+              <ScrollBar className="w-2" />
             </ScrollArea>
 
-            <DialogFooter className="p-6 bg-muted/5 border-t shrink-0">
+            <DialogFooter className="p-6 bg-slate-50 border-t shrink-0">
               <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">
-                Criar Avaliação
+                Finalizar e Criar Registro
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -666,6 +670,7 @@ export default function AssessmentPage() {
                 )
               })}
             </div>
+            <ScrollBar className="w-2" />
           </ScrollArea>
 
           <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
