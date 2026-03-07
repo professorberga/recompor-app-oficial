@@ -134,21 +134,51 @@ export default function AssessmentPage() {
   const [newAssessment, setNewAssessment] = useState({
     title: "",
     subject: "Portuguese" as "Portuguese" | "Math",
-    classIds: [] as string[],
     bloomLevel: "Understand",
     date: new Date().toISOString().split('T')[0],
   })
+  
+  // Refactored Class Selection State
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
+  const [classSearchTerm, setClassSearchTerm] = useState("")
+  
   const [newRubric, setNewRubric] = useState<RubricCriterion[]>([])
   const [tempGrades, setTempGrades] = useState<Record<string, Record<string, string>>>({})
   
-  // MultiSelect State
-  const [classSearchTerm, setClassSearchTerm] = useState("")
-
   const { toast } = useToast()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Functional MultiSelect Logic
+  const toggleClassSelection = (classId: string) => {
+    setSelectedClasses(prev => {
+      const isSelected = prev.includes(classId)
+      const newState = isSelected 
+        ? prev.filter(id => id !== classId)
+        : [...prev, classId]
+      console.log("selectedClasses update:", newState)
+      return newState
+    })
+  }
+
+  const selectAllClasses = () => {
+    const allIds = MOCK_CLASSES.map(c => c.id)
+    setSelectedClasses(allIds)
+    console.log("selectedClasses select all:", allIds)
+  }
+
+  const clearClassSelection = () => {
+    setSelectedClasses([])
+    console.log("selectedClasses clear")
+  }
+
+  const filteredClasses = useMemo(() => {
+    return MOCK_CLASSES.filter(c => 
+      c.name.toLowerCase().includes(classSearchTerm.toLowerCase())
+    )
+  }, [classSearchTerm])
 
   const handleGenerateAI = async () => {
     if (!competencyIA) {
@@ -172,35 +202,6 @@ export default function AssessmentPage() {
       setIsLoadingIA(false)
     }
   }
-
-  const toggleClassSelection = (classId: string) => {
-    setNewAssessment(prev => ({
-      ...prev,
-      classIds: prev.classIds.includes(classId)
-        ? prev.classIds.filter(id => id !== classId)
-        : [...prev.classIds, classId]
-    }))
-  }
-
-  const selectAllClasses = () => {
-    setNewAssessment(prev => ({
-      ...prev,
-      classIds: MOCK_CLASSES.map(c => c.id)
-    }))
-  }
-
-  const clearClassSelection = () => {
-    setNewAssessment(prev => ({
-      ...prev,
-      classIds: []
-    }))
-  }
-
-  const filteredClasses = useMemo(() => {
-    return MOCK_CLASSES.filter(c => 
-      c.name.toLowerCase().includes(classSearchTerm.toLowerCase())
-    )
-  }, [classSearchTerm])
 
   const addCriterion = () => {
     const id = Math.random().toString(36).substr(2, 9)
@@ -241,7 +242,7 @@ export default function AssessmentPage() {
       toast({ title: "Erro", description: "Título é obrigatório.", variant: "destructive" })
       return
     }
-    if (newAssessment.classIds.length === 0) {
+    if (selectedClasses.length === 0) {
       toast({ title: "Erro", description: "Selecione pelo menos uma turma.", variant: "destructive" })
       return
     }
@@ -249,6 +250,7 @@ export default function AssessmentPage() {
     const assessment: AssessmentRecord = {
       id: Math.random().toString(36).substr(2, 9),
       ...newAssessment,
+      classIds: selectedClasses,
       rubric: newRubric,
       grades: {},
       studentCriterionGrades: {}
@@ -259,10 +261,10 @@ export default function AssessmentPage() {
     setNewAssessment({
       title: "",
       subject: "Portuguese",
-      classIds: [],
       bloomLevel: "Understand",
       date: new Date().toISOString().split('T')[0],
     })
+    setSelectedClasses([])
     setNewRubric([])
     toast({ title: "Avaliação Criada", description: "A avaliação foi registrada com sucesso." })
   }
@@ -372,15 +374,15 @@ export default function AssessmentPage() {
                       <Label className="font-bold flex items-center justify-between">
                         <span>Turmas Vinculadas</span>
                         <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          {newAssessment.classIds.length} selecionada(s)
+                          {selectedClasses.length} selecionada(s)
                         </span>
                       </Label>
                       
                       <div className="flex flex-wrap gap-2 mb-2 min-h-[44px] p-2 bg-white rounded-md border border-input shadow-sm items-center">
-                        {newAssessment.classIds.length === 0 ? (
+                        {selectedClasses.length === 0 ? (
                           <span className="text-sm text-muted-foreground px-2">Nenhuma turma selecionada</span>
                         ) : (
-                          newAssessment.classIds.map(id => {
+                          selectedClasses.map(id => {
                             const turma = MOCK_CLASSES.find(c => c.id === id)
                             return (
                               <Badge key={id} variant="secondary" className="gap-1 pr-1 pl-2.5 h-7 font-bold bg-primary/10 text-primary border-primary/20">
@@ -403,7 +405,7 @@ export default function AssessmentPage() {
                               <Plus className="h-3 w-3" /> Gerenciar Turmas
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[320px] p-0 shadow-2xl z-[60]" align="end">
+                          <PopoverContent className="w-[320px] p-0 shadow-2xl z-[60]" align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
                             <div className="p-3 border-b bg-slate-50 space-y-3">
                               <div className="relative">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -428,22 +430,20 @@ export default function AssessmentPage() {
                                 {filteredClasses.map((cls) => (
                                   <div 
                                     key={cls.id} 
-                                    className="flex items-center space-x-2 p-2.5 hover:bg-muted rounded-md transition-colors cursor-pointer"
-                                    onClick={() => toggleClassSelection(cls.id)}
+                                    className="flex items-center space-x-2 p-2.5 hover:bg-muted rounded-md transition-colors"
                                   >
                                     <Checkbox 
                                       id={`class-item-${cls.id}`} 
-                                      checked={newAssessment.classIds.includes(cls.id)}
+                                      checked={selectedClasses.includes(cls.id)}
                                       onCheckedChange={() => toggleClassSelection(cls.id)}
                                     />
                                     <Label 
                                       htmlFor={`class-item-${cls.id}`} 
                                       className="text-sm font-semibold flex-1 cursor-pointer"
-                                      onClick={(e) => e.preventDefault()}
                                     >
                                       {cls.name}
                                     </Label>
-                                    {newAssessment.classIds.includes(cls.id) && (
+                                    {selectedClasses.includes(cls.id) && (
                                       <Check className="h-4 w-4 text-primary" />
                                     )}
                                   </div>
