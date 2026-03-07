@@ -42,6 +42,8 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Checkbox } from "@/components/ui/checkbox"
+import { cn } from "@/lib/utils"
 
 type UserRole = 'Admin' | 'Professor';
 
@@ -116,7 +118,6 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
   
-  const [isAdmin, setIsAdmin] = useState(true) 
   const [isSaving, setIsSaving] = useState(false)
 
   // Estados para Gestão de Usuários
@@ -124,10 +125,11 @@ export default function SettingsPage() {
   const [userSearch, setUserSearch] = useState("")
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null)
-  const [newUser, setNewUser] = useState({
+  const [userFormData, setUserFormData] = useState({
     name: "",
     email: "",
-    role: "Professor" as UserRole
+    role: "Professor" as UserRole,
+    assignedDisciplineIds: [] as string[]
   })
 
   // Estados para Gestão de Disciplinas
@@ -160,28 +162,48 @@ export default function SettingsPage() {
 
   const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newUser.name || !newUser.email) {
+    if (!userFormData.name || !userFormData.email) {
       toast({ title: "Erro", description: "Preencha todos os campos.", variant: "destructive" })
       return
     }
 
+    let targetUserId = "";
+
     if (editingUser) {
-      setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...newUser } : u))
+      setUsers(users.map(u => u.id === editingUser.id ? { ...u, name: userFormData.name, email: userFormData.email, role: userFormData.role } : u))
+      targetUserId = editingUser.id;
       toast({ title: "Usuário Atualizado" })
     } else {
-      const user: SystemUser = {
+      const newUser: SystemUser = {
         id: Math.random().toString(36).substr(2, 9),
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
+        name: userFormData.name,
+        email: userFormData.email,
+        role: userFormData.role,
         status: 'Ativo'
       }
-      setUsers([user, ...users])
+      setUsers([newUser, ...users])
+      targetUserId = newUser.id;
       toast({ title: "Usuário Cadastrado" })
     }
+
+    // Sincronizar disciplinas associadas
+    if (userFormData.role === 'Professor' || userFormData.role === 'Admin') {
+      const updatedDisciplines = disciplines.map(d => {
+        const isAssigned = userFormData.assignedDisciplineIds.includes(d.id);
+        if (isAssigned) {
+          return { ...d, teacherId: targetUserId };
+        } else if (d.teacherId === targetUserId) {
+          // Se estava associado e agora não está, limpa o teacherId (opcional, dependendo da regra de negócio)
+          return { ...d, teacherId: "" };
+        }
+        return d;
+      });
+      setDisciplines(updatedDisciplines);
+    }
+
     setIsUserDialogOpen(false)
     setEditingUser(null)
-    setNewUser({ name: "", email: "", role: "Professor" })
+    setUserFormData({ name: "", email: "", role: "Professor", assignedDisciplineIds: [] })
   }
 
   const handleDisciplineSubmit = (e: React.FormEvent) => {
@@ -199,6 +221,15 @@ export default function SettingsPage() {
     setIsDisciplineDialogOpen(false)
     setNewDiscipline({ name: "", classId: "", teacherId: "", schedule: MOCK_SCHEDULES[0] })
     toast({ title: "Disciplina Cadastrada" })
+  }
+
+  const toggleDisciplineInUserForm = (id: string) => {
+    setUserFormData(prev => ({
+      ...prev,
+      assignedDisciplineIds: prev.assignedDisciplineIds.includes(id)
+        ? prev.assignedDisciplineIds.filter(dId => dId !== id)
+        : [...prev.assignedDisciplineIds, id]
+    }))
   }
 
   const filteredUsers = users.filter(u => 
@@ -323,7 +354,7 @@ export default function SettingsPage() {
                         </td>
                         <td className="px-6 py-4 flex items-center gap-2">
                           <UserCheck className="h-3 w-3 text-muted-foreground" />
-                          {users.find(u => u.id === d.teacherId)?.name}
+                          {users.find(u => u.id === d.teacherId)?.name || "Não atribuído"}
                         </td>
                         <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
                           <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {d.schedule}</div>
@@ -349,35 +380,77 @@ export default function SettingsPage() {
                 <CardTitle>Gestão de Usuários</CardTitle>
                 <CardDescription>Adicione ou remova permissões de acesso ao sistema.</CardDescription>
               </div>
-              <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+              <Dialog open={isUserDialogOpen} onOpenChange={(open) => {
+                setIsUserDialogOpen(open);
+                if (!open) {
+                  setEditingUser(null);
+                  setUserFormData({ name: "", email: "", role: "Professor", assignedDisciplineIds: [] });
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2 shadow-lg"><UserPlus className="h-4 w-4" /> Novo Usuário</Button>
                 </DialogTrigger>
-                <DialogContent className="bg-white">
-                  <DialogHeader>
+                <DialogContent className="max-w-2xl bg-white max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                  <DialogHeader className="p-6 border-b">
                     <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Usuário'}</DialogTitle>
+                    <DialogDescription>Dados de acesso e atribuições de disciplinas.</DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleUserSubmit} className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Nome Completo</Label>
-                      <Input value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>E-mail</Label>
-                      <Input type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Perfil de Acesso</Label>
-                      <Select value={newUser.role} onValueChange={(v: any) => setNewUser({...newUser, role: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Professor">Professor</SelectItem>
-                          <SelectItem value="Admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <DialogFooter><Button type="submit" className="w-full">Salvar</Button></DialogFooter>
-                  </form>
+                  <ScrollArea className="flex-1">
+                    <form id="user-form" onSubmit={handleUserSubmit} className="space-y-6 p-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 col-span-2">
+                          <Label>Nome Completo</Label>
+                          <Input value={userFormData.name} onChange={(e) => setUserFormData({...userFormData, name: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>E-mail</Label>
+                          <Input type="email" value={userFormData.email} onChange={(e) => setUserFormData({...userFormData, email: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Perfil de Acesso</Label>
+                          <Select value={userFormData.role} onValueChange={(v: any) => setUserFormData({...userFormData, role: v})}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Professor">Professor</SelectItem>
+                              <SelectItem value="Admin">Administrador</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(userFormData.role === 'Professor' || userFormData.role === 'Admin') && (
+                        <div className="space-y-4 pt-4 border-t">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                            <BookOpen className="h-4 w-4" /> Atribuição de Aulas
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {disciplines.map((d) => (
+                              <label key={d.id} className={cn(
+                                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                                userFormData.assignedDisciplineIds.includes(d.id) ? "bg-primary/5 border-primary/20" : "hover:bg-muted/5"
+                              )}>
+                                <Checkbox 
+                                  checked={userFormData.assignedDisciplineIds.includes(d.id)} 
+                                  onCheckedChange={() => toggleDisciplineInUserForm(d.id)} 
+                                />
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-bold">{d.name}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase">{MOCK_CLASSES.find(c => c.id === d.classId)?.name} • {d.schedule}</span>
+                                </div>
+                              </label>
+                            ))}
+                            {disciplines.length === 0 && (
+                              <p className="text-xs italic text-muted-foreground col-span-2 py-4">Nenhuma disciplina cadastrada para atribuição.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  </ScrollArea>
+                  <DialogFooter className="p-6 border-t bg-slate-50">
+                    <Button variant="outline" onClick={() => setIsUserDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit" form="user-form" className="px-8 shadow-lg font-bold">Salvar Alterações</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </CardHeader>
@@ -394,28 +467,59 @@ export default function SettingsPage() {
                     <tr>
                       <th className="px-6 py-4">Usuário</th>
                       <th className="px-6 py-4">Perfil</th>
+                      <th className="px-6 py-4">Disciplinas</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-muted/10 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-semibold">{user.name}</span>
-                            <span className="text-xs text-muted-foreground">{user.email}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4"><Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>{user.role}</Badge></td>
-                        <td className="px-6 py-4"><Badge variant="outline" className="text-green-600 bg-green-50">{user.status}</Badge></td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="ghost" size="icon" onClick={() => setUsers(users.filter(x => x.id !== user.id))}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredUsers.map((user) => {
+                      const teacherDisciplines = disciplines.filter(d => d.teacherId === user.id);
+                      return (
+                        <tr key={user.id} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-semibold">{user.name}</span>
+                              <span className="text-xs text-muted-foreground">{user.email}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4"><Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>{user.role}</Badge></td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {teacherDisciplines.length > 0 ? (
+                                teacherDisciplines.map(d => (
+                                  <Badge key={d.id} variant="outline" className="text-[9px] h-4">
+                                    {d.name}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">Nenhuma</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4"><Badge variant="outline" className="text-green-600 bg-green-50">{user.status}</Badge></td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => {
+                                setEditingUser(user);
+                                setUserFormData({
+                                  name: user.name,
+                                  email: user.email,
+                                  role: user.role,
+                                  assignedDisciplineIds: disciplines.filter(d => d.teacherId === user.id).map(d => d.id)
+                                });
+                                setIsUserDialogOpen(true);
+                              }}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setUsers(users.filter(x => x.id !== user.id))}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
