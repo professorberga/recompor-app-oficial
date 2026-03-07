@@ -51,11 +51,11 @@ const MOCK_CLASSES = [
 ]
 
 const MOCK_STUDENTS = [
-  { id: '1', name: 'Ana Beatriz Silva', ra: '123456' },
-  { id: '2', name: 'Bruno Oliveira Souza', ra: '234567' },
-  { id: '3', name: 'Carlos Eduardo Santos', ra: '345678' },
-  { id: '4', name: 'Daniela Lima Ferreira', ra: '456789' },
-  { id: '5', name: 'Eduardo Pereira Costa', ra: '567890' },
+  { id: '1', name: 'Ana Beatriz Silva', ra: '123456', classId: '1' },
+  { id: '2', name: 'Bruno Oliveira Souza', ra: '234567', classId: '1' },
+  { id: '3', name: 'Carlos Eduardo Santos', ra: '345678', classId: '2' },
+  { id: '4', name: 'Daniela Lima Ferreira', ra: '456789', classId: '2' },
+  { id: '5', name: 'Eduardo Pereira Costa', ra: '567890', classId: '3' },
 ]
 
 interface Class {
@@ -345,7 +345,7 @@ export default function AssessmentPage() {
 
   const spreadsheetData = useMemo(() => {
     const classAssessments = assessments.filter(a => a.classIds.includes(spreadsheetClassId))
-    const rows = MOCK_STUDENTS.map(student => {
+    const rows = MOCK_STUDENTS.filter(s => s.classId === spreadsheetClassId).map(student => {
       let totalScore = 0
       let count = 0
       const studentGrades: Record<string, number | null> = {}
@@ -370,6 +370,11 @@ export default function AssessmentPage() {
 
     return { assessments: classAssessments, rows }
   }, [assessments, spreadsheetClassId])
+
+  const filteredStudentsForGrading = useMemo(() => {
+    if (!gradingClassId) return []
+    return MOCK_STUDENTS.filter(s => s.classId === gradingClassId)
+  }, [gradingClassId])
 
   if (!mounted) return null
 
@@ -621,7 +626,7 @@ export default function AssessmentPage() {
               <div className="flex items-center gap-4">
                 <div className="flex flex-col">
                   <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Selecionar Turma</Label>
-                  <Select value={spreadsheetClassId} onValueChange={spreadsheetClassId ? setSpreadsheetClassId : undefined}>
+                  <Select value={spreadsheetClassId} onValueChange={setSpreadsheetClassId}>
                     <SelectTrigger className="w-[180px] h-9">
                       <SelectValue placeholder="Turma" />
                     </SelectTrigger>
@@ -813,97 +818,104 @@ export default function AssessmentPage() {
               </Select>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Status do Lançamento</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Alunos Listados</span>
               <Badge variant="outline" className="bg-white">
-                {gradingClassId ? MOCK_CLASSES.find(c => c.id === gradingClassId)?.name : 'Selecione uma turma'}
+                {filteredStudentsForGrading.length} estudantes
               </Badge>
             </div>
           </div>
           
           <ScrollArea className="flex-1 w-full">
             <div className="p-6 space-y-8">
-              {MOCK_STUDENTS.map((student) => {
-                const selection = tempGrades[student.id] || {}
-                let total = 0
-                
-                if (selectedAssessment?.rubric && selectedAssessment.rubric.length > 0) {
-                  Object.entries(selection).forEach(([cId, lId]) => {
-                    const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
-                    const level = criterion?.levels.find(l => l.id === lId)
-                    if (level) total += level.points
-                  })
-                } else {
-                  total = selectedAssessment?.grades[student.id] || 0
-                }
+              {filteredStudentsForGrading.length > 0 ? (
+                filteredStudentsForGrading.map((student) => {
+                  const selection = tempGrades[student.id] || {}
+                  let total = 0
+                  
+                  if (selectedAssessment?.rubric && selectedAssessment.rubric.length > 0) {
+                    Object.entries(selection).forEach(([cId, lId]) => {
+                      const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
+                      const level = criterion?.levels.find(l => l.id === lId)
+                      if (level) total += level.points
+                    })
+                  } else {
+                    total = selectedAssessment?.grades[student.id] || 0
+                  }
 
-                return (
-                  <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-lg">{student.name}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold">RA: {student.ra}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-2xl font-black text-primary">{total.toFixed(1)}</span>
-                        <span className="text-[10px] text-muted-foreground block font-bold uppercase">Nota Final</span>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4">
-                      {selectedAssessment?.rubric && selectedAssessment.rubric.length > 0 ? (
-                        selectedAssessment.rubric.map((criterion) => (
-                          <div key={criterion.id} className="space-y-2">
-                            <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
-                              <Target className="h-3 w-3" /> {criterion.title}
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {criterion.levels.map((level) => {
-                                const isSelected = selection[criterion.id] === level.id
-                                return (
-                                  <Button
-                                    key={level.id}
-                                    type="button"
-                                    variant={isSelected ? "default" : "outline"}
-                                    size="sm"
-                                    className={cn(
-                                      "h-8 text-[10px] font-medium transition-all",
-                                      isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
-                                    )}
-                                    onClick={() => {
-                                      const newSelection = { ...selection, [criterion.id]: level.id }
-                                      setTempGrades({ ...tempGrades, [student.id]: newSelection })
-                                    }}
-                                  >
-                                    {level.label} ({level.points} pts)
-                                  </Button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex items-center gap-4">
-                          <Label>Nota Direta:</Label>
-                          <Input 
-                            type="number" 
-                            className="w-24 font-bold" 
-                            defaultValue={total}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0
-                              setAssessments(prev => prev.map(a => 
-                                a.id === selectedAssessment?.id ? {
-                                  ...a,
-                                  grades: { ...a.grades, [student.id]: val }
-                                } : a
-                              ))
-                            }}
-                          />
+                  return (
+                    <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-lg">{student.name}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">RA: {student.ra}</span>
                         </div>
-                      )}
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-primary">{total.toFixed(1)}</span>
+                          <span className="text-[10px] text-muted-foreground block font-bold uppercase">Nota Final</span>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4">
+                        {selectedAssessment?.rubric && selectedAssessment.rubric.length > 0 ? (
+                          selectedAssessment.rubric.map((criterion) => (
+                            <div key={criterion.id} className="space-y-2">
+                              <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+                                <Target className="h-3 w-3" /> {criterion.title}
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                {criterion.levels.map((level) => {
+                                  const isSelected = selection[criterion.id] === level.id
+                                  return (
+                                    <Button
+                                      key={level.id}
+                                      type="button"
+                                      variant={isSelected ? "default" : "outline"}
+                                      size="sm"
+                                      className={cn(
+                                        "h-8 text-[10px] font-medium transition-all",
+                                        isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
+                                      )}
+                                      onClick={() => {
+                                        const newSelection = { ...selection, [criterion.id]: level.id }
+                                        setTempGrades({ ...tempGrades, [student.id]: newSelection })
+                                      }}
+                                    >
+                                      {level.label} ({level.points} pts)
+                                    </Button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex items-center gap-4">
+                            <Label>Nota Direta:</Label>
+                            <Input 
+                              type="number" 
+                              className="w-24 font-bold" 
+                              defaultValue={total}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0
+                                setAssessments(prev => prev.map(a => 
+                                  a.id === selectedAssessment?.id ? {
+                                    ...a,
+                                    grades: { ...a.grades, [student.id]: val }
+                                  } : a
+                                ))
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              ) : (
+                <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                  <Info className="h-10 w-10 mb-2" />
+                  <p className="text-sm font-bold">Selecione uma turma para carregar os alunos.</p>
+                </div>
+              )}
             </div>
             <ScrollBar className="w-2" />
           </ScrollArea>
