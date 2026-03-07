@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   BrainCircuit, 
   Sparkles, 
@@ -13,7 +13,10 @@ import {
   Target, 
   ChevronDown,
   CheckCircle2,
-  Info
+  Info,
+  Table as TableIcon,
+  Search,
+  ArrowRight
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +33,7 @@ import { useToast } from "@/hooks/use-toast"
 import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
@@ -114,6 +118,17 @@ export default function AssessmentPage() {
         '1': { 'c1': 'l3' },
         '2': { 'c1': 'l2' }
       }
+    },
+    {
+      id: 'initial-2',
+      title: 'Simulado de Sintaxe',
+      subject: 'Portuguese',
+      classIds: ['1'],
+      bloomLevel: 'Understand',
+      date: '2024-11-05',
+      rubric: [],
+      grades: { '1': 8, '2': 9, '3': 7 },
+      studentCriterionGrades: {}
     }
   ])
   
@@ -121,6 +136,9 @@ export default function AssessmentPage() {
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   
+  // Spreadsheet State
+  const [spreadsheetClassId, setSpreadsheetClassId] = useState<string>("1")
+
   // New Assessment Form State
   const [newAssessment, setNewAssessment] = useState({
     title: "",
@@ -236,20 +254,29 @@ export default function AssessmentPage() {
     if (!selectedAssessment) return
 
     const finalGrades: Record<string, number> = {}
-    Object.entries(tempGrades).forEach(([studentId, criterionSelection]) => {
-      let total = 0
-      Object.entries(criterionSelection).forEach(([criterionId, levelId]) => {
-        const criterion = selectedAssessment.rubric.find(c => c.id === criterionId)
-        const level = criterion?.levels.find(l => l.id === levelId)
-        if (level) total += level.points
+    
+    // Se não houver rubrica, as notas podem ter sido inseridas de forma direta no mock ou futuro campo direto
+    // Por enquanto, baseamos na rubrica ou mantemos as que já existem se forem diretas
+    if (selectedAssessment.rubric.length > 0) {
+      Object.entries(tempGrades).forEach(([studentId, criterionSelection]) => {
+        let total = 0
+        Object.entries(criterionSelection).forEach(([criterionId, levelId]) => {
+          const criterion = selectedAssessment.rubric.find(c => c.id === criterionId)
+          const level = criterion?.levels.find(l => l.id === levelId)
+          if (level) total += level.points
+        })
+        finalGrades[studentId] = total
       })
-      finalGrades[studentId] = total
-    })
+    } else {
+      // Para avaliações sem rubrica, no protótipo mantemos o estado de tempGrades se fosse numérico (não implementado aqui, mas para extensibilidade)
+      // Usamos os grades existentes como fallback
+      Object.assign(finalGrades, selectedAssessment.grades)
+    }
 
     setAssessments(assessments.map(a => 
       a.id === selectedAssessment.id ? { 
         ...a, 
-        grades: finalGrades, 
+        grades: { ...a.grades, ...finalGrades }, 
         studentCriterionGrades: tempGrades 
       } : a
     ))
@@ -257,6 +284,37 @@ export default function AssessmentPage() {
     setIsGradesDialogOpen(false)
     toast({ title: "Notas Registradas", description: "As notas foram calculadas e salvas." })
   }
+
+  // Memoized Spreadsheet Calculations
+  const spreadsheetData = useMemo(() => {
+    const classAssessments = assessments.filter(a => a.classIds.includes(spreadsheetClassId))
+    const classStudents = MOCK_STUDENTS // No protótipo, assumimos que todos os alunos são da turma para simplicidade
+
+    const rows = classStudents.map(student => {
+      let totalScore = 0
+      let count = 0
+      const studentGrades: Record<string, number | null> = {}
+
+      classAssessments.forEach(assessment => {
+        const grade = assessment.grades[student.id]
+        studentGrades[assessment.id] = grade !== undefined ? grade : null
+        if (grade !== undefined) {
+          totalScore += grade
+          count++
+        }
+      })
+
+      return {
+        id: student.id,
+        name: student.name,
+        ra: student.ra,
+        grades: studentGrades,
+        average: count > 0 ? totalScore / count : 0
+      }
+    })
+
+    return { assessments: classAssessments, rows }
+  }, [assessments, spreadsheetClassId])
 
   if (!mounted) return null
 
@@ -437,9 +495,12 @@ export default function AssessmentPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 bg-white border shadow-sm p-1">
+        <TabsList className="grid w-full grid-cols-3 h-12 bg-white border shadow-sm p-1">
           <TabsTrigger value="manager" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
             <ClipboardList className="h-4 w-4" /> Diário de Avaliações
+          </TabsTrigger>
+          <TabsTrigger value="spreadsheet" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
+            <TableIcon className="h-4 w-4" /> Planilha de Resultados
           </TabsTrigger>
           <TabsTrigger value="generator" className="gap-2 font-bold data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
             <Sparkles className="h-4 w-4" /> Gerador IA Bloom
@@ -514,6 +575,108 @@ export default function AssessmentPage() {
               <p className="text-sm">Clique em "Nova Avaliação" para começar.</p>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="spreadsheet" className="mt-6 space-y-6">
+          <Card className="border-none shadow-md bg-white">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <div className="flex flex-col gap-1">
+                <CardTitle className="flex items-center gap-2">
+                  <TableIcon className="h-5 w-5 text-primary" />
+                  Planilha de Resultados Consolidada
+                </CardTitle>
+                <CardDescription>Visualize o desempenho de cada aluno em todas as avaliações lado a lado.</CardDescription>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col">
+                  <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Selecionar Turma</Label>
+                  <Select value={spreadsheetClassId} onValueChange={setSpreadsheetClassId}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue placeholder="Turma" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MOCK_CLASSES.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="w-full">
+                <Table className="min-w-[800px]">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="w-[250px] font-bold text-xs uppercase sticky left-0 bg-slate-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Estudante</TableHead>
+                      {spreadsheetData.assessments.map(a => (
+                        <TableHead key={a.id} className="text-center font-bold text-[10px] uppercase min-w-[120px]">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="truncate max-w-[120px]">{a.title}</span>
+                            <Badge variant="outline" className="text-[8px] h-4 px-1 mx-auto font-normal opacity-70">
+                              {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
+                            </Badge>
+                          </div>
+                        </TableHead>
+                      ))}
+                      <TableHead className="text-center font-bold text-xs uppercase bg-primary/5 text-primary min-w-[100px] border-l">Média Final</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {spreadsheetData.rows.map((row) => (
+                      <TableRow key={row.id} className="group hover:bg-muted/10">
+                        <TableCell className="sticky left-0 bg-white z-20 font-medium group-hover:bg-slate-50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold truncate max-w-[200px]">{row.name}</span>
+                            <span className="text-[10px] text-muted-foreground">RA: {row.ra}</span>
+                          </div>
+                        </TableCell>
+                        {spreadsheetData.assessments.map(a => (
+                          <TableCell key={a.id} className="text-center">
+                            {row.grades[a.id] !== null ? (
+                              <span className="font-bold text-sm">{row.grades[a.id]?.toFixed(1)}</span>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">-</span>
+                            )}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-center bg-primary/5 border-l">
+                          <Badge className={cn(
+                            "text-xs font-black h-7 px-3",
+                            row.average >= 7 ? "bg-green-500" : row.average >= 5 ? "bg-amber-500" : "bg-red-500"
+                          )}>
+                            {row.average.toFixed(1)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+
+                    {spreadsheetData.rows.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={spreadsheetData.assessments.length + 2} className="h-32 text-center opacity-30 italic">
+                          Nenhum dado de avaliação encontrado para esta turma.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </CardContent>
+            <CardFooter className="bg-slate-50/50 border-t p-4">
+              <div className="flex items-center gap-6 text-[10px] font-bold uppercase text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-sm" /> Satisfatório (7.0+)
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-amber-500 rounded-sm" /> Em Alerta (5.0 - 6.9)
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-sm" /> Crítico (< 5.0)
+                </div>
+              </div>
+            </CardFooter>
+          </Card>
         </TabsContent>
 
         <TabsContent value="generator" className="mt-6">
@@ -591,7 +754,7 @@ export default function AssessmentPage() {
       </Tabs>
 
       {/* Grades Dialog */}
-      <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>
+      <Dialog open={isGradesDialogOpen} onOpenChange={isGradesDialogOpen ? setIsGradesDialogOpen : undefined}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between pr-8">
@@ -615,11 +778,17 @@ export default function AssessmentPage() {
               {MOCK_STUDENTS.map((student) => {
                 const selection = tempGrades[student.id] || {}
                 let total = 0
-                Object.entries(selection).forEach(([cId, lId]) => {
-                  const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
-                  const level = criterion?.levels.find(l => l.id === lId)
-                  if (level) total += level.points
-                })
+                
+                if (selectedAssessment?.rubric && selectedAssessment.rubric.length > 0) {
+                  Object.entries(selection).forEach(([cId, lId]) => {
+                    const criterion = selectedAssessment?.rubric.find(c => c.id === cId)
+                    const level = criterion?.levels.find(l => l.id === lId)
+                    if (level) total += level.points
+                  })
+                } else {
+                  // Se não houver rubrica, permitimos edição direta de nota (simplificado para o protótipo)
+                  total = selectedAssessment?.grades[student.id] || 0
+                }
 
                 return (
                   <div key={student.id} className="space-y-4 p-4 rounded-xl border bg-muted/5">
@@ -635,36 +804,56 @@ export default function AssessmentPage() {
                     </div>
 
                     <div className="grid gap-4">
-                      {selectedAssessment?.rubric.map((criterion) => (
-                        <div key={criterion.id} className="space-y-2">
-                          <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
-                            <Target className="h-3 w-3" /> {criterion.title}
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            {criterion.levels.map((level) => {
-                              const isSelected = selection[criterion.id] === level.id
-                              return (
-                                <Button
-                                  key={level.id}
-                                  type="button"
-                                  variant={isSelected ? "default" : "outline"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-8 text-[10px] font-medium transition-all",
-                                    isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
-                                  )}
-                                  onClick={() => {
-                                    const newSelection = { ...selection, [criterion.id]: level.id }
-                                    setTempGrades({ ...tempGrades, [student.id]: newSelection })
-                                  }}
-                                >
-                                  {level.label} ({level.points} pts)
-                                </Button>
-                              )
-                            })}
+                      {selectedAssessment?.rubric && selectedAssessment.rubric.length > 0 ? (
+                        selectedAssessment.rubric.map((criterion) => (
+                          <div key={criterion.id} className="space-y-2">
+                            <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+                              <Target className="h-3 w-3" /> {criterion.title}
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {criterion.levels.map((level) => {
+                                const isSelected = selection[criterion.id] === level.id
+                                return (
+                                  <Button
+                                    key={level.id}
+                                    type="button"
+                                    variant={isSelected ? "default" : "outline"}
+                                    size="sm"
+                                    className={cn(
+                                      "h-8 text-[10px] font-medium transition-all",
+                                      isSelected ? "bg-primary shadow-md scale-105" : "hover:bg-primary/5"
+                                    )}
+                                    onClick={() => {
+                                      const newSelection = { ...selection, [criterion.id]: level.id }
+                                      setTempGrades({ ...tempGrades, [student.id]: newSelection })
+                                    }}
+                                  >
+                                    {level.label} ({level.points} pts)
+                                  </Button>
+                                )
+                              })}
+                            </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="flex items-center gap-4">
+                          <Label>Nota Direta:</Label>
+                          <Input 
+                            type="number" 
+                            className="w-24 font-bold" 
+                            defaultValue={total}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0
+                              setAssessments(prev => prev.map(a => 
+                                a.id === selectedAssessment?.id ? {
+                                  ...a,
+                                  grades: { ...a.grades, [student.id]: val }
+                                } : a
+                              ))
+                            }}
+                          />
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )
