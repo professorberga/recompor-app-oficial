@@ -136,8 +136,8 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xl shadow-lg">
-            R
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg">
+            <BrainCircuit className="h-6 w-6" />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden overflow-hidden">
             <span className="font-headline font-black text-xl text-primary tracking-tighter leading-none">
