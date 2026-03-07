@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect, Suspense, useMemo } from "react"
@@ -5,7 +6,8 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { 
   Search, UserPlus, Filter, MoreHorizontal, Eye, BrainCircuit, FileText, 
   Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle, X, 
-  Calendar, ClipboardCheck, GraduationCap, History, Info, FileDown 
+  Calendar, ClipboardCheck, GraduationCap, History, Info, FileDown,
+  Upload, Image as ImageIcon
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -104,6 +106,7 @@ function StudentsContent() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
     callNumber: "",
@@ -182,6 +185,17 @@ function StudentsContent() {
         setCapturedPhoto(canvasRef.current.toDataURL('image/jpeg'))
         stopCamera()
       }
+    }
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setCapturedPhoto(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
 
@@ -398,20 +412,41 @@ function StudentsContent() {
           <form onSubmit={handleRegisterSubmit} className="p-6 space-y-6">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-4 flex flex-col items-center gap-4">
-                <div className="relative w-full aspect-[3/4] rounded-lg bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
+                <div className="relative w-full aspect-[3/4] rounded-lg bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden group">
                   {capturedPhoto ? (
-                    <img src={capturedPhoto} alt="Preview" className="w-full h-full object-cover" />
+                    <>
+                      <img src={capturedPhoto} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                         <Button type="button" variant="destructive" size="icon" onClick={() => setCapturedPhoto(null)}>
+                           <Trash2 className="h-4 w-4" />
+                         </Button>
+                      </div>
+                    </>
                   ) : isCameraActive ? (
                     <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                   ) : (
                     <Camera className="h-10 w-10 text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 w-full">
                   {!isCameraActive ? (
-                    <Button type="button" variant="outline" size="sm" onClick={startCamera}>Ativar Câmera</Button>
+                    <>
+                      <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={startCamera}>
+                        <Camera className="h-4 w-4" /> Câmera
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4" /> Carregar Foto
+                      </Button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={handleFileUpload} 
+                      />
+                    </>
                   ) : (
-                    <Button type="button" variant="destructive" size="sm" onClick={capturePhoto}>Capturar</Button>
+                    <Button type="button" variant="destructive" size="sm" className="w-full" onClick={capturePhoto}>Capturar Agora</Button>
                   )}
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
@@ -442,6 +477,7 @@ function StudentsContent() {
                       <SelectContent>
                         <SelectItem value="9º Ano A">9º Ano A</SelectItem>
                         <SelectItem value="9º Ano B">9º Ano B</SelectItem>
+                        <SelectItem value="8º Ano A">8º Ano A</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
