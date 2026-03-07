@@ -47,7 +47,7 @@ const items = [
     adminOnly: false
   },
   {
-    title: "Avaliações Bloom",
+    title: "Avaliações",
     url: "/assessments",
     icon: BrainCircuit,
     adminOnly: false

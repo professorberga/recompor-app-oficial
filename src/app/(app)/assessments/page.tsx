@@ -377,7 +377,7 @@ export default function AssessmentPage() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações & Notas</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações</h2>
           <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas estruturadas e IA.</p>
         </div>
         
@@ -828,7 +828,7 @@ export default function AssessmentPage() {
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Excelência</CardTitle>
-                  <Badge className="bg-blue-600 font-bold">&gt;= 8.0</Badge>
+                  <Badge className="bg-blue-600 font-bold">{">= 8.0"}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -903,7 +903,7 @@ export default function AssessmentPage() {
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Crítico</CardTitle>
-                  <Badge variant="destructive" className="font-bold"> &lt; 4.0</Badge>
+                  <Badge variant="destructive" className="font-bold">{"< 4.0"}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
