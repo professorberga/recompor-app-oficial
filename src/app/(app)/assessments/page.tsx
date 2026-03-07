@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -16,7 +17,8 @@ import {
   Info,
   Table as TableIcon,
   Search,
-  ArrowRight
+  X,
+  Check
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -118,17 +120,6 @@ export default function AssessmentPage() {
         '1': { 'c1': 'l3' },
         '2': { 'c1': 'l2' }
       }
-    },
-    {
-      id: 'initial-2',
-      title: 'Simulado de Sintaxe',
-      subject: 'Portuguese',
-      classIds: ['1'],
-      bloomLevel: 'Understand',
-      date: '2024-11-05',
-      rubric: [],
-      grades: { '1': 8, '2': 9, '3': 7 },
-      studentCriterionGrades: {}
     }
   ])
   
@@ -149,6 +140,9 @@ export default function AssessmentPage() {
   })
   const [newRubric, setNewRubric] = useState<RubricCriterion[]>([])
   const [tempGrades, setTempGrades] = useState<Record<string, Record<string, string>>>({})
+  
+  // MultiSelect State
+  const [classSearchTerm, setClassSearchTerm] = useState("")
 
   const { toast } = useToast()
 
@@ -178,6 +172,35 @@ export default function AssessmentPage() {
       setIsLoadingIA(false)
     }
   }
+
+  const toggleClassSelection = (classId: string) => {
+    setNewAssessment(prev => ({
+      ...prev,
+      classIds: prev.classIds.includes(classId)
+        ? prev.classIds.filter(id => id !== classId)
+        : [...prev.classIds, classId]
+    }))
+  }
+
+  const selectAllClasses = () => {
+    setNewAssessment(prev => ({
+      ...prev,
+      classIds: MOCK_CLASSES.map(c => c.id)
+    }))
+  }
+
+  const clearClassSelection = () => {
+    setNewAssessment(prev => ({
+      ...prev,
+      classIds: []
+    }))
+  }
+
+  const filteredClasses = useMemo(() => {
+    return MOCK_CLASSES.filter(c => 
+      c.name.toLowerCase().includes(classSearchTerm.toLowerCase())
+    )
+  }, [classSearchTerm])
 
   const addCriterion = () => {
     const id = Math.random().toString(36).substr(2, 9)
@@ -335,86 +358,131 @@ export default function AssessmentPage() {
               <div className="p-8">
                 <form id="new-assessment-form" onSubmit={handleCreateAssessment} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-1 md:col-span-2">
                       <Label className="font-bold">Título da Avaliação</Label>
                       <Input 
-                        placeholder="Ex: Redação Argumentativa" 
+                        placeholder="Ex: Redação Argumentativa - 4º Bimestre" 
                         value={newAssessment.title}
                         onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
-                        className="bg-white"
+                        className="bg-white h-11 text-lg font-medium"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="font-bold">Data da Aplicação</Label>
-                      <Input type="date" value={newAssessment.date} onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} className="bg-white" />
+
+                    <div className="space-y-3 col-span-1 md:col-span-2">
+                      <Label className="font-bold flex items-center justify-between">
+                        <span>Turmas Vinculadas</span>
+                        <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {newAssessment.classIds.length} selecionada(s)
+                        </span>
+                      </Label>
+                      
+                      <div className="flex flex-wrap gap-2 mb-2 min-h-[44px] p-2 bg-white rounded-md border border-input shadow-sm items-center">
+                        {newAssessment.classIds.length === 0 ? (
+                          <span className="text-sm text-muted-foreground px-2">Nenhuma turma selecionada</span>
+                        ) : (
+                          newAssessment.classIds.map(id => {
+                            const turma = MOCK_CLASSES.find(c => c.id === id)
+                            return (
+                              <Badge key={id} variant="secondary" className="gap-1 pr-1 pl-2.5 h-7 font-bold bg-primary/10 text-primary border-primary/20">
+                                {turma?.name}
+                                <button 
+                                  type="button" 
+                                  onClick={(e) => { e.preventDefault(); toggleClassSelection(id); }}
+                                  className="ml-1 hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            )
+                          })
+                        )}
+                        
+                        <Popover modal={false}>
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold uppercase tracking-wider ml-auto gap-1 border border-dashed border-primary/40 text-primary hover:bg-primary/5">
+                              <Plus className="h-3 w-3" /> Gerenciar Turmas
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0 shadow-2xl z-[60]" align="end">
+                            <div className="p-3 border-b bg-slate-50 space-y-3">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                  placeholder="Buscar turma..." 
+                                  className="pl-9 h-9 bg-white"
+                                  value={classSearchTerm}
+                                  onChange={(e) => setClassSearchTerm(e.target.value)}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <Button type="button" variant="outline" size="sm" className="h-7 text-[9px] flex-1 font-bold" onClick={selectAllClasses}>
+                                  Selecionar Todas
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" className="h-7 text-[9px] flex-1 font-bold text-destructive hover:bg-destructive/5" onClick={clearClassSelection}>
+                                  Limpar Seleção
+                                </Button>
+                              </div>
+                            </div>
+                            <ScrollArea className="h-[200px]">
+                              <div className="p-1">
+                                {filteredClasses.map((cls) => (
+                                  <div 
+                                    key={cls.id} 
+                                    className="flex items-center space-x-2 p-2.5 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                                    onClick={() => toggleClassSelection(cls.id)}
+                                  >
+                                    <Checkbox 
+                                      id={`class-item-${cls.id}`} 
+                                      checked={newAssessment.classIds.includes(cls.id)}
+                                      onCheckedChange={() => toggleClassSelection(cls.id)}
+                                    />
+                                    <Label 
+                                      htmlFor={`class-item-${cls.id}`} 
+                                      className="text-sm font-semibold flex-1 cursor-pointer"
+                                      onClick={(e) => e.preventDefault()}
+                                    >
+                                      {cls.name}
+                                    </Label>
+                                    {newAssessment.classIds.includes(cls.id) && (
+                                      <Check className="h-4 w-4 text-primary" />
+                                    )}
+                                  </div>
+                                ))}
+                                {filteredClasses.length === 0 && (
+                                  <p className="text-center py-8 text-xs text-muted-foreground italic">Nenhuma turma encontrada.</p>
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label className="font-bold">Disciplina</Label>
                       <Select value={newAssessment.subject} onValueChange={(v: any) => setNewAssessment({...newAssessment, subject: v})}>
-                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="bg-white h-11"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Portuguese">Português</SelectItem>
                           <SelectItem value="Math">Matemática</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+
                     <div className="space-y-2">
-                      <Label className="font-bold">Turmas Vinculadas</Label>
-                      <Popover modal={false}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between h-10 font-normal bg-white">
-                            <span className="truncate">
-                              {newAssessment.classIds.length === 0 
-                                ? "Selecionar turmas" 
-                                : `${newAssessment.classIds.length} turma(s) selecionada(s)`}
-                            </span>
-                            <ChevronDown className="h-4 w-4 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent 
-                          className="w-[300px] p-2 bg-white shadow-xl z-[60]" 
-                          align="start"
-                          onCloseAutoFocus={(e) => e.preventDefault()}
-                        >
-                          <div className="space-y-1">
-                            {MOCK_CLASSES.map((cls) => (
-                              <div 
-                                key={cls.id} 
-                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const isChecked = newAssessment.classIds.includes(cls.id);
-                                  setNewAssessment(prev => ({
-                                    ...prev,
-                                    classIds: isChecked 
-                                      ? prev.classIds.filter(id => id !== cls.id)
-                                      : [...prev.classIds, cls.id]
-                                  }));
-                                }}
-                              >
-                                <Checkbox 
-                                  id={`class-${cls.id}`} 
-                                  checked={newAssessment.classIds.includes(cls.id)}
-                                  onCheckedChange={() => {}} // Lógica tratada pelo contêiner pai
-                                />
-                                <label 
-                                  htmlFor={`class-${cls.id}`} 
-                                  className="text-sm font-medium leading-none cursor-pointer flex-1 py-1"
-                                  onClick={(e) => e.preventDefault()}
-                                >
-                                  {cls.name}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <Label className="font-bold">Data de Aplicação</Label>
+                      <Input 
+                        type="date" 
+                        value={newAssessment.date} 
+                        onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})} 
+                        className="bg-white h-11" 
+                      />
                     </div>
+
                     <div className="space-y-2">
-                      <Label className="font-bold">Nível de Bloom</Label>
+                      <Label className="font-bold">Taxonomia de Bloom</Label>
                       <Select value={newAssessment.bloomLevel} onValueChange={(v) => setNewAssessment({...newAssessment, bloomLevel: v})}>
-                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="bg-white h-11"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {BLOOM_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
                         </SelectContent>
@@ -422,52 +490,61 @@ export default function AssessmentPage() {
                     </div>
                   </div>
 
-                  <Separator className="my-8" />
+                  <Separator className="my-10" />
 
                   <div className="space-y-6">
                     <div className="flex items-center justify-between sticky top-0 bg-transparent py-2 z-10">
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-                        <LayoutList className="h-4 w-4" /> Rubrica de Avaliação
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                        <LayoutList className="h-4 w-4" /> Critérios da Rubrica
                       </h4>
-                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2 bg-white shadow-sm">
-                        <PlusCircle className="h-4 w-4" /> Adicionar Critério
+                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2 bg-white shadow-sm font-bold text-xs">
+                        <PlusCircle className="h-4 w-4 text-primary" /> Adicionar Critério
                       </Button>
                     </div>
 
-                    <div className="grid gap-6">
+                    <div className="grid gap-8">
                       {newRubric.map((criterion, cIdx) => (
-                        <Card key={criterion.id} className="border shadow-sm overflow-hidden bg-white">
-                          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0 bg-slate-50/50">
-                            <Input 
-                              className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base placeholder:text-slate-400" 
-                              placeholder={`Critério ${cIdx + 1} (ex: Coesão Textual)`}
-                              value={criterion.title}
-                              onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
-                            />
+                        <Card key={criterion.id} className="border shadow-md overflow-hidden bg-white hover:border-primary/20 transition-all">
+                          <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 bg-slate-50/80">
+                            <div className="flex items-center gap-3 flex-1 mr-4">
+                              <span className="h-6 w-6 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {cIdx + 1}
+                              </span>
+                              <Input 
+                                className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base placeholder:text-slate-400" 
+                                placeholder="Título do Critério (ex: Coesão Textual)"
+                                value={criterion.title}
+                                onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
+                              />
+                            </div>
                             <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10" onClick={() => removeCriterion(criterion.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </CardHeader>
-                          <CardContent className="p-4 pt-4 space-y-3">
+                          <CardContent className="p-6 space-y-4">
                             {criterion.levels.map((level) => (
-                              <div key={level.id} className="grid grid-cols-12 gap-3 items-center">
-                                <div className="col-span-8">
+                              <div key={level.id} className="grid grid-cols-12 gap-4 items-center">
+                                <div className="col-span-9">
+                                  <Label className="text-[10px] text-muted-foreground font-bold uppercase mb-1 block">Nível de Desempenho</Label>
                                   <Input 
                                     className="h-9 text-xs" 
-                                    placeholder="Descrição do nível de desempenho" 
+                                    placeholder="Descrição (ex: O texto apresenta conectivos variados...)" 
                                     value={level.label}
                                     onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
                                   />
                                 </div>
-                                <div className="col-span-4 flex items-center gap-2">
-                                  <Input 
-                                    type="number" 
-                                    className="h-9 text-xs text-center font-bold" 
-                                    placeholder="Pts"
-                                    value={level.points}
-                                    onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
-                                  />
-                                  <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">PONTOS</span>
+                                <div className="col-span-3">
+                                  <Label className="text-[10px] text-muted-foreground font-bold uppercase mb-1 block">Valor</Label>
+                                  <div className="flex items-center gap-2">
+                                    <Input 
+                                      type="number" 
+                                      className="h-9 text-xs text-center font-bold" 
+                                      placeholder="Pts"
+                                      value={level.points}
+                                      onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
+                                    />
+                                    <span className="text-[9px] font-black text-slate-400">PTS</span>
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -476,10 +553,10 @@ export default function AssessmentPage() {
                       ))}
 
                       {newRubric.length === 0 && (
-                        <div className="text-center py-16 border-2 border-dashed rounded-xl opacity-40 bg-white/50">
-                          <LayoutList className="h-10 w-10 mx-auto mb-2 text-primary/50" />
-                          <p className="text-sm font-medium">A estrutura de sua rubrica aparecerá aqui.</p>
-                          <p className="text-xs text-muted-foreground">Clique em "Adicionar Critério" para começar.</p>
+                        <div className="text-center py-24 border-2 border-dashed rounded-xl bg-white/50 group">
+                          <LayoutList className="h-12 w-12 mx-auto mb-4 text-slate-300 group-hover:text-primary/40 transition-colors" />
+                          <p className="text-sm font-bold text-slate-400">Nenhuma rubrica definida.</p>
+                          <p className="text-xs text-slate-400/80 mt-1">Clique em "Adicionar Critério" para estruturar a avaliação.</p>
                         </div>
                       )}
                     </div>
@@ -491,7 +568,7 @@ export default function AssessmentPage() {
 
             <DialogFooter className="p-6 bg-slate-50 border-t shrink-0">
               <Button type="submit" form="new-assessment-form" className="w-full h-12 text-md font-bold shadow-lg">
-                Finalizar e Criar Registro
+                Salvar Avaliação
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -571,14 +648,6 @@ export default function AssessmentPage() {
               </Card>
             ))}
           </div>
-
-          {assessments.length === 0 && (
-            <div className="py-24 text-center opacity-30 flex flex-col items-center">
-              <ClipboardList className="h-12 w-12 mb-4" />
-              <p className="font-bold">Nenhuma avaliação registrada ainda.</p>
-              <p className="text-sm">Clique em "Nova Avaliação" para começar.</p>
-            </div>
-          )}
         </TabsContent>
 
         <TabsContent value="spreadsheet" className="mt-6 space-y-6">
@@ -654,14 +723,6 @@ export default function AssessmentPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-
-                    {spreadsheetData.rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={spreadsheetData.assessments.length + 2} className="h-32 text-center opacity-30 italic">
-                          Nenhum dado de avaliação encontrado para esta turma.
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
                 <ScrollBar orientation="horizontal" />
