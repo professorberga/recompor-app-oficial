@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { cn } from "@/lib/utils"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar' },
@@ -221,7 +222,6 @@ function StudentsContent() {
         ))}
       </div>
 
-      {/* Ficha do Aluno com Matrícula */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
           <DialogHeader className="p-8 bg-primary text-primary-foreground shrink-0">
