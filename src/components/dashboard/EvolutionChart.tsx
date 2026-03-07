@@ -1,6 +1,6 @@
 "use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts"
+import { Line, LineChart, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
@@ -34,37 +34,49 @@ export function EvolutionChart() {
         <CardTitle className="text-lg">Evolução de Competências (Média Geral)</CardTitle>
         <CardDescription>Percentual de alunos que atingiram cada nível da Taxonomia de Bloom</CardDescription>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="flex justify-center items-center h-[200px]">
         <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Line
-                type="monotone"
-                dataKey="remembering"
-                stroke="var(--color-remembering)"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "var(--color-remembering)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="understanding"
-                stroke="var(--color-understanding)"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "var(--color-understanding)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="applying"
-                stroke="var(--color-applying)"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "var(--color-applying)" }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <LineChart 
+            width={275} 
+            height={155} 
+            data={data} 
+            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <XAxis 
+              dataKey="month" 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fill: 'hsl(var(--muted-foreground))' }} 
+            />
+            <YAxis 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fill: 'hsl(var(--muted-foreground))' }} 
+            />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Line
+              type="monotone"
+              dataKey="remembering"
+              stroke="var(--color-remembering)"
+              strokeWidth={3}
+              dot={{ r: 4, fill: "var(--color-remembering)" }}
+            />
+            <Line
+              type="monotone"
+              dataKey="understanding"
+              stroke="var(--color-understanding)"
+              strokeWidth={3}
+              dot={{ r: 4, fill: "var(--color-understanding)" }}
+            />
+            <Line
+              type="monotone"
+              dataKey="applying"
+              stroke="var(--color-applying)"
+              strokeWidth={3}
+              dot={{ r: 4, fill: "var(--color-applying)" }}
+            />
+          </LineChart>
         </ChartContainer>
       </CardContent>
     </Card>
