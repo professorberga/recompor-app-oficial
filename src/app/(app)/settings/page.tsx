@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -143,7 +142,7 @@ export default function SettingsPage() {
     name: "",
     classIds: [] as string[],
     teacherAssignments: {} as Record<string, string>, // classId -> teacherId
-    schedule: MOCK_SCHEDULES[0]
+    schedules: {} as Record<string, string> // classId -> schedule
   })
 
   useEffect(() => {
@@ -218,12 +217,12 @@ export default function SettingsPage() {
       name: newDiscipline.name,
       classId: cid,
       teacherId: newDiscipline.teacherAssignments[cid] || "",
-      schedule: newDiscipline.schedule
+      schedule: newDiscipline.schedules[cid] || MOCK_SCHEDULES[0]
     }))
 
     setDisciplines([...newRecords, ...disciplines])
     setIsDisciplineDialogOpen(false)
-    setNewDiscipline({ name: "", classIds: [], teacherAssignments: {}, schedule: MOCK_SCHEDULES[0] })
+    setNewDiscipline({ name: "", classIds: [], teacherAssignments: {}, schedules: {} })
     toast({ title: "Disciplinas Cadastradas", description: `${newRecords.length} turmas vinculadas.` })
   }
 
@@ -233,9 +232,15 @@ export default function SettingsPage() {
       const newIds = isSelected ? prev.classIds.filter(cid => cid !== id) : [...prev.classIds, id]
       
       const newAssignments = { ...prev.teacherAssignments }
-      if (isSelected) delete newAssignments[id]
+      const newSchedules = { ...prev.schedules }
+      if (isSelected) {
+        delete newAssignments[id]
+        delete newSchedules[id]
+      } else {
+        newSchedules[id] = MOCK_SCHEDULES[0]
+      }
       
-      return { ...prev, classIds: newIds, teacherAssignments: newAssignments }
+      return { ...prev, classIds: newIds, teacherAssignments: newAssignments, schedules: newSchedules }
     })
   }
 
@@ -267,17 +272,17 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="disciplines" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-12 bg-white border shadow-sm">
-          <TabsTrigger value="disciplines" className="gap-2 font-bold"><BookOpen className="h-4 w-4" /> Disciplinas</TabsTrigger>
-          <TabsTrigger value="users" className="gap-2 font-bold"><Users className="h-4 w-4" /> Usuários</TabsTrigger>
-          <TabsTrigger value="school" className="gap-2 font-bold"><School className="h-4 w-4" /> Escola</TabsTrigger>
-          <TabsTrigger value="system" className="gap-2 font-bold"><SettingsIcon className="h-4 w-4" /> Interface</TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2 font-bold"><Bell className="h-4 w-4" /> Alertas</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto md:h-12 bg-white border shadow-sm p-1">
+          <TabsTrigger value="disciplines" className="gap-2 font-bold py-2"><BookOpen className="h-4 w-4" /> Disciplinas</TabsTrigger>
+          <TabsTrigger value="users" className="gap-2 font-bold py-2"><Users className="h-4 w-4" /> Usuários</TabsTrigger>
+          <TabsTrigger value="school" className="gap-2 font-bold py-2 hidden md:flex"><School className="h-4 w-4" /> Escola</TabsTrigger>
+          <TabsTrigger value="system" className="gap-2 font-bold py-2 hidden md:flex"><SettingsIcon className="h-4 w-4" /> Interface</TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2 font-bold py-2 hidden md:flex"><Bell className="h-4 w-4" /> Alertas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="disciplines" className="mt-6 space-y-6">
           <Card className="border-none shadow-md bg-white overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-6">
+            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between border-b pb-6 gap-4">
               <div>
                 <CardTitle>Gestão de Disciplinas</CardTitle>
                 <CardDescription>Cadastre matérias e associe-as a turmas, professores e horários.</CardDescription>
@@ -288,10 +293,10 @@ export default function SettingsPage() {
                     <Plus className="h-4 w-4" /> Nova Disciplina
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+                <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
                   <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>Cadastrar Disciplina</DialogTitle>
-                    <DialogDescription>Preencha os dados e vincule turmas e professores.</DialogDescription>
+                    <DialogDescription>Preencha os dados e vincule turmas, professores e horários específicos.</DialogDescription>
                   </DialogHeader>
                   <ScrollArea className="flex-1">
                     <form id="discipline-form" onSubmit={handleDisciplineSubmit} className="space-y-8 p-8 pb-12">
@@ -307,7 +312,7 @@ export default function SettingsPage() {
 
                       <div className="space-y-4">
                         <Label className="font-bold">Vincular Turmas ({newDiscipline.classIds.length} selecionadas)</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-50 p-4 rounded-xl border">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded-xl border">
                           {MOCK_CLASSES.map(c => (
                             <label key={c.id} className={cn(
                               "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
@@ -325,34 +330,58 @@ export default function SettingsPage() {
 
                       {newDiscipline.classIds.length > 0 && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Atribuir Professores por Turma</Label>
-                          <div className="space-y-3">
+                          <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Atribuição de Professores e Horários por Turma</Label>
+                          <div className="space-y-4">
                             {newDiscipline.classIds.map(cid => {
                               const turma = MOCK_CLASSES.find(c => c.id === cid)
                               return (
-                                <div key={cid} className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border bg-white shadow-sm">
-                                  <div className="flex-1">
-                                    <span className="text-xs font-black text-primary uppercase block mb-1">Turma</span>
-                                    <span className="font-bold">{turma?.name}</span>
+                                <div key={cid} className="flex flex-col gap-4 p-5 rounded-xl border bg-white shadow-sm hover:border-primary/20 transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-black text-primary uppercase tracking-wider">Turma Selecionada</span>
+                                      <span className="text-lg font-bold">{turma?.name}</span>
+                                    </div>
+                                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">Definição Individual</Badge>
                                   </div>
-                                  <div className="flex-[2] space-y-1.5">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground">Professor Responsável</Label>
-                                    <Select 
-                                      value={newDiscipline.teacherAssignments[cid] || ""} 
-                                      onValueChange={(v) => setNewDiscipline({
-                                        ...newDiscipline, 
-                                        teacherAssignments: { ...newDiscipline.teacherAssignments, [cid]: v }
-                                      })}
-                                    >
-                                      <SelectTrigger className="h-10 bg-slate-50">
-                                        <SelectValue placeholder="Selecione o professor" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {users.filter(u => u.role === 'Professor' || u.role === 'Admin').map(u => (
-                                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Professor Responsável</Label>
+                                      <Select 
+                                        value={newDiscipline.teacherAssignments[cid] || ""} 
+                                        onValueChange={(v) => setNewDiscipline({
+                                          ...newDiscipline, 
+                                          teacherAssignments: { ...newDiscipline.teacherAssignments, [cid]: v }
+                                        })}
+                                      >
+                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                                          <SelectValue placeholder="Selecione o professor" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {users.filter(u => u.role === 'Professor' || u.role === 'Admin').map(u => (
+                                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Horário da Aula nesta Turma</Label>
+                                      <Select 
+                                        value={newDiscipline.schedules[cid] || MOCK_SCHEDULES[0]} 
+                                        onValueChange={(v) => setNewDiscipline({
+                                          ...newDiscipline, 
+                                          schedules: { ...newDiscipline.schedules, [cid]: v }
+                                        })}
+                                      >
+                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                                          <SelectValue placeholder="Selecione o horário" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {MOCK_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
                                   </div>
                                 </div>
                               )
@@ -360,17 +389,6 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       )}
-
-                      <div className="space-y-2 pt-4 border-t">
-                        <Label className="font-bold">Horário de Aplicação</Label>
-                        <Select value={newDiscipline.schedule} onValueChange={(v) => setNewDiscipline({...newDiscipline, schedule: v})}>
-                          <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {MOCK_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground mt-1">Este horário será aplicado a todas as turmas selecionadas acima.</p>
-                      </div>
                     </form>
                   </ScrollArea>
                   <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
@@ -424,6 +442,11 @@ export default function SettingsPage() {
                         </td>
                       </tr>
                     ))}
+                    {disciplines.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="text-center py-20 text-muted-foreground italic">Nenhuma disciplina cadastrada.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -433,7 +456,7 @@ export default function SettingsPage() {
 
         <TabsContent value="users" className="mt-6">
           <Card className="border-none shadow-md bg-white overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-6">
+            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between border-b pb-6 gap-4">
               <div>
                 <CardTitle>Gestão de Usuários</CardTitle>
                 <CardDescription>Adicione ou remova permissões de acesso ao sistema.</CardDescription>
@@ -455,8 +478,8 @@ export default function SettingsPage() {
                   </DialogHeader>
                   <ScrollArea className="flex-1">
                     <form id="user-form" onSubmit={handleUserSubmit} className="space-y-6 p-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2 col-span-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2 sm:col-span-2">
                           <Label>Nome Completo</Label>
                           <Input value={userFormData.name} onChange={(e) => setUserFormData({...userFormData, name: e.target.value})} />
                         </div>
@@ -595,7 +618,7 @@ export default function SettingsPage() {
                 <Label>Nome da Unidade Escolar</Label>
                 <Input defaultValue="E.E. Professor Milton Santos" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ano Letivo</Label>
                   <Select defaultValue="2024"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2024">2024</SelectItem></SelectContent></Select>
