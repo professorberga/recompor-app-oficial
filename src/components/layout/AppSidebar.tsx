@@ -87,6 +87,7 @@ const items = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { setOpenMobile, isMobile } = useSidebar()
+  const [mounted, setMounted] = useState(false)
   
   // Simulação de troca de usuário para teste do protótipo
   const [currentUser, setCurrentUser] = useState({
@@ -95,8 +96,8 @@ export function AppSidebar() {
     role: 'Admin' as 'Admin' | 'Professor'
   })
 
-  // Efeito para persistir a escolha do usuário no protótipo (localstorage simulado)
   useEffect(() => {
+    setMounted(true)
     const saved = localStorage.getItem('proto_user_role')
     if (saved) {
       if (saved === 'Professor') {
@@ -109,15 +110,11 @@ export function AppSidebar() {
 
   const switchRole = (role: 'Admin' | 'Professor') => {
     if (role === 'Professor') {
-      const user = { id: 'prof-1', name: 'Ricardo Silva', role: 'Professor' as const }
-      setCurrentUser(user)
       localStorage.setItem('proto_user_role', 'Professor')
     } else {
-      const user = { id: 'admin-1', name: 'Marcio Bergamini', role: 'Admin' as const }
-      setCurrentUser(user)
       localStorage.setItem('proto_user_role', 'Admin')
     }
-    window.location.reload() // Recarrega para aplicar filtros em todas as telas
+    window.location.reload()
   }
 
   const isAdmin = currentUser.role === 'Admin'
@@ -129,8 +126,18 @@ export function AppSidebar() {
     }
   }
 
-  // Filtra itens do menu baseados no cargo
   const filteredItems = items.filter(item => !item.adminOnly || isAdmin)
+
+  // Evita Hydration Mismatch renderizando o ícone dinâmico/perfis apenas após a montagem
+  if (!mounted) {
+    return (
+      <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
+        <SidebarHeader className="p-4" />
+        <SidebarContent />
+        <SidebarFooter className="p-4 border-t border-border mt-auto" />
+      </Sidebar>
+    )
+  }
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
