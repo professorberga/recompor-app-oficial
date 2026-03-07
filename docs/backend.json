@@ -1,0 +1,568 @@
+{
+  "entities": {
+    "Teacher": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Teacher",
+      "type": "object",
+      "description": "Represents a teacher using the Monitor do BEEM application, responsible for classes, assessments, and observations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Teacher entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the teacher."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the teacher.",
+          "format": "email"
+        },
+        "subjects": {
+          "type": "array",
+          "description": "A list of subjects the teacher is qualified to teach.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "subjects"
+      ]
+    },
+    "Class": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Class",
+      "type": "object",
+      "description": "Represents a specific class or 'turma' managed within the application, grouping students for a given academic period.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Class entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the class (e.g., '3º Ano A - Matutino')."
+        },
+        "year": {
+          "type": "number",
+          "description": "The academic year for which the class is active."
+        },
+        "gradeLevel": {
+          "type": "string",
+          "description": "The grade level of the students in the class (e.g., '3º Ano')."
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to Teacher. The ID of the primary teacher responsible for this class. (Relationship: Teacher 1:N Class)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "year",
+        "gradeLevel",
+        "teacherId"
+      ]
+    },
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student enrolled in the Monitor do BEEM system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Student entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the student."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the student."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "The student's date of birth.",
+          "format": "date"
+        },
+        "classId": {
+          "type": "string",
+          "description": "Reference to Class. The ID of the main class the student is enrolled in. (Relationship: Class 1:N Student)"
+        },
+        "enrollmentDate": {
+          "type": "string",
+          "description": "The date and time when the student was enrolled in the system.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "classId",
+        "enrollmentDate"
+      ]
+    },
+    "Competency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Competency",
+      "type": "object",
+      "description": "Defines a specific skill or knowledge area that students are assessed on, aligned with curriculum objectives.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Competency entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the competency (e.g., 'Leitura Crítica', 'Resolução de Problemas')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of what the competency entails."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject area this competency belongs to (e.g., 'Português', 'Matemática')."
+        },
+        "bloomLevelCategory": {
+          "type": "string",
+          "description": "The general Bloom's Taxonomy level associated with this competency, indicating its cognitive demand (e.g., 'Compreender', 'Analisar')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "subject",
+        "bloomLevelCategory"
+      ]
+    },
+    "Assessment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Assessment",
+      "type": "object",
+      "description": "Records a student's performance on a specific competency at a given point in time, categorized by Bloom's Taxonomy.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Assessment entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Assessment)"
+        },
+        "competencyId": {
+          "type": "string",
+          "description": "Reference to Competency. (Relationship: Competency 1:N Assessment)"
+        },
+        "assessmentDate": {
+          "type": "string",
+          "description": "The date and time when the assessment was conducted.",
+          "format": "date-time"
+        },
+        "score": {
+          "type": "number",
+          "description": "A numerical score reflecting the student's performance on the competency (e.g., 0-100 or 1-5)."
+        },
+        "bloomLevelAchieved": {
+          "type": "string",
+          "description": "The specific Bloom's Taxonomy level demonstrated by the student in this assessment for the given competency (e.g., 'Aplicar', 'Avaliar')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or comments regarding this specific assessment."
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to Teacher. The ID of the teacher who performed this assessment. (Relationship: Teacher 1:N Assessment)"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "competencyId",
+        "assessmentDate",
+        "score",
+        "bloomLevelAchieved",
+        "teacherId"
+      ]
+    },
+    "AttendanceRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AttendanceRecord",
+      "type": "object",
+      "description": "Stores a record of a student's attendance for a specific class session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AttendanceRecord entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N AttendanceRecord)"
+        },
+        "classId": {
+          "type": "string",
+          "description": "Reference to Class. The ID of the class session for which attendance is recorded. (Relationship: Class 1:N AttendanceRecord)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the attendance record.",
+          "format": "date"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the student's attendance (e.g., 'Presente', 'Falta', 'Atraso', 'Justificada')."
+        },
+        "recordedByTeacherId": {
+          "type": "string",
+          "description": "Reference to Teacher. The ID of the teacher who recorded the attendance. (Relationship: Teacher 1:N AttendanceRecord)"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "classId",
+        "date",
+        "status",
+        "recordedByTeacherId"
+      ]
+    },
+    "StudentObservation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudentObservation",
+      "type": "object",
+      "description": "Contains qualitative observations or notes made by a teacher about a student's behavior, performance, or development.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StudentObservation entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N StudentObservation)"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to Teacher. The ID of the teacher who made the observation. (Relationship: Teacher 1:N StudentObservation)"
+        },
+        "observationDate": {
+          "type": "string",
+          "description": "The date and time when the observation was made.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "The detailed qualitative notes about the student."
+        },
+        "category": {
+          "type": "string",
+          "description": "An optional category for the observation (e.g., 'Comportamento', 'Desempenho Acadêmico', 'Interação Social')."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "teacherId",
+        "observationDate",
+        "notes"
+      ]
+    },
+    "Lesson": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lesson",
+      "type": "object",
+      "description": "Represents a planned lesson or class activity, including its schedule, content, and associated competencies.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Lesson entity."
+        },
+        "classId": {
+          "type": "string",
+          "description": "Reference to Class. The ID of the class for which this lesson is planned. (Relationship: Class 1:N Lesson)"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to Teacher. The ID of the teacher planning or delivering this lesson. (Relationship: Teacher 1:N Lesson)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the lesson."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the lesson content and objectives."
+        },
+        "lessonDate": {
+          "type": "string",
+          "description": "The date and time when the lesson is scheduled.",
+          "format": "date-time"
+        },
+        "competencyIds": {
+          "type": "array",
+          "description": "References to Competencies. An array of IDs of competencies addressed in this lesson. (Relationship: Competency N:N Lesson)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contentUrls": {
+          "type": "array",
+          "description": "An array of URLs to external learning resources or content associated with the lesson.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "classId",
+        "teacherId",
+        "title",
+        "lessonDate",
+        "competencyIds"
+      ]
+    },
+    "AILearningSuggestion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AILearningSuggestion",
+      "type": "object",
+      "description": "Stores personalized learning suggestions or progress summaries generated by the AI assistant for students.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AILearningSuggestion entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N AILearningSuggestion)"
+        },
+        "generatedDate": {
+          "type": "string",
+          "description": "The date and time when the AI suggestion was generated.",
+          "format": "date-time"
+        },
+        "suggestionText": {
+          "type": "string",
+          "description": "The AI-generated personalized learning suggestion or progress summary for the student."
+        },
+        "sourceAssessmentIds": {
+          "type": "array",
+          "description": "References to Assessment. Optional. An array of IDs of specific assessment records that contributed to generating this suggestion. (Relationship: Assessment N:N AILearningSuggestion)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceObservationIds": {
+          "type": "array",
+          "description": "References to StudentObservation. Optional. An array of IDs of specific observation records that contributed to generating this suggestion. (Relationship: StudentObservation N:N AILearningSuggestion)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "generatedDate",
+        "suggestionText"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/teachers/{teacherId}",
+        "definition": {
+          "entityName": "Teacher",
+          "schema": {
+            "$ref": "#/backend/entities/Teacher"
+          },
+          "description": "Stores individual teacher profiles. The document ID `{teacherId}` MUST match the authenticated user's `request.auth.uid`. This collection serves as the root for all data owned and managed by a specific teacher.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher, which must match the authenticated user's UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/classes/{classId}",
+        "definition": {
+          "entityName": "Class",
+          "schema": {
+            "$ref": "#/backend/entities/Class"
+          },
+          "description": "Stores classes owned by a specific teacher. The document ID `{classId}` is the unique ID of the class. Each `Class` document MUST contain a `teacherId` field that matches the `{teacherId}` in the path for robust authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the owning teacher."
+            },
+            {
+              "name": "classId",
+              "description": "The unique ID of the class."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/classes/{classId}/students/{studentId}",
+        "definition": {
+          "entityName": "Student",
+          "schema": {
+            "$ref": "#/backend/entities/Student"
+          },
+          "description": "Stores student profiles enrolled in a specific class, owned by a teacher. The document ID `{studentId}` is the unique ID of the student. Each `Student` document MUST contain a `classId` field matching the path's `{classId}` and a `teacherId` field (denormalized from the owning class) matching the path's `{teacherId}` for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the owning teacher."
+            },
+            {
+              "name": "classId",
+              "description": "The unique ID of the class the student is enrolled in."
+            },
+            {
+              "name": "studentId",
+              "description": "The unique ID of the student."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/competencies/{competencyId}",
+        "definition": {
+          "entityName": "Competency",
+          "schema": {
+            "$ref": "#/backend/entities/Competency"
+          },
+          "description": "Stores a global, master list of educational competencies. This collection is intended to be read-only for all authenticated teachers and does not require specific teacher-based authorization logic. The document ID `{competencyId}` is the unique ID of the competency.",
+          "params": [
+            {
+              "name": "competencyId",
+              "description": "The unique ID of the competency."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/assessments/{assessmentId}",
+        "definition": {
+          "entityName": "Assessment",
+          "schema": {
+            "$ref": "#/backend/entities/Assessment"
+          },
+          "description": "Stores individual student assessment records. The document ID `{assessmentId}` is the unique ID of the assessment. Each `Assessment` document MUST contain `studentId`, `competencyId`, a `classId` (denormalized from the student's class), and a `teacherId` field (denormalized from the owning teacher of the class/student, matching the path's `{teacherId}`) for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher who owns this assessment data."
+            },
+            {
+              "name": "assessmentId",
+              "description": "The unique ID of the assessment record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/attendanceRecords/{attendanceRecordId}",
+        "definition": {
+          "entityName": "AttendanceRecord",
+          "schema": {
+            "$ref": "#/backend/entities/AttendanceRecord"
+          },
+          "description": "Stores records of student attendance. The document ID `{attendanceRecordId}` is the unique ID of the attendance record. Each `AttendanceRecord` document MUST contain `studentId`, `classId`, and a `recordedByTeacherId` field that matches the path's `{teacherId}` for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher who owns this attendance data."
+            },
+            {
+              "name": "attendanceRecordId",
+              "description": "The unique ID of the attendance record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/studentObservations/{studentObservationId}",
+        "definition": {
+          "entityName": "StudentObservation",
+          "schema": {
+            "$ref": "#/backend/entities/StudentObservation"
+          },
+          "description": "Stores qualitative observations made by teachers about students. The document ID `{studentObservationId}` is the unique ID of the observation. Each `StudentObservation` document MUST contain `studentId` and a `teacherId` field that matches the path's `{teacherId}` for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher who owns this observation data."
+            },
+            {
+              "name": "studentObservationId",
+              "description": "The unique ID of the student observation record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/lessons/{lessonId}",
+        "definition": {
+          "entityName": "Lesson",
+          "schema": {
+            "$ref": "#/backend/entities/Lesson"
+          },
+          "description": "Stores planned lessons for classes. The document ID `{lessonId}` is the unique ID of the lesson. Each `Lesson` document MUST contain a `classId` field and a `teacherId` field that matches the path's `{teacherId}` for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher who owns this lesson data."
+            },
+            {
+              "name": "lessonId",
+              "description": "The unique ID of the lesson."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teachers/{teacherId}/aiLearningSuggestions/{aiLearningSuggestionId}",
+        "definition": {
+          "entityName": "AILearningSuggestion",
+          "schema": {
+            "$ref": "#/backend/entities/AILearningSuggestion"
+          },
+          "description": "Stores AI-generated learning suggestions for students. The document ID `{aiLearningSuggestionId}` is the unique ID of the suggestion. Each `AILearningSuggestion` document MUST contain `studentId`, a `classId` (denormalized from the student's class), and a `teacherId` field (denormalized from the owning teacher of the class/student, matching the path's `{teacherId}`) for authorization independence.",
+          "params": [
+            {
+              "name": "teacherId",
+              "description": "The unique ID of the teacher who owns this AI learning suggestion data."
+            },
+            {
+              "name": "aiLearningSuggestionId",
+              "description": "The unique ID of the AI learning suggestion."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for 'Monitor do BEEM' prioritizes a secure, scalable, and debuggable design by adhering strictly to the core design principles, especially Authorization Independence and Structural Segregation. The entire data model is anchored around the 'Teacher' entity, which serves as the primary owner of most application data. This is implemented through a hierarchical path structure, where all teacher-specific data branches off a root `/teachers/{teacherId}` collection.\n\n**Authorization Independence (CRITICAL):** This structure is achieved primarily through explicit denormalization. For any document residing in a subcollection, if its access depends on a parent's attribute (e.g., a student's data depending on its class's teacher), that parent's crucial authorization identifier (the `teacherId` in this case) is copied directly into the child document. For example, `Student` documents, though nested under a specific class, will also contain the `teacherId` of the owning teacher. Similarly, `Assessment`, `AttendanceRecord`, `StudentObservation`, `Lesson`, and `AILearningSuggestion` documents will all explicitly contain the `teacherId` of the responsible teacher (matching the path) and, where applicable, the `classId` they belong to. This eliminates the need for `get()` calls in security rules, making rules atomic, faster, easier to write, and significantly more debuggable as all authorization context is present directly within the `request.auth.uid` and the `resource.data` fields.\n\n**QAPs (Rules are not Filters):** The hierarchical `teachers/{teacherId}/...` path directly supports secure `list` operations (Query Against Permitted Subset). Since all teacher-specific data is segmented under their unique `teacherId` (which matches `request.auth.uid`), queries made by a teacher are inherently scoped to their own data. For instance, a query for `classes` will automatically target `/teachers/{request.auth.uid}/classes`. This prevents accidental exposure of data and simplifies security rules, as the path itself enforces the primary authorization boundary. The global `/competencies` collection is designed for read-only access, simplifying its QAP to 'allow read if authenticated'.\n\n**Structural Segregation:** Each collection maintains a homogeneous security posture. For example, all documents within `/teachers/{teacherId}/classes` require the `teacherId` in the path to match `request.auth.uid`. There are no mixed-access documents (e.g., public and private classes in the same collection). This simplifies rule logic dramatically.\n\n**DBAC & Consistency:** Roles are implicitly handled by ownership (e.g., a teacher implicitly has the 'teacher' role by owning data in their `/teachers/{uid}` branch). `request.auth.uid` is consistently used for authorization. Wildcards (`{teacherId}`, `{classId}`, etc.) are descriptive, and authorization-relevant fields (e.g., `teacherId`, `classId`) are consistently named and explicitly mentioned as required for denormalization.\n\nRegarding the 'no AI authorizations/imports' request: The `AILearningSuggestion` entity is structured identically to other teacher-owned data (nested under `/teachers/{teacherId}/aiLearningSuggestions`). Its authorization depends solely on the owning `teacherId` field, not on the AI generation process itself. This means the presence of AI-generated content does not introduce any special authorization requirements or external dependencies for the Firebase security rules."
+  }
+}

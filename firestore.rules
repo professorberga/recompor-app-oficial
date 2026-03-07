@@ -1,0 +1,175 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * MONITOR DO BEEM - SECURITY RULES (PROTOTYPING MODE)
+     * 
+     * Core Philosophy: 
+     * This ruleset enforces a strict teacher-ownership model where all educational 
+     * data is anchored to a specific Teacher's identity. Security is achieved 
+     * through hierarchical path segmentation and explicit data denormalization.
+     * 
+     * Data Structure:
+     * The primary hierarchy is /teachers/{teacherId}, where {teacherId} matches 
+     * the Firebase Auth UID. All student profiles, classes, assessments, 
+     * and observations are stored within this user-specific branch.
+     * 
+     * Key Security Decisions:
+     * 1. Authorization Independence: All child documents (students, assessments, 
+     *    etc.) must store the owner's 'teacherId' internally. This allows rules 
+     *    to verify ownership instantly without performing expensive 'get()' lookups.
+     * 2. Structural Segregation: Private teacher data is separated from global 
+     *    read-only data (Competencies).
+     * 3. Prototyping Flexibility: While access is strictly authorized, the 
+     *    internal shape of the data (except for relational IDs) is not enforced, 
+     *    allowing for rapid development.
+     * 4. AI Handling: AI-generated suggestions are treated as standard teacher-owned 
+     *    data, requiring no special permissions or external AI-specific imports.
+     */
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    /** Checks if the user is authenticated with Firebase Auth. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Checks if the provided ID matches the authenticated user's UID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Checks if the document exists and the current user is the owner. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for Teacher profiles. A teacher can only manage their own profile.
+     * @path /teachers/{teacherId}
+     * @allow (create) if authenticated UID matches document ID and internal ID field.
+     * @deny (create) if UID and document ID do not match.
+     * @principle Ownership and Self-Creation.
+     */
+    match /teachers/{teacherId} {
+      allow get, list: if isOwner(teacherId);
+      allow create: if isOwner(teacherId) && request.resource.data.id == teacherId;
+      allow update: if isExistingOwner(teacherId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(teacherId);
+
+      /**
+       * @description Rules for Classes. Each class belongs to a specific teacher.
+       * @path /teachers/{teacherId}/classes/{classId}
+       * @allow (create) if teacherId in path matches auth UID and internal field.
+       * @deny (update) if trying to change the owning teacherId.
+       * @principle Relational Integrity and Authorization Independence.
+       */
+      match /classes/{classId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+
+        /**
+         * @description Rules for Students. Students are nested under classes for organizational logic.
+         * @path /teachers/{teacherId}/classes/{classId}/students/{studentId}
+         * @allow (create) if teacherId and classId fields match the request path.
+         * @deny (list) if the user is not the owning teacher.
+         * @principle Path-based authorization and ID consistency.
+         */
+        match /students/{studentId} {
+          allow get, list: if isOwner(teacherId);
+          allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId && request.resource.data.classId == classId;
+          allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId && request.resource.data.classId == resource.data.classId;
+          allow delete: if isExistingOwner(teacherId);
+        }
+      }
+
+      /**
+       * @description Rules for Student Assessments. Contains academic performance data.
+       * @path /teachers/{teacherId}/assessments/{assessmentId}
+       * @allow (create) if the teacherId field matches the owning teacher's UID.
+       * @deny (read) if the requester is not the owner.
+       * @principle Ownership for private sensitive data.
+       */
+      match /assessments/{assessmentId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
+
+      /**
+       * @description Rules for Attendance Records.
+       * @path /teachers/{teacherId}/attendanceRecords/{attendanceRecordId}
+       * @allow (create) if recordedByTeacherId matches the path and auth UID.
+       * @deny (update) if attempting to modify the recording teacher ID.
+       * @principle Auditable Relational Integrity.
+       */
+      match /attendanceRecords/{attendanceRecordId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.recordedByTeacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.recordedByTeacherId == resource.data.recordedByTeacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
+
+      /**
+       * @description Rules for Student Observations. Qualitative notes by teachers.
+       * @path /teachers/{teacherId}/studentObservations/{studentObservationId}
+       * @allow (create) if teacherId field matches the path.
+       * @deny (delete) if the teacher is not the owner of this data branch.
+       * @principle Ownership.
+       */
+      match /studentObservations/{studentObservationId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
+
+      /**
+       * @description Rules for Lessons. Planning data for classes.
+       * @path /teachers/{teacherId}/lessons/{lessonId}
+       * @allow (get) for the owning teacher.
+       * @deny (create) if teacherId doesn't match auth UID.
+       * @principle Ownership.
+       */
+      match /lessons/{lessonId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
+
+      /**
+       * @description Rules for AI Learning Suggestions. Handled as standard teacher-owned documents.
+       * @path /teachers/{teacherId}/aiLearningSuggestions/{aiLearningSuggestionId}
+       * @allow (create) if teacherId matches the owner.
+       * @deny (write) if requester is not the teacher identified in the path.
+       * @principle Structural Segregation and Ownership.
+       */
+      match /aiLearningSuggestions/{aiLearningSuggestionId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
+    }
+
+    /**
+     * @description Rules for Global Competencies. This is a read-only master list for teachers.
+     * @path /competencies/{competencyId}
+     * @allow (read) for any authenticated user.
+     * @deny (write) for all users via client-side requests.
+     * @principle Public Read with Restricted Writes.
+     */
+    match /competencies/{competencyId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+  }
+}
