@@ -27,7 +27,8 @@ import {
   UserCheck,
   Info,
   ChevronRight,
-  UserCircle
+  UserCircle,
+  X
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,7 +42,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
@@ -140,8 +141,8 @@ export default function SettingsPage() {
   
   const [newDiscipline, setNewDiscipline] = useState({
     name: "",
-    classId: "",
-    teacherId: "",
+    classIds: [] as string[],
+    teacherAssignments: {} as Record<string, string>, // classId -> teacherId
     schedule: MOCK_SCHEDULES[0]
   })
 
@@ -207,19 +208,35 @@ export default function SettingsPage() {
 
   const handleDisciplineSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newDiscipline.name || !newDiscipline.classId || !newDiscipline.teacherId) {
-      toast({ title: "Erro", description: "Preencha todos os campos da disciplina.", variant: "destructive" })
+    if (!newDiscipline.name || newDiscipline.classIds.length === 0) {
+      toast({ title: "Erro", description: "Preencha o nome e selecione ao menos uma turma.", variant: "destructive" })
       return
     }
 
-    const discipline: Discipline = {
+    const newRecords: Discipline[] = newDiscipline.classIds.map(cid => ({
       id: Math.random().toString(36).substr(2, 9),
-      ...newDiscipline
-    }
-    setDisciplines([discipline, ...disciplines])
+      name: newDiscipline.name,
+      classId: cid,
+      teacherId: newDiscipline.teacherAssignments[cid] || "",
+      schedule: newDiscipline.schedule
+    }))
+
+    setDisciplines([...newRecords, ...disciplines])
     setIsDisciplineDialogOpen(false)
-    setNewDiscipline({ name: "", classId: "", teacherId: "", schedule: MOCK_SCHEDULES[0] })
-    toast({ title: "Disciplina Cadastrada" })
+    setNewDiscipline({ name: "", classIds: [], teacherAssignments: {}, schedule: MOCK_SCHEDULES[0] })
+    toast({ title: "Disciplinas Cadastradas", description: `${newRecords.length} turmas vinculadas.` })
+  }
+
+  const toggleClassInDisciplineForm = (id: string) => {
+    setNewDiscipline(prev => {
+      const isSelected = prev.classIds.includes(id)
+      const newIds = isSelected ? prev.classIds.filter(cid => cid !== id) : [...prev.classIds, id]
+      
+      const newAssignments = { ...prev.teacherAssignments }
+      if (isSelected) delete newAssignments[id]
+      
+      return { ...prev, classIds: newIds, teacherAssignments: newAssignments }
+    })
   }
 
   const toggleDisciplineInUserForm = (id: string) => {
@@ -271,53 +288,95 @@ export default function SettingsPage() {
                     <Plus className="h-4 w-4" /> Nova Disciplina
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px] bg-white">
-                  <DialogHeader>
+                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+                  <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>Cadastrar Disciplina</DialogTitle>
-                    <DialogDescription>Preencha os dados da nova disciplina letiva.</DialogDescription>
+                    <DialogDescription>Preencha os dados e vincule turmas e professores.</DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleDisciplineSubmit} className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Nome da Disciplina</Label>
-                      <Input 
-                        placeholder="Ex: Redação e Gramática" 
-                        value={newDiscipline.name}
-                        onChange={(e) => setNewDiscipline({...newDiscipline, name: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Turma</Label>
-                      <Select value={newDiscipline.classId} onValueChange={(v) => setNewDiscipline({...newDiscipline, classId: v})}>
-                        <SelectTrigger><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
-                        <SelectContent>
-                          {MOCK_CLASSES.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Professor Responsável</Label>
-                      <Select value={newDiscipline.teacherId} onValueChange={(v) => setNewDiscipline({...newDiscipline, teacherId: v})}>
-                        <SelectTrigger><SelectValue placeholder="Selecione o professor" /></SelectTrigger>
-                        <SelectContent>
-                          {users.filter(u => u.role === 'Professor' || u.role === 'Admin').map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  <ScrollArea className="flex-1">
+                    <form id="discipline-form" onSubmit={handleDisciplineSubmit} className="space-y-8 p-8 pb-12">
+                      <div className="space-y-2">
+                        <Label className="font-bold">Nome da Disciplina</Label>
+                        <Input 
+                          placeholder="Ex: Redação e Gramática" 
+                          value={newDiscipline.name}
+                          onChange={(e) => setNewDiscipline({...newDiscipline, name: e.target.value})}
+                          className="h-11"
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <Label className="font-bold">Vincular Turmas ({newDiscipline.classIds.length} selecionadas)</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-50 p-4 rounded-xl border">
+                          {MOCK_CLASSES.map(c => (
+                            <label key={c.id} className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                              newDiscipline.classIds.includes(c.id) ? "bg-primary/5 border-primary/20" : "bg-white hover:bg-slate-50"
+                            )}>
+                              <Checkbox 
+                                checked={newDiscipline.classIds.includes(c.id)} 
+                                onCheckedChange={() => toggleClassInDisciplineForm(c.id)} 
+                              />
+                              <span className="text-sm font-bold">{c.name}</span>
+                            </label>
                           ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Horário</Label>
-                      <Select value={newDiscipline.schedule} onValueChange={(v) => setNewDiscipline({...newDiscipline, schedule: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {MOCK_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <DialogFooter className="pt-4">
-                      <Button type="submit" className="w-full">Salvar Disciplina</Button>
-                    </DialogFooter>
-                  </form>
+                        </div>
+                      </div>
+
+                      {newDiscipline.classIds.length > 0 && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Atribuir Professores por Turma</Label>
+                          <div className="space-y-3">
+                            {newDiscipline.classIds.map(cid => {
+                              const turma = MOCK_CLASSES.find(c => c.id === cid)
+                              return (
+                                <div key={cid} className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border bg-white shadow-sm">
+                                  <div className="flex-1">
+                                    <span className="text-xs font-black text-primary uppercase block mb-1">Turma</span>
+                                    <span className="font-bold">{turma?.name}</span>
+                                  </div>
+                                  <div className="flex-[2] space-y-1.5">
+                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground">Professor Responsável</Label>
+                                    <Select 
+                                      value={newDiscipline.teacherAssignments[cid] || ""} 
+                                      onValueChange={(v) => setNewDiscipline({
+                                        ...newDiscipline, 
+                                        teacherAssignments: { ...newDiscipline.teacherAssignments, [cid]: v }
+                                      })}
+                                    >
+                                      <SelectTrigger className="h-10 bg-slate-50">
+                                        <SelectValue placeholder="Selecione o professor" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {users.filter(u => u.role === 'Professor' || u.role === 'Admin').map(u => (
+                                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2 pt-4 border-t">
+                        <Label className="font-bold">Horário de Aplicação</Label>
+                        <Select value={newDiscipline.schedule} onValueChange={(v) => setNewDiscipline({...newDiscipline, schedule: v})}>
+                          <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {MOCK_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground mt-1">Este horário será aplicado a todas as turmas selecionadas acima.</p>
+                      </div>
+                    </form>
+                  </ScrollArea>
+                  <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
+                    <Button variant="outline" onClick={() => setIsDisciplineDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit" form="discipline-form" className="px-10 shadow-lg font-bold">Salvar Disciplinas</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </CardHeader>
@@ -389,7 +448,7 @@ export default function SettingsPage() {
                 <DialogTrigger asChild>
                   <Button className="gap-2 shadow-lg"><UserPlus className="h-4 w-4" /> Novo Usuário</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden">
+                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
                   <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Usuário'}</DialogTitle>
                     <DialogDescription>Dados de acesso e atribuições de disciplinas.</DialogDescription>
@@ -556,7 +615,7 @@ export default function SettingsPage() {
 
       {/* Modal de Alunos Matriculados na Disciplina */}
       <Dialog open={isViewStudentsDialogOpen} onOpenChange={setIsViewStudentsDialogOpen}>
-        <DialogContent className="max-w-[500px] w-[95vw] h-[600px] max-h-[90vh] bg-white p-0 overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[500px] w-[95vw] h-[600px] max-h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl border-none">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center border border-white/40">
