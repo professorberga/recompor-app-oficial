@@ -1,2 +1,2 @@
-// Arquivo desativado: Recursos de IA removidos.
+// IA Removida: Este arquivo está vazio para evitar erros de compilação.
 export {};

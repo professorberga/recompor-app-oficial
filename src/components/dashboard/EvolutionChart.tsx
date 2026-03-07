@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -13,6 +13,22 @@ const data = [
 ]
 
 export function EvolutionChart() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Card className="border-none shadow-md bg-white col-span-4">
+        <div style={{ width: '100%', height: '350px' }} className="flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Carregando gráfico...</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-none shadow-md bg-white col-span-4">
       <CardHeader>
