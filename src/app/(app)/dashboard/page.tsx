@@ -31,15 +31,15 @@ export default function Dashboard() {
                     <span className="font-semibold text-sm">Chamada Pendente</span>
                     <Badge variant="outline" className="text-accent border-accent">Urgente</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Turma 9º Ano A - Matemática ainda não teve a chamada registrada hoje.</p>
+                  <p className="text-xs text-muted-foreground">Turma 9º Ano A - Português ainda não teve a chamada registrada hoje.</p>
                 </div>
                 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Relatório AI</span>
+                    <span className="font-semibold text-sm">Relatório Pedagógico</span>
                     <Badge variant="secondary">Novo</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">3 alunos da Turma 8º B atingiram novos níveis de competência Bloom.</p>
+                  <p className="text-xs text-muted-foreground">3 alunos da Turma 8º B atingiram novos níveis de competência pedagógica.</p>
                 </div>
 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
