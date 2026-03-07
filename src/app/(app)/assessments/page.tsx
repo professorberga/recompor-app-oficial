@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -40,7 +39,6 @@ import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
@@ -830,7 +828,7 @@ export default function AssessmentPage() {
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Excelência</CardTitle>
-                  <Badge className="bg-blue-600 font-bold">>= 8.0</Badge>
+                  <Badge className="bg-blue-600 font-bold">&gt;= 8.0</Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -905,7 +903,7 @@ export default function AssessmentPage() {
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Crítico</CardTitle>
-                  <Badge variant="destructive" className="font-bold"> < 4.0</Badge>
+                  <Badge variant="destructive" className="font-bold"> &lt; 4.0</Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
