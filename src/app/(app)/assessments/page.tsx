@@ -255,8 +255,6 @@ export default function AssessmentPage() {
 
     const finalGrades: Record<string, number> = {}
     
-    // Se não houver rubrica, as notas podem ter sido inseridas de forma direta no mock ou futuro campo direto
-    // Por enquanto, baseamos na rubrica ou mantemos as que já existem se forem diretas
     if (selectedAssessment.rubric.length > 0) {
       Object.entries(tempGrades).forEach(([studentId, criterionSelection]) => {
         let total = 0
@@ -268,8 +266,6 @@ export default function AssessmentPage() {
         finalGrades[studentId] = total
       })
     } else {
-      // Para avaliações sem rubrica, no protótipo mantemos o estado de tempGrades se fosse numérico (não implementado aqui, mas para extensibilidade)
-      // Usamos os grades existentes como fallback
       Object.assign(finalGrades, selectedAssessment.grades)
     }
 
@@ -285,12 +281,9 @@ export default function AssessmentPage() {
     toast({ title: "Notas Registradas", description: "As notas foram calculadas e salvas." })
   }
 
-  // Memoized Spreadsheet Calculations
   const spreadsheetData = useMemo(() => {
     const classAssessments = assessments.filter(a => a.classIds.includes(spreadsheetClassId))
-    const classStudents = MOCK_STUDENTS // No protótipo, assumimos que todos os alunos são da turma para simplicidade
-
-    const rows = classStudents.map(student => {
+    const rows = MOCK_STUDENTS.map(student => {
       let totalScore = 0
       let count = 0
       const studentGrades: Record<string, number | null> = {}
@@ -672,7 +665,7 @@ export default function AssessmentPage() {
                   <div className="w-3 h-3 bg-amber-500 rounded-sm" /> Em Alerta (5.0 - 6.9)
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-sm" /> Crítico (< 5.0)
+                  <div className="w-3 h-3 bg-red-500 rounded-sm" /> Crítico (&lt; 5.0)
                 </div>
               </div>
             </CardFooter>
@@ -786,7 +779,6 @@ export default function AssessmentPage() {
                     if (level) total += level.points
                   })
                 } else {
-                  // Se não houver rubrica, permitimos edição direta de nota (simplificado para o protótipo)
                   total = selectedAssessment?.grades[student.id] || 0
                 }
 
