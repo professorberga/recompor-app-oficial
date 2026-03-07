@@ -18,7 +18,12 @@ import {
   Table as TableIcon,
   Search,
   X,
-  Check
+  Check,
+  BarChart3,
+  TrendingUp,
+  AlertCircle,
+  Award,
+  Users
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +39,8 @@ import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-g
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
@@ -56,6 +63,8 @@ const MOCK_STUDENTS = [
   { id: '3', name: 'Carlos Eduardo Santos', ra: '345678', classId: '2' },
   { id: '4', name: 'Daniela Lima Ferreira', ra: '456789', classId: '2' },
   { id: '5', name: 'Eduardo Pereira Costa', ra: '567890', classId: '3' },
+  { id: '6', name: 'Fernanda Rocha', ra: '678901', classId: '1' },
+  { id: '7', name: 'Gabriel Alvez', ra: '789012', classId: '1' },
 ]
 
 interface Class {
@@ -182,10 +191,12 @@ export default function AssessmentPage() {
           ]
         }
       ],
-      grades: { '1': 10, '2': 5 },
+      grades: { '1': 10, '2': 5, '6': 8, '7': 9 },
       studentCriterionGrades: {
         '1': { 'c1': 'l3' },
-        '2': { 'c1': 'l2' }
+        '2': { 'c1': 'l2' },
+        '6': { 'c1': 'l3' },
+        '7': { 'c1': 'l3' }
       }
     }
   ])
@@ -195,7 +206,7 @@ export default function AssessmentPage() {
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   const [gradingClassId, setGradingClassId] = useState<string>("")
   
-  // Spreadsheet State
+  // Spreadsheet & Performance Map State
   const [spreadsheetClassId, setSpreadsheetClassId] = useState<string>("1")
 
   // New Assessment Form State
@@ -239,39 +250,6 @@ export default function AssessmentPage() {
     }
   }
 
-  const addCriterion = () => {
-    const id = Math.random().toString(36).substr(2, 9)
-    setNewRubric([...newRubric, {
-      id,
-      title: "",
-      levels: [
-        { id: Math.random().toString(36).substr(2, 9), label: "Insuficiente", points: 0 },
-        { id: Math.random().toString(36).substr(2, 9), label: "Satisfatório", points: 5 },
-        { id: Math.random().toString(36).substr(2, 9), label: "Excelente", points: 10 },
-      ]
-    }])
-  }
-
-  const removeCriterion = (id: string) => {
-    setNewRubric(newRubric.filter(c => c.id !== id))
-  }
-
-  const updateCriterionTitle = (id: string, title: string) => {
-    setNewRubric(newRubric.map(c => c.id === id ? { ...c, title } : c))
-  }
-
-  const updateLevel = (criterionId: string, levelId: string, updates: Partial<RubricLevel>) => {
-    setNewRubric(newRubric.map(c => {
-      if (c.id === criterionId) {
-        return {
-          ...c,
-          levels: c.levels.map(l => l.id === levelId ? { ...l, ...updates } : l)
-        }
-      }
-      return c
-    }))
-  }
-
   const handleCreateAssessment = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newAssessment.title) {
@@ -303,13 +281,6 @@ export default function AssessmentPage() {
     setSelectedClasses([])
     setNewRubric([])
     toast({ title: "Avaliação Criada", description: "A avaliação foi registrada com sucesso." })
-  }
-
-  const openGradesDialog = (assessment: AssessmentRecord) => {
-    setSelectedAssessment(assessment)
-    setTempGrades(assessment.studentCriterionGrades || {})
-    setGradingClassId(assessment.classIds[0] || "")
-    setIsGradesDialogOpen(true)
   }
 
   const handleSaveGrades = () => {
@@ -371,10 +342,36 @@ export default function AssessmentPage() {
     return { assessments: classAssessments, rows }
   }, [assessments, spreadsheetClassId])
 
-  const filteredStudentsForGrading = useMemo(() => {
-    if (!gradingClassId) return []
-    return MOCK_STUDENTS.filter(s => s.classId === gradingClassId)
-  }, [gradingClassId])
+  const performanceMap = useMemo(() => {
+    const { rows } = spreadsheetData;
+    
+    const groups = {
+      excellence: [] as any[], // >= 8.0
+      satisfactory: [] as any[], // 6.0 - 7.9
+      development: [] as any[], // 4.0 - 5.9
+      critical: [] as any[] // < 4.0
+    };
+
+    rows.forEach(row => {
+      if (row.average >= 8) groups.excellence.push(row);
+      else if (row.average >= 6) groups.satisfactory.push(row);
+      else if (row.average >= 4) groups.development.push(row);
+      else groups.critical.push(row);
+    });
+
+    const chartData = [
+      { name: 'Excelência', value: groups.excellence.length, color: 'hsl(var(--chart-1))' },
+      { name: 'Satisfatório', value: groups.satisfactory.length, color: 'hsl(var(--chart-2))' },
+      { name: 'Desenvolvimento', value: groups.development.length, color: 'hsl(var(--chart-3))' },
+      { name: 'Crítico', value: groups.critical.length, color: 'hsl(var(--chart-5))' },
+    ].filter(d => d.value > 0);
+
+    const classAverage = rows.length > 0 
+      ? rows.reduce((acc, curr) => acc + curr.average, 0) / rows.length 
+      : 0;
+
+    return { groups, chartData, classAverage };
+  }, [spreadsheetData]);
 
   if (!mounted) return null
 
@@ -460,7 +457,18 @@ export default function AssessmentPage() {
                       <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                         <LayoutList className="h-4 w-4" /> Critérios da Rubrica
                       </h4>
-                      <Button type="button" variant="outline" size="sm" onClick={addCriterion} className="gap-2 bg-white shadow-sm font-bold text-xs">
+                      <Button type="button" variant="outline" size="sm" onClick={() => {
+                        const id = Math.random().toString(36).substr(2, 9)
+                        setNewRubric([...newRubric, {
+                          id,
+                          title: "",
+                          levels: [
+                            { id: Math.random().toString(36).substr(2, 9), label: "Insuficiente", points: 0 },
+                            { id: Math.random().toString(36).substr(2, 9), label: "Satisfatório", points: 5 },
+                            { id: Math.random().toString(36).substr(2, 9), label: "Excelente", points: 10 },
+                          ]
+                        }])
+                      }} className="gap-2 bg-white shadow-sm font-bold text-xs">
                         <PlusCircle className="h-4 w-4 text-primary" /> Adicionar Critério
                       </Button>
                     </div>
@@ -477,10 +485,14 @@ export default function AssessmentPage() {
                                 className="font-bold bg-transparent border-none focus-visible:ring-0 px-0 h-auto text-base placeholder:text-slate-400" 
                                 placeholder="Título do Critério (ex: Coesão Textual)"
                                 value={criterion.title}
-                                onChange={(e) => updateCriterionTitle(criterion.id, e.target.value)}
+                                onChange={(e) => {
+                                  setNewRubric(newRubric.map(c => c.id === criterion.id ? { ...c, title: e.target.value } : c))
+                                }}
                               />
                             </div>
-                            <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10" onClick={() => removeCriterion(criterion.id)}>
+                            <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10" onClick={() => {
+                              setNewRubric(newRubric.filter(c => c.id !== criterion.id))
+                            }}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </CardHeader>
@@ -493,7 +505,17 @@ export default function AssessmentPage() {
                                     className="h-9 text-xs" 
                                     placeholder="Descrição (ex: O texto apresenta conectivos variados...)" 
                                     value={level.label}
-                                    onChange={(e) => updateLevel(criterion.id, level.id, { label: e.target.value })}
+                                    onChange={(e) => {
+                                      setNewRubric(newRubric.map(c => {
+                                        if (c.id === criterion.id) {
+                                          return {
+                                            ...c,
+                                            levels: c.levels.map(l => l.id === level.id ? { ...l, label: e.target.value } : l)
+                                          }
+                                        }
+                                        return c
+                                      }))
+                                    }}
                                   />
                                 </div>
                                 <div className="col-span-3">
@@ -504,7 +526,17 @@ export default function AssessmentPage() {
                                       className="h-9 text-xs text-center font-bold" 
                                       placeholder="Pts"
                                       value={level.points}
-                                      onChange={(e) => updateLevel(criterion.id, level.id, { points: parseFloat(e.target.value) || 0 })}
+                                      onChange={(e) => {
+                                        setNewRubric(newRubric.map(c => {
+                                          if (c.id === criterion.id) {
+                                            return {
+                                              ...c,
+                                              levels: c.levels.map(l => l.id === level.id ? { ...l, points: parseFloat(e.target.value) || 0 } : l)
+                                            }
+                                          }
+                                          return c
+                                        }))
+                                      }}
                                     />
                                     <span className="text-[9px] font-black text-slate-400">PTS</span>
                                   </div>
@@ -539,15 +571,18 @@ export default function AssessmentPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12 bg-white border shadow-sm p-1">
-          <TabsTrigger value="manager" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-            <ClipboardList className="h-4 w-4" /> Diário de Avaliações
+        <TabsList className="grid w-full grid-cols-4 h-12 bg-white border shadow-sm p-1">
+          <TabsTrigger value="manager" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white text-xs lg:text-sm">
+            <ClipboardList className="h-4 w-4" /> Diário
           </TabsTrigger>
-          <TabsTrigger value="spreadsheet" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white">
-            <TableIcon className="h-4 w-4" /> Planilha de Resultados
+          <TabsTrigger value="spreadsheet" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white text-xs lg:text-sm">
+            <TableIcon className="h-4 w-4" /> Planilha
           </TabsTrigger>
-          <TabsTrigger value="generator" className="gap-2 font-bold data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
-            <Sparkles className="h-4 w-4" /> Gerador IA Bloom
+          <TabsTrigger value="performance-map" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white text-xs lg:text-sm">
+            <BarChart3 className="h-4 w-4" /> Mapa de Desempenho
+          </TabsTrigger>
+          <TabsTrigger value="generator" className="gap-2 font-bold data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs lg:text-sm">
+            <Sparkles className="h-4 w-4" /> Gerador IA
           </TabsTrigger>
         </TabsList>
 
@@ -589,22 +624,14 @@ export default function AssessmentPage() {
                       />
                     </div>
                   </div>
-                  
-                  {a.rubric && a.rubric.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Rubrica:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {a.rubric.map(c => (
-                          <Badge key={c.id} variant="secondary" className="text-[9px] h-5 bg-blue-50 text-blue-700 border-blue-100">
-                            {c.title}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="pt-0 border-t bg-muted/10 p-0">
-                  <Button variant="ghost" className="w-full h-12 gap-2 text-primary font-bold hover:bg-primary/5 rounded-none" onClick={() => openGradesDialog(a)}>
+                  <Button variant="ghost" className="w-full h-12 gap-2 text-primary font-bold hover:bg-primary/5 rounded-none" onClick={() => {
+                    setSelectedAssessment(a)
+                    setTempGrades(a.studentCriterionGrades || {})
+                    setGradingClassId(a.classIds[0] || "")
+                    setIsGradesDialogOpen(true)
+                  }}>
                     <CheckCircle2 className="h-4 w-4" /> Lançar Notas
                   </Button>
                 </CardFooter>
@@ -649,9 +676,6 @@ export default function AssessmentPage() {
                         <TableHead key={a.id} className="text-center font-bold text-[10px] uppercase min-w-[120px]">
                           <div className="flex flex-col gap-0.5">
                             <span className="truncate max-w-[120px]">{a.title}</span>
-                            <Badge variant="outline" className="text-[8px] h-4 px-1 mx-auto font-normal opacity-70">
-                              {BLOOM_LEVELS.find(l => l.value === a.bloomLevel)?.label}
-                            </Badge>
                           </div>
                         </TableHead>
                       ))}
@@ -691,20 +715,216 @@ export default function AssessmentPage() {
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
             </CardContent>
-            <CardFooter className="bg-slate-50/50 border-t p-4">
-              <div className="flex items-center gap-6 text-[10px] font-bold uppercase text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-sm" /> Satisfatório (7.0+)
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-amber-500 rounded-sm" /> Em Alerta (5.0 - 6.9)
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-sm" /> Crítico (&lt; 5.0)
-                </div>
-              </div>
-            </CardFooter>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="performance-map" className="mt-6 space-y-8">
+          <div className="flex flex-col md:flex-row gap-6">
+            <Card className="flex-1 border-none shadow-md bg-white">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Distribuição da Turma
+                  </CardTitle>
+                  <CardDescription>Agrupamento por nível de aproveitamento acadêmico</CardDescription>
+                </div>
+                <Select value={spreadsheetClassId} onValueChange={setSpreadsheetClassId}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOCK_CLASSES.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardHeader>
+              <CardContent className="h-[300px] flex items-center justify-center">
+                {performanceMap.chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={performanceMap.chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {performanceMap.chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend verticalAlign="bottom" height={36}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center text-muted-foreground flex flex-col items-center gap-2">
+                    <BarChart3 className="h-10 w-10 opacity-20" />
+                    <p className="text-sm font-medium">Sem dados para gerar o gráfico.</p>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="bg-slate-50/50 p-6 flex items-center justify-around border-t">
+                <div className="text-center">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Média Geral</p>
+                  <p className="text-3xl font-black text-primary">{performanceMap.classAverage.toFixed(1)}</p>
+                </div>
+                <Separator orientation="vertical" className="h-10" />
+                <div className="text-center">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Total Alunos</p>
+                  <p className="text-3xl font-black text-primary">{spreadsheetData.rows.length}</p>
+                </div>
+              </CardFooter>
+            </Card>
+
+            <div className="w-full md:w-80 space-y-4">
+              <Card className="border-none shadow-md bg-green-50 border-l-4 border-l-green-500">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-green-700">
+                    <Award className="h-4 w-4" /> Alunos em Destaque
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="space-y-2">
+                    {performanceMap.groups.excellence.length > 0 ? (
+                      performanceMap.groups.excellence.map(s => (
+                        <div key={s.id} className="flex items-center justify-between text-xs bg-white/50 p-2 rounded">
+                          <span className="font-bold text-green-900 truncate max-w-[150px]">{s.name}</span>
+                          <Badge className="bg-green-500 h-5">{s.average.toFixed(1)}</Badge>
+                        </div>
+                      ))
+                    ) : <p className="text-[10px] italic text-muted-foreground">Nenhum aluno atingiu excelência.</p>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-md bg-red-50 border-l-4 border-l-red-500">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-red-700">
+                    <AlertCircle className="h-4 w-4" /> Alunos em Alerta
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="space-y-2">
+                    {performanceMap.groups.critical.length > 0 ? (
+                      performanceMap.groups.critical.map(s => (
+                        <div key={s.id} className="flex items-center justify-between text-xs bg-white/50 p-2 rounded">
+                          <span className="font-bold text-red-900 truncate max-w-[150px]">{s.name}</span>
+                          <Badge variant="destructive" className="h-5">{s.average.toFixed(1)}</Badge>
+                        </div>
+                      ))
+                    ) : <p className="text-[10px] italic text-muted-foreground">Nenhum aluno em nível crítico.</p>}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {/* Excellence */}
+            <Card className="border-none shadow-md bg-white">
+              <CardHeader className="bg-slate-50 border-b p-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Excelência</CardTitle>
+                  <Badge className="bg-blue-600 font-bold">>= 8.0</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-64">
+                  <div className="p-4 space-y-3">
+                    {performanceMap.groups.excellence.map(s => (
+                      <div key={s.id} className="flex flex-col gap-1 p-2 rounded border bg-blue-50/20">
+                        <span className="text-xs font-bold">{s.name}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">Média: {s.average.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {performanceMap.groups.excellence.length === 0 && <p className="text-center text-xs text-muted-foreground py-10 italic">Nenhum registro.</p>}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Satisfactory */}
+            <Card className="border-none shadow-md bg-white">
+              <CardHeader className="bg-slate-50 border-b p-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Satisfatório</CardTitle>
+                  <Badge className="bg-teal-600 font-bold">6.0 - 7.9</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-64">
+                  <div className="p-4 space-y-3">
+                    {performanceMap.groups.satisfactory.map(s => (
+                      <div key={s.id} className="flex flex-col gap-1 p-2 rounded border">
+                        <span className="text-xs font-bold">{s.name}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">Média: {s.average.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {performanceMap.groups.satisfactory.length === 0 && <p className="text-center text-xs text-muted-foreground py-10 italic">Nenhum registro.</p>}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Development */}
+            <Card className="border-none shadow-md bg-white">
+              <CardHeader className="bg-slate-50 border-b p-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Desenvolvimento</CardTitle>
+                  <Badge className="bg-amber-600 font-bold">4.0 - 5.9</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-64">
+                  <div className="p-4 space-y-3">
+                    {performanceMap.groups.development.map(s => (
+                      <div key={s.id} className="flex flex-col gap-1 p-2 rounded border border-amber-100 bg-amber-50/10">
+                        <span className="text-xs font-bold">{s.name}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">Média: {s.average.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {performanceMap.groups.development.length === 0 && <p className="text-center text-xs text-muted-foreground py-10 italic">Nenhum registro.</p>}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Critical */}
+            <Card className="border-none shadow-md bg-white">
+              <CardHeader className="bg-slate-50 border-b p-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider">Crítico</CardTitle>
+                  <Badge variant="destructive" className="font-bold"> < 4.0</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-64">
+                  <div className="p-4 space-y-3">
+                    {performanceMap.groups.critical.map(s => (
+                      <div key={s.id} className="flex flex-col gap-1 p-2 rounded border border-red-200 bg-red-50/20">
+                        <span className="text-xs font-bold text-red-700">{s.name}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">Média: {s.average.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {performanceMap.groups.critical.length === 0 && <p className="text-center text-xs text-muted-foreground py-10 italic">Nenhum registro.</p>}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="generator" className="mt-6">
@@ -817,18 +1037,12 @@ export default function AssessmentPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Alunos Listados</span>
-              <Badge variant="outline" className="bg-white">
-                {filteredStudentsForGrading.length} estudantes
-              </Badge>
-            </div>
           </div>
           
           <ScrollArea className="flex-1 w-full">
             <div className="p-6 space-y-8">
-              {filteredStudentsForGrading.length > 0 ? (
-                filteredStudentsForGrading.map((student) => {
+              {gradingClassId ? (
+                MOCK_STUDENTS.filter(s => s.classId === gradingClassId).map((student) => {
                   const selection = tempGrades[student.id] || {}
                   let total = 0
                   
@@ -893,15 +1107,13 @@ export default function AssessmentPage() {
                             <Input 
                               type="number" 
                               className="w-24 font-bold" 
-                              defaultValue={total}
+                              value={total}
                               onChange={(e) => {
                                 const val = parseFloat(e.target.value) || 0
-                                setAssessments(prev => prev.map(a => 
-                                  a.id === selectedAssessment?.id ? {
-                                    ...a,
-                                    grades: { ...a.grades, [student.id]: val }
-                                  } : a
-                                ))
+                                setTempGrades(prev => ({
+                                  ...prev,
+                                  [student.id]: { "direct": val.toString() }
+                                }))
                               }}
                             />
                           </div>
