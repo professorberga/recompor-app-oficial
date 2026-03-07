@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useState, useRef, useEffect, Suspense, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { 
-  Search, UserPlus, Eye, BrainCircuit, 
-  Sparkles, Camera, Check, Trash2, Pencil, AlertCircle, 
+  Search, UserPlus, Eye, 
+  Camera, Check, Trash2, Pencil, 
   Calendar, ClipboardCheck, GraduationCap, Info,
   Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw
 } from "lucide-react"
@@ -17,22 +18,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { personalizedLearningSuggestions } from "@/ai/flows/personalized-learning-suggestions"
-import type { PersonalizedLearningSuggestionsOutput } from "@/ai/flows/personalized-learning-suggestions"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { Student, Discipline, BloomLevel } from "@/lib/types"
-
-const BLOOM_LEVELS: { value: BloomLevel; label: string }[] = [
-  { value: 'Remember', label: 'Lembrar' },
-  { value: 'Understand', label: 'Entender' },
-  { value: 'Apply', label: 'Aplicar' },
-  { value: 'Analyze', label: 'Analisar' },
-  { value: 'Evaluate', label: 'Avaliar' },
-  { value: 'Create', label: 'Criar' },
-]
 
 const MOCK_DISCIPLINES: Discipline[] = [
   { id: 'd1', name: 'Língua Portuguesa', classId: '1', teacherId: 'prof-1', schedule: '07:00 às 07:50' },
@@ -78,15 +68,11 @@ function StudentsContent() {
   const [students, setStudents] = useState<Student[]>(MOCK_INITIAL_STUDENTS)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-  const [aiInsight, setAiInsight] = useState<PersonalizedLearningSuggestionsOutput | null>(null)
-  const [isAiLoading, setIsAiLoading] = useState(false)
   
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
-  const [isOccurrenceOpen, setIsOccurrenceOpen] = useState(false)
   const [isFichaOpen, setIsFichaOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   
-  const [occurrenceData, setOccurrenceData] = useState({ type: 'Pedagógica', description: '' })
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -192,27 +178,6 @@ function StudentsContent() {
     stopCamera()
   }
 
-  const generateAiInsight = async () => {
-    if (!selectedStudent) return
-    setIsAiLoading(true)
-    try {
-      const result = await personalizedLearningSuggestions({
-        studentName: selectedStudent.name,
-        assessmentData: selectedStudent.history.assessments.map(a => ({
-          competency: a.level,
-          skill: a.competency,
-          score: a.score,
-        })),
-        observationalNotes: selectedStudent.history.observations
-      })
-      setAiInsight(result)
-    } catch (error) {
-      toast({ title: "IA Indisponível", variant: "destructive" })
-    } finally {
-      setIsAiLoading(false)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
@@ -302,11 +267,11 @@ function StudentsContent() {
           <DialogHeader className="p-6 bg-primary text-white shrink-0">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">{selectedStudent?.photo ? <img src={selectedStudent.photo} className="h-full w-full object-cover" /> : selectedStudent?.name.charAt(0)}</div>
-              <div><DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle><p className="text-sm opacity-80">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</p></div>
+              <div><DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle><DialogDescription className="text-sm opacity-80">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</DialogDescription></div>
             </div>
           </DialogHeader>
           <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="bg-transparent border-b px-6 h-12 justify-start gap-4 rounded-none"><TabsTrigger value="info">Matrícula</TabsTrigger><TabsTrigger value="history">Histórico</TabsTrigger><TabsTrigger value="ai">IA Insight</TabsTrigger></TabsList>
+            <TabsList className="bg-transparent border-b px-6 h-12 justify-start gap-4 rounded-none"><TabsTrigger value="info">Matrícula</TabsTrigger><TabsTrigger value="history">Histórico</TabsTrigger></TabsList>
             <ScrollArea className="flex-1 p-6">
               <TabsContent value="info" className="m-0 space-y-4">
                 <h4 className="font-bold flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Disciplinas Vinculadas</h4>
@@ -330,11 +295,6 @@ function StudentsContent() {
                     </div>
                   </div>
                 </div>
-              </TabsContent>
-              <TabsContent value="ai" className="m-0 space-y-4">
-                <Card className="border-accent/20 bg-accent/5"><CardHeader><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-accent" /> Análise IA</CardTitle></CardHeader><CardContent>
-                  {aiInsight ? <div className="space-y-4 animate-in fade-in duration-500"><p className="text-sm italic">"{aiInsight.progressSummary}"</p><div className="grid grid-cols-2 gap-4"><div><Label className="text-green-600 font-bold">Forças</Label><ul className="text-xs space-y-1">{aiInsight.strengths.map((s,i) => <li key={i}>• {s}</li>)}</ul></div><div><Label className="text-accent font-bold">Sugestões</Label><ul className="text-xs space-y-1">{aiInsight.learningSuggestions.map((s,i) => <li key={i}>• {s}</li>)}</ul></div></div></div> : <div className="py-10 text-center"><Button onClick={generateAiInsight} disabled={isAiLoading} className="bg-accent text-accent-foreground">{isAiLoading ? "Processando..." : "Gerar Insights"}</Button></div>}
-                </CardContent></Card>
               </TabsContent>
             </ScrollArea>
           </Tabs>

@@ -1,9 +1,9 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
 import { 
   BrainCircuit, 
-  Sparkles, 
   Plus, 
   ClipboardList, 
   Save, 
@@ -11,18 +11,13 @@ import {
   PlusCircle, 
   LayoutList, 
   Target, 
-  ChevronDown,
   CheckCircle2,
   Info,
   Table as TableIcon,
-  Search,
-  X,
-  Check,
   BarChart3,
   TrendingUp,
   AlertCircle,
-  Award,
-  Users
+  Award
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,7 +29,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -162,13 +156,6 @@ export default function AssessmentPage() {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState("manager")
   
-  // IA Generator State
-  const [subjectIA, setSubjectIA] = useState<"Portuguese" | "Math">("Portuguese")
-  const [competencyIA, setCompetencyIA] = useState("")
-  const [bloomLevelIA, setBloomLevelIA] = useState<string>("Remember")
-  const [isLoadingIA, setIsLoadingIA] = useState(false)
-  const [generatedItems, setGeneratedItems] = useState<string[]>([])
-  
   // Assessment Manager State
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([
     {
@@ -224,29 +211,6 @@ export default function AssessmentPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  const handleGenerateAI = async () => {
-    if (!competencyIA) {
-      toast({ title: "Campo obrigatório", description: "Por favor, descreva a competência para gerar os itens.", variant: "destructive" })
-      return
-    }
-    
-    setIsLoadingIA(true)
-    try {
-      const result = await generateBloomAssessmentItems({
-        subject: subjectIA,
-        competency: competencyIA,
-        bloomLevel: bloomLevelIA as any,
-        numItems: 3
-      })
-      setGeneratedItems(result.items)
-      toast({ title: "Atividades Geradas", description: "A IA criou novas questões baseadas na Taxonomia de Bloom." })
-    } catch (error) {
-      toast({ title: "Erro na IA", description: "Não foi possível gerar os itens de avaliação.", variant: "destructive" })
-    } finally {
-      setIsLoadingIA(false)
-    }
-  }
 
   const handleCreateAssessment = (e: React.FormEvent) => {
     e.preventDefault()
@@ -378,7 +342,7 @@ export default function AssessmentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações</h2>
-          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas estruturadas e IA.</p>
+          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas estruturadas.</p>
         </div>
         
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
@@ -569,7 +533,7 @@ export default function AssessmentPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-12 bg-white border shadow-sm p-1">
+        <TabsList className="grid w-full grid-cols-3 h-12 bg-white border shadow-sm p-1">
           <TabsTrigger value="manager" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white text-xs lg:text-sm">
             <ClipboardList className="h-4 w-4" /> Diário
           </TabsTrigger>
@@ -578,9 +542,6 @@ export default function AssessmentPage() {
           </TabsTrigger>
           <TabsTrigger value="performance-map" className="gap-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-white text-xs lg:text-sm">
             <BarChart3 className="h-4 w-4" /> Mapa de Desempenho
-          </TabsTrigger>
-          <TabsTrigger value="generator" className="gap-2 font-bold data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs lg:text-sm">
-            <Sparkles className="h-4 w-4" /> Gerador IA
           </TabsTrigger>
         </TabsList>
 
@@ -740,7 +701,7 @@ export default function AssessmentPage() {
               </CardHeader>
               <CardContent className="h-[300px] flex items-center justify-center">
                 {performanceMap.chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
                         data={performanceMap.chartData}
@@ -924,79 +885,6 @@ export default function AssessmentPage() {
             </Card>
           </div>
         </TabsContent>
-
-        <TabsContent value="generator" className="mt-6">
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card className="col-span-1 border-none shadow-md bg-white h-fit">
-              <CardHeader>
-                <CardTitle>Configuração IA</CardTitle>
-                <CardDescription>Crie atividades pedagógicas em segundos</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Matéria</Label>
-                  <Select value={subjectIA} onValueChange={(v: any) => setSubjectIA(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Portuguese">Português</SelectItem>
-                      <SelectItem value="Math">Matemática</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Competência / Habilidade</Label>
-                  <Input placeholder="Ex: Concordância Nominal" value={competencyIA} onChange={(e) => setCompetencyIA(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nível de Bloom</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {BLOOM_LEVELS.map((level) => (
-                      <Button
-                        key={level.value}
-                        variant={bloomLevelIA === level.value ? "default" : "outline"}
-                        className={`justify-start h-9 text-xs font-medium ${bloomLevelIA === level.value ? 'bg-primary' : ''}`}
-                        onClick={() => setBloomLevelIA(level.value)}
-                      >
-                        {level.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <Button className="w-full gap-2 mt-4 bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleGenerateAI} disabled={isLoadingIA}>
-                  <Sparkles className="h-4 w-4" /> {isLoadingIA ? "Gerando..." : "Gerar Atividades"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="col-span-2 border-none shadow-md bg-white">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Roteiro Sugerido</CardTitle>
-                  <CardDescription>Utilize estas atividades em suas avaliações</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {generatedItems.length > 0 ? (
-                  <div className="space-y-4">
-                    {generatedItems.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-xl bg-muted/20 border group hover:border-accent/40 transition-colors">
-                        <div className="flex gap-4">
-                          <span className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">{idx + 1}</span>
-                          <p className="text-sm leading-relaxed">{item}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-24 text-center opacity-30 flex flex-col items-center">
-                    <Sparkles className="h-10 w-10 mb-2" />
-                    <p className="text-sm">Configure os filtros e use a IA para gerar conteúdo.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* Grades Dialog */}
@@ -1006,9 +894,9 @@ export default function AssessmentPage() {
             <div className="flex items-center justify-between pr-8">
               <div>
                 <DialogTitle className="text-2xl font-black">{selectedAssessment?.title}</DialogTitle>
-                <p className="text-sm text-primary-foreground/80 mt-1">
+                <DialogDescription className="text-sm text-primary-foreground/80 mt-1">
                   Lançamento de Notas por Rubrica
-                </p>
+                </DialogDescription>
               </div>
               <div className="text-right hidden sm:block">
                 <span className="text-[10px] font-bold uppercase block opacity-60">Nível Bloom</span>
