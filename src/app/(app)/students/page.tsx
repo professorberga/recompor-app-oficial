@@ -376,7 +376,7 @@ function StudentsContent() {
 
       {/* Cadastro/Edição Dialog */}
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { setIsRegisterOpen(open); if (!open) stopCamera(); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
+        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
           <DialogHeader className="p-6 border-b shrink-0">
             <DialogTitle>{isEditing ? 'Editar Aluno' : 'Cadastrar Novo Aluno'}</DialogTitle>
             <DialogDescription>Dados básicos, foto e enturmação por disciplina.</DialogDescription>
@@ -450,7 +450,7 @@ function StudentsContent() {
                 <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                   <GraduationCap className="h-4 w-4" /> Matrícula em Disciplinas
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
                   {MOCK_DISCIPLINES.map((discipline) => (
                     <label key={discipline.id} className={cn(
                       "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
@@ -482,7 +482,7 @@ function StudentsContent() {
 
       {/* Ficha do Aluno Dialog */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl">
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl">
           <DialogHeader className="p-8 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
@@ -509,7 +509,7 @@ function StudentsContent() {
           </DialogHeader>
 
           <Tabs defaultValue="enrollment" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="px-8 bg-muted/20 border-b h-14 w-full justify-start gap-8 rounded-none bg-transparent">
+            <TabsList className="px-8 bg-muted/20 border-b h-14 w-full justify-start gap-8 rounded-none bg-transparent shrink-0">
               <TabsTrigger value="enrollment" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest">Matrículas</TabsTrigger>
               <TabsTrigger value="history" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest">Histórico & Ocorrências</TabsTrigger>
               <TabsTrigger value="ai" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest text-accent data-[state=active]:text-accent">IA Insights</TabsTrigger>

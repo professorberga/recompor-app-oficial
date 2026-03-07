@@ -193,7 +193,6 @@ export default function SettingsPage() {
         if (isAssigned) {
           return { ...d, teacherId: targetUserId };
         } else if (d.teacherId === targetUserId) {
-          // Se estava associado e agora não está, limpa o teacherId (opcional, dependendo da regra de negócio)
           return { ...d, teacherId: "" };
         }
         return d;
@@ -390,8 +389,8 @@ export default function SettingsPage() {
                 <DialogTrigger asChild>
                   <Button className="gap-2 shadow-lg"><UserPlus className="h-4 w-4" /> Novo Usuário</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl bg-white max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                  <DialogHeader className="p-6 border-b">
+                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden">
+                  <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Usuário'}</DialogTitle>
                     <DialogDescription>Dados de acesso e atribuições de disciplinas.</DialogDescription>
                   </DialogHeader>
@@ -447,7 +446,7 @@ export default function SettingsPage() {
                       )}
                     </form>
                   </ScrollArea>
-                  <DialogFooter className="p-6 border-t bg-slate-50">
+                  <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
                     <Button variant="outline" onClick={() => setIsUserDialogOpen(false)}>Cancelar</Button>
                     <Button type="submit" form="user-form" className="px-8 shadow-lg font-bold">Salvar Alterações</Button>
                   </DialogFooter>
@@ -557,7 +556,7 @@ export default function SettingsPage() {
 
       {/* Modal de Alunos Matriculados na Disciplina */}
       <Dialog open={isViewStudentsDialogOpen} onOpenChange={setIsViewStudentsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-white p-0 overflow-hidden">
+        <DialogContent className="max-w-[500px] w-[95vw] h-[600px] max-h-[90vh] bg-white p-0 overflow-hidden flex flex-col">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center border border-white/40">
@@ -574,44 +573,42 @@ export default function SettingsPage() {
             </div>
           </DialogHeader>
           
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                <Info className="h-4 w-4" /> Total de Alunos: {enrolledStudentsForSelectedDiscipline.length}
-              </span>
-              <Badge variant="outline" className="border-primary/20 text-primary uppercase text-[10px] font-bold">
-                {MOCK_CLASSES.find(c => c.id === selectedDisciplineForStudents?.classId)?.name}
-              </Badge>
-            </div>
-
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-2 pb-4">
-                {enrolledStudentsForSelectedDiscipline.map((student) => (
-                  <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                        {student.name.charAt(0)}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold group-hover:text-primary transition-colors">{student.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">RA: {student.ra}</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
-                  </div>
-                ))}
-
-                {enrolledStudentsForSelectedDiscipline.length === 0 && (
-                  <div className="py-20 text-center opacity-30 flex flex-col items-center">
-                    <UserCircle className="h-10 w-10 mb-2" />
-                    <p className="text-sm font-bold">Nenhum aluno matriculado.</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
+          <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-slate-50/50">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <Info className="h-4 w-4" /> Total de Alunos: {enrolledStudentsForSelectedDiscipline.length}
+            </span>
+            <Badge variant="outline" className="border-primary/20 text-primary uppercase text-[10px] font-bold">
+              {MOCK_CLASSES.find(c => c.id === selectedDisciplineForStudents?.classId)?.name}
+            </Badge>
           </div>
 
-          <DialogFooter className="p-4 bg-slate-50 border-t">
+          <ScrollArea className="flex-1 px-6">
+            <div className="space-y-2 py-4">
+              {enrolledStudentsForSelectedDiscipline.map((student) => (
+                <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                      {student.name.charAt(0)}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold group-hover:text-primary transition-colors">{student.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">RA: {student.ra}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
+                </div>
+              ))}
+
+              {enrolledStudentsForSelectedDiscipline.length === 0 && (
+                <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                  <UserCircle className="h-10 w-10 mb-2" />
+                  <p className="text-sm font-bold">Nenhum aluno matriculado.</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="p-4 bg-slate-50 border-t shrink-0">
             <Button variant="outline" className="w-full" onClick={() => setIsViewStudentsDialogOpen(false)}>
               Fechar Visualização
             </Button>
