@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -23,7 +24,10 @@ import {
   BookOpen,
   Clock,
   Plus,
-  UserCheck
+  UserCheck,
+  Info,
+  ChevronRight,
+  UserCircle
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,6 +41,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type UserRole = 'Admin' | 'Professor';
 
@@ -96,6 +101,17 @@ const INITIAL_DISCIPLINES: Discipline[] = [
   { id: 'd2', name: 'Matemática', classId: '1', teacherId: 'prof-1', schedule: '07:50 às 08:40' },
 ]
 
+const MOCK_STUDENTS = [
+  { id: '1', name: 'Ana Beatriz Silva', ra: '123456', enrollments: ['d1', 'd2'] },
+  { id: '2', name: 'Bruno Oliveira Souza', ra: '234567', enrollments: ['d1'] },
+  { id: '3', name: 'Carlos Eduardo Santos', ra: '345678', enrollments: ['d2'] },
+  { id: '4', name: 'Daniela Lima Ferreira', ra: '456789', enrollments: ['d1'] },
+  { id: '5', name: 'Eduardo Pereira Costa', ra: '567890', enrollments: ['d1', 'd2'] },
+  { id: '6', name: 'Fernanda Rocha Lima', ra: '678901', enrollments: ['d1'] },
+  { id: '7', name: 'Gabriel Alvez Martins', ra: '789012', enrollments: ['d2'] },
+  { id: '8', name: 'Helena Mendes Castro', ra: '890123', enrollments: ['d1'] },
+]
+
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
@@ -117,6 +133,9 @@ export default function SettingsPage() {
   // Estados para Gestão de Disciplinas
   const [disciplines, setDisciplines] = useState<Discipline[]>(INITIAL_DISCIPLINES)
   const [isDisciplineDialogOpen, setIsDisciplineDialogOpen] = useState(false)
+  const [selectedDisciplineForStudents, setSelectedDisciplineForStudents] = useState<Discipline | null>(null)
+  const [isViewStudentsDialogOpen, setIsViewStudentsDialogOpen] = useState(false)
+  
   const [newDiscipline, setNewDiscipline] = useState({
     name: "",
     classId: "",
@@ -186,6 +205,10 @@ export default function SettingsPage() {
     u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   )
+
+  const enrolledStudentsForSelectedDiscipline = selectedDisciplineForStudents 
+    ? MOCK_STUDENTS.filter(s => s.enrollments.includes(selectedDisciplineForStudents.id))
+    : [];
 
   if (!mounted) return null
 
@@ -283,7 +306,18 @@ export default function SettingsPage() {
                   <tbody className="divide-y">
                     {disciplines.map((d) => (
                       <tr key={d.id} className="hover:bg-muted/10 transition-colors">
-                        <td className="px-6 py-4 font-bold text-primary">{d.name}</td>
+                        <td className="px-6 py-4 font-bold">
+                          <button 
+                            onClick={() => {
+                              setSelectedDisciplineForStudents(d);
+                              setIsViewStudentsDialogOpen(true);
+                            }}
+                            className="text-primary hover:underline flex items-center gap-1.5 transition-all text-left"
+                          >
+                            {d.name}
+                            <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+                          </button>
+                        </td>
                         <td className="px-6 py-4">
                           <Badge variant="secondary">{MOCK_CLASSES.find(c => c.id === d.classId)?.name}</Badge>
                         </td>
@@ -416,6 +450,70 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Alunos Matriculados na Disciplina */}
+      <Dialog open={isViewStudentsDialogOpen} onOpenChange={setIsViewStudentsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center border border-white/40">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                  {selectedDisciplineForStudents?.name}
+                </DialogTitle>
+                <DialogDescription className="text-primary-foreground/80 font-medium">
+                  Alunos Matriculados nesta Disciplina
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                <Info className="h-4 w-4" /> Total de Alunos: {enrolledStudentsForSelectedDiscipline.length}
+              </span>
+              <Badge variant="outline" className="border-primary/20 text-primary uppercase text-[10px] font-bold">
+                {MOCK_CLASSES.find(c => c.id === selectedDisciplineForStudents?.classId)?.name}
+              </Badge>
+            </div>
+
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-2 pb-4">
+                {enrolledStudentsForSelectedDiscipline.map((student) => (
+                  <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                        {student.name.charAt(0)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold group-hover:text-primary transition-colors">{student.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">RA: {student.ra}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
+                  </div>
+                ))}
+
+                {enrolledStudentsForSelectedDiscipline.length === 0 && (
+                  <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                    <UserCircle className="h-10 w-10 mb-2" />
+                    <p className="text-sm font-bold">Nenhum aluno matriculado.</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <DialogFooter className="p-4 bg-slate-50 border-t">
+            <Button variant="outline" className="w-full" onClick={() => setIsViewStudentsDialogOpen(false)}>
+              Fechar Visualização
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
