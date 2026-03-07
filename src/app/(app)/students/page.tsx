@@ -4,10 +4,10 @@
 import { useState, useRef, useEffect, Suspense, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { 
-  Search, UserPlus, MoreHorizontal, Eye, BrainCircuit, 
-  Sparkles, Camera, RotateCcw, Check, Trash2, Pencil, AlertCircle, X, 
+  Search, UserPlus, Eye, BrainCircuit, 
+  Sparkles, Camera, Check, Trash2, Pencil, AlertCircle, 
   Calendar, ClipboardCheck, GraduationCap, Info,
-  Upload, Image as ImageIcon, BookOpen, Clock, Plus, Save
+  Upload, Image as ImageIcon, BookOpen, Clock, Save, X, RotateCcw
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,14 +16,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { personalizedLearningSuggestions } from "@/ai/flows/personalized-learning-suggestions"
 import type { PersonalizedLearningSuggestionsOutput } from "@/ai/flows/personalized-learning-suggestions"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
-import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
@@ -48,12 +46,10 @@ const MOCK_INITIAL_STUDENTS = [
     name: 'Ana Beatriz Silva', 
     class: '9º Ano A', 
     classId: '1',
-    trend: 'up', 
     bloomLevel: 'Apply', 
     callNumber: '01', 
     ra: '123456', 
     raDigit: '7', 
-    tutor: 'Prof. Ricardo', 
     status: 'Ativo',
     photo: null,
     enrollments: ['d1', 'd2'],
@@ -80,12 +76,10 @@ const MOCK_INITIAL_STUDENTS = [
     name: 'Bruno Oliveira Souza', 
     class: '9º Ano A', 
     classId: '1',
-    trend: 'stable', 
     bloomLevel: 'Understand', 
     callNumber: '02', 
     ra: '234567', 
     raDigit: '8', 
-    tutor: 'Prof. Ricardo', 
     status: 'Ativo',
     photo: null,
     enrollments: ['d1'],
@@ -100,7 +94,6 @@ const MOCK_INITIAL_STUDENTS = [
 
 function StudentsContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const { toast } = useToast()
   
   const [students, setStudents] = useState(MOCK_INITIAL_STUDENTS)
@@ -128,7 +121,6 @@ function StudentsContent() {
     raDigit: "",
     class: "9º Ano A",
     classId: "1",
-    tutor: "",
     bloomLevel: "Remember",
     status: "Ativo",
     enrollments: [] as string[]
@@ -164,7 +156,7 @@ function StudentsContent() {
         setIsCameraActive(true)
       }
     } catch (err) {
-      toast({ title: "Erro na Câmera", description: "Não foi possível acessar a webcam.", variant: "destructive" })
+      toast({ title: "Erro na Câmera", description: "Não foi possível acessar a webcam. Verifique as permissões.", variant: "destructive" })
     }
   }
 
@@ -198,7 +190,16 @@ function StudentsContent() {
     }
   }
 
-  const toggleEnrollment = (disciplineId: string) => {
+  const toggleEnrollmentInForm = (disciplineId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      enrollments: prev.enrollments.includes(disciplineId)
+        ? prev.enrollments.filter(id => id !== disciplineId)
+        : [...prev.enrollments, disciplineId]
+    }))
+  }
+
+  const toggleEnrollmentInProfile = (disciplineId: string) => {
     if (!selectedStudent) return;
     const isEnrolled = selectedStudent.enrollments?.includes(disciplineId);
     const newEnrollments = isEnrolled 
@@ -211,19 +212,24 @@ function StudentsContent() {
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.name || !formData.ra) {
+      toast({ title: "Erro", description: "Nome e RA são obrigatórios.", variant: "destructive" })
+      return
+    }
+
     if (isEditing && selectedStudent) {
-      setStudents(students.map(s => s.id === selectedStudent.id ? { ...s, ...formData, photo: capturedPhoto } : s))
+      const updatedStudent = { ...selectedStudent, ...formData, photo: capturedPhoto };
+      setStudents(students.map(s => s.id === selectedStudent.id ? updatedStudent : s))
       toast({ title: "Cadastro Atualizado", description: `${formData.name} foi atualizado com sucesso.` })
     } else {
       const newStudent = { 
         id: Date.now().toString(), 
         ...formData, 
         photo: capturedPhoto, 
-        enrollments: [],
         history: { attendance: [], assessments: [], occurrences: [], observations: [] }
       }
       setStudents([newStudent as any, ...students])
-      toast({ title: "Aluno Cadastrado", description: `${formData.name} foi adicionado ao sistema.` })
+      toast({ title: "Aluno Cadastrado", description: `${formData.name} foi adicionado e matriculado.` })
     }
     setIsRegisterOpen(false)
     stopCamera()
@@ -280,7 +286,17 @@ function StudentsContent() {
         </div>
         <Button className="gap-2 shadow-lg" onClick={() => { 
           setIsEditing(false); 
-          setFormData({callNumber: "", name: "", ra: "", raDigit: "", class: "9º Ano A", classId: "1", tutor: "", bloomLevel: "Remember", status: "Ativo", enrollments: []}); 
+          setFormData({
+            callNumber: "", 
+            name: "", 
+            ra: "", 
+            raDigit: "", 
+            class: "9º Ano A", 
+            classId: "1", 
+            bloomLevel: "Remember", 
+            status: "Ativo", 
+            enrollments: []
+          }); 
           setCapturedPhoto(null); 
           setIsRegisterOpen(true); 
         }}>
@@ -340,7 +356,6 @@ function StudentsContent() {
                       raDigit: student.raDigit,
                       class: student.class,
                       classId: student.classId,
-                      tutor: student.tutor,
                       bloomLevel: student.bloomLevel,
                       status: student.status,
                       enrollments: student.enrollments || []
@@ -357,34 +372,27 @@ function StudentsContent() {
             </CardContent>
           </Card>
         ))}
-
-        {filteredStudents.length === 0 && (
-          <div className="py-20 text-center opacity-30 flex flex-col items-center">
-            <GraduationCap className="h-12 w-12 mb-2" />
-            <p className="text-lg font-bold">Nenhum aluno encontrado</p>
-          </div>
-        )}
       </div>
 
-      {/* Register/Edit Dialog */}
+      {/* Cadastro/Edição Dialog */}
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { setIsRegisterOpen(open); if (!open) stopCamera(); }}>
-        <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
           <DialogHeader className="p-6 border-b shrink-0">
             <DialogTitle>{isEditing ? 'Editar Aluno' : 'Cadastrar Novo Aluno'}</DialogTitle>
-            <DialogDescription>Preencha os dados e anexe uma foto para identificação.</DialogDescription>
+            <DialogDescription>Dados básicos, foto e enturmação por disciplina.</DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 p-6">
-            <form id="register-form" onSubmit={handleRegisterSubmit} className="space-y-8">
+          <ScrollArea className="flex-1">
+            <div className="p-8 space-y-8">
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="relative h-40 w-40 rounded-2xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
+                  <div className="relative h-44 w-44 rounded-2xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden shadow-inner">
                     {capturedPhoto ? (
                       <img src={capturedPhoto} alt="Preview" className="h-full w-full object-cover" />
                     ) : isCameraActive ? (
                       <video ref={videoRef} autoPlay muted className="h-full w-full object-cover" />
                     ) : (
-                      <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                      <ImageIcon className="h-14 w-14 text-muted-foreground" />
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -415,7 +423,7 @@ function StudentsContent() {
                   </div>
                   <div className="space-y-2">
                     <Label>Dígito</Label>
-                    <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} required />
+                    <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Turma Principal</Label>
@@ -437,12 +445,35 @@ function StudentsContent() {
                   </div>
                 </div>
               </div>
-            </form>
+
+              <div className="space-y-4 pt-4 border-t">
+                <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" /> Matrícula em Disciplinas
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {MOCK_DISCIPLINES.map((discipline) => (
+                    <label key={discipline.id} className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                      formData.enrollments.includes(discipline.id) ? "bg-primary/5 border-primary/20" : "hover:bg-muted/5"
+                    )}>
+                      <Checkbox 
+                        checked={formData.enrollments.includes(discipline.id)} 
+                        onCheckedChange={() => toggleEnrollmentInForm(discipline.id)} 
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">{discipline.name}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">{discipline.schedule}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           </ScrollArea>
 
           <DialogFooter className="p-6 bg-slate-50 border-t shrink-0">
             <Button variant="outline" onClick={() => setIsRegisterOpen(false)}>Cancelar</Button>
-            <Button type="submit" form="register-form" className="px-8 shadow-lg font-bold">
+            <Button onClick={handleRegisterSubmit} className="px-8 shadow-lg font-bold">
               <Save className="h-4 w-4 mr-2" /> {isEditing ? 'Salvar Alterações' : 'Finalizar Cadastro'}
             </Button>
           </DialogFooter>
@@ -451,72 +482,75 @@ function StudentsContent() {
 
       {/* Ficha do Aluno Dialog */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
+        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl">
           <DialogHeader className="p-8 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
-                <div className="h-20 w-20 rounded-full bg-white/20 border-2 border-white/40 overflow-hidden flex items-center justify-center text-3xl font-bold">
+                <div className="h-24 w-24 rounded-full bg-white/20 border-2 border-white/40 overflow-hidden flex items-center justify-center text-4xl font-black shadow-lg">
                   {selectedStudent?.photo ? (
                     <img src={selectedStudent.photo} alt={selectedStudent.name} className="h-full w-full object-cover" />
                   ) : selectedStudent?.name.charAt(0)}
                 </div>
                 <div>
-                  <DialogTitle className="text-2xl font-black uppercase tracking-tight">{selectedStudent?.name}</DialogTitle>
+                  <DialogTitle className="text-3xl font-black uppercase tracking-tight">{selectedStudent?.name}</DialogTitle>
                   <div className="flex items-center gap-4 text-primary-foreground/80 text-sm mt-1">
-                    <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {selectedStudent?.class}</span>
-                    <span className="flex items-center gap-1 font-mono uppercase">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit}</span>
-                    <Badge variant="outline" className="border-white/40 text-white bg-white/10 uppercase font-black text-[9px]">
+                    <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4" /> {selectedStudent?.class}</span>
+                    <span className="flex items-center gap-1.5 font-mono uppercase font-bold">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit}</span>
+                    <Badge variant="outline" className="border-white/40 text-white bg-white/10 uppercase font-black text-[10px]">
                       {selectedStudent?.status}
                     </Badge>
                   </div>
                 </div>
               </div>
               <Button variant="outline" className="bg-white/10 border-white/40 hover:bg-white/20 text-white font-bold gap-2" onClick={() => setIsOccurrenceOpen(true)}>
-                <AlertCircle className="h-4 w-4" /> Registrar Ocorrência
+                <AlertCircle className="h-4 w-4" /> Registrar Intervenção
               </Button>
             </div>
           </DialogHeader>
 
-          <Tabs defaultValue="enrollment" className="flex-1 flex flex-col">
+          <Tabs defaultValue="enrollment" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="px-8 bg-muted/20 border-b h-14 w-full justify-start gap-8 rounded-none bg-transparent">
-              <TabsTrigger value="enrollment" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-wider">Matrículas</TabsTrigger>
-              <TabsTrigger value="history" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-wider">Histórico & Ocorrências</TabsTrigger>
-              <TabsTrigger value="ai" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-wider text-accent data-[state=active]:text-accent">IA Insights</TabsTrigger>
+              <TabsTrigger value="enrollment" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest">Matrículas</TabsTrigger>
+              <TabsTrigger value="history" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest">Histórico & Ocorrências</TabsTrigger>
+              <TabsTrigger value="ai" className="font-bold data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full uppercase text-xs tracking-widest text-accent data-[state=active]:text-accent">IA Insights</TabsTrigger>
             </TabsList>
 
             <ScrollArea className="flex-1">
               <div className="p-8">
-                <TabsContent value="enrollment" className="m-0 space-y-6 animate-in fade-in duration-300">
+                <TabsContent value="enrollment" className="m-0 space-y-6">
                   <div className="flex flex-col gap-1 mb-6">
-                    <h4 className="text-lg font-bold flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" /> Gestão de Disciplinas</h4>
-                    <p className="text-sm text-muted-foreground">Marque as disciplinas em que o aluno participará das atividades de recomposição.</p>
+                    <h4 className="text-lg font-bold flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" /> Gestão de Matrículas</h4>
+                    <p className="text-sm text-muted-foreground">Disciplinas associadas às atividades de recomposição.</p>
                   </div>
                   <div className="grid gap-3">
                     {MOCK_DISCIPLINES.map((discipline) => {
                       const isEnrolled = selectedStudent?.enrollments?.includes(discipline.id);
                       return (
-                        <div key={discipline.id} className={cn("p-4 rounded-xl border flex items-center justify-between transition-all group hover:border-primary/30", isEnrolled ? "bg-primary/5 border-primary/20 shadow-sm" : "bg-white border-border")}>
+                        <div key={discipline.id} className={cn(
+                          "p-4 rounded-xl border flex items-center justify-between transition-all group hover:border-primary/30 shadow-sm",
+                          isEnrolled ? "bg-primary/5 border-primary/20" : "bg-white border-border"
+                        )}>
                           <div className="flex items-center gap-4">
-                            <Checkbox checked={isEnrolled} onCheckedChange={() => toggleEnrollment(discipline.id)} className="h-5 w-5" />
+                            <Checkbox checked={isEnrolled} onCheckedChange={() => toggleEnrollmentInProfile(discipline.id)} className="h-5 w-5" />
                             <div className="flex flex-col">
                               <span className="font-bold text-sm group-hover:text-primary transition-colors">{discipline.name}</span>
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-bold tracking-tight">
-                                <Clock className="h-3 w-3" /> {discipline.schedule} • {discipline.class}
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-bold tracking-tighter">
+                                <Clock className="h-3.5 w-3.5" /> {discipline.schedule} • {discipline.class}
                               </span>
                             </div>
                           </div>
-                          {isEnrolled && <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Ativo</Badge>}
+                          {isEnrolled && <Badge variant="secondary" className="bg-primary/10 text-primary border-none text-[10px] font-bold">Matriculado</Badge>}
                         </div>
                       )
                     })}
                   </div>
                 </TabsContent>
 
-                <TabsContent value="history" className="m-0 space-y-8 animate-in fade-in duration-300">
-                  <div className="grid md:grid-cols-2 gap-8">
+                <TabsContent value="history" className="m-0 space-y-8">
+                  <div className="grid md:grid-cols-2 gap-10">
                     <div className="space-y-4">
                       <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" /> Ocorrências Recentes
+                        <AlertCircle className="h-4 w-4" /> Ocorrências Registradas
                       </h4>
                       <div className="space-y-3">
                         {selectedStudent?.history?.occurrences.map((occ: any) => (
@@ -525,47 +559,47 @@ function StudentsContent() {
                               <Badge className="bg-red-500 font-bold h-5 uppercase text-[9px]">{occ.type}</Badge>
                               <span className="text-[10px] font-bold text-muted-foreground uppercase">{occ.date}</span>
                             </div>
-                            <p className="text-xs text-red-900/80 leading-relaxed">{occ.description}</p>
+                            <p className="text-xs text-red-900/80 leading-relaxed font-medium">{occ.description}</p>
                           </div>
                         ))}
-                        {selectedStudent?.history?.occurrences.length === 0 && <p className="text-xs italic text-muted-foreground text-center py-6">Nenhuma ocorrência registrada.</p>}
+                        {selectedStudent?.history?.occurrences.length === 0 && <p className="text-xs italic text-muted-foreground text-center py-10">Nenhuma ocorrência registrada.</p>}
                       </div>
                     </div>
 
                     <div className="space-y-4">
                       <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                        <ClipboardCheck className="h-4 w-4" /> Últimas Avaliações
+                        <ClipboardCheck className="h-4 w-4" /> Últimas Avaliações Bloom
                       </h4>
                       <div className="space-y-3">
                         {selectedStudent?.history?.assessments.map((ass: any, idx: number) => (
-                          <div key={idx} className="p-4 rounded-lg border bg-white flex flex-col gap-2">
+                          <div key={idx} className="p-4 rounded-lg border bg-white shadow-sm flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold">{ass.subject} - {ass.competency}</span>
-                              <Badge variant="outline" className="font-bold h-5">{ass.score} pts</Badge>
+                              <span className="text-xs font-bold text-primary">{ass.subject} - {ass.competency}</span>
+                              <Badge variant="outline" className="font-black h-5 border-primary/20 text-primary">{ass.score} pts</Badge>
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase font-bold">
-                              <span>Nível: {ass.level}</span>
+                              <span className="flex items-center gap-1"><BrainCircuit className="h-3 w-3" /> Nível: {ass.level}</span>
                               <span>{ass.date}</span>
                             </div>
                           </div>
                         ))}
-                        {selectedStudent?.history?.assessments.length === 0 && <p className="text-xs italic text-muted-foreground text-center py-6">Sem avaliações registradas.</p>}
+                        {selectedStudent?.history?.assessments.length === 0 && <p className="text-xs italic text-muted-foreground text-center py-10">Sem avaliações registradas.</p>}
                       </div>
                     </div>
                   </div>
                 </TabsContent>
 
-                <TabsContent value="ai" className="m-0 space-y-6 animate-in fade-in duration-300">
-                  <Card className="border-none shadow-md bg-accent/5 border-l-4 border-l-accent overflow-hidden">
-                    <CardHeader className="pb-4">
+                <TabsContent value="ai" className="m-0 space-y-6">
+                  <Card className="border-none shadow-xl bg-accent/5 border-l-4 border-l-accent overflow-hidden">
+                    <CardHeader className="pb-4 bg-white/50 border-b">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center">
+                          <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center shadow-inner">
                             <Sparkles className="h-6 w-6 text-accent" />
                           </div>
                           <div>
-                            <CardTitle className="text-lg">Inteligência Pedagógica</CardTitle>
-                            <CardDescription>Análise automatizada baseada no histórico de recomposição</CardDescription>
+                            <CardTitle className="text-xl font-black">Inteligência Pedagógica</CardTitle>
+                            <CardDescription>Sugestões personalizadas para o desenvolvimento</CardDescription>
                           </div>
                         </div>
                         <Button variant="accent" className="gap-2 font-bold shadow-lg" onClick={generateAiInsight} disabled={isAiLoading}>
@@ -574,33 +608,33 @@ function StudentsContent() {
                         </Button>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="p-8 space-y-8">
                       {aiInsight ? (
-                        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                          <div className="p-4 rounded-xl bg-white border italic text-sm text-foreground/80 leading-relaxed">
+                        <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-500">
+                          <div className="p-6 rounded-2xl bg-white border shadow-sm italic text-sm text-foreground/80 leading-relaxed border-l-4 border-l-primary">
                             "{aiInsight.progressSummary}"
                           </div>
-                          <div className="grid md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                              <h5 className="text-xs font-black uppercase text-green-600 flex items-center gap-2">
-                                <Check className="h-3 w-3" /> Pontos Fortes
+                          <div className="grid md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                              <h5 className="text-xs font-black uppercase text-green-600 flex items-center gap-2 tracking-widest">
+                                <Check className="h-4 w-4" /> Pontos Fortes
                               </h5>
-                              <ul className="space-y-2">
+                              <ul className="space-y-3">
                                 {aiInsight.strengths.map((s, i) => (
-                                  <li key={i} className="text-xs flex gap-2">
-                                    <span className="text-green-500">•</span> {s}
+                                  <li key={i} className="text-xs flex gap-3 items-start font-medium">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 mt-1 shrink-0" /> {s}
                                   </li>
                                 ))}
                               </ul>
                             </div>
-                            <div className="space-y-3">
-                              <h5 className="text-xs font-black uppercase text-accent flex items-center gap-2">
-                                <AlertCircle className="h-3 w-3" /> Sugestões de Intervenção
+                            <div className="space-y-4">
+                              <h5 className="text-xs font-black uppercase text-accent flex items-center gap-2 tracking-widest">
+                                <AlertCircle className="h-4 w-4" /> Intervenções Recomendadas
                               </h5>
-                              <ul className="space-y-2">
+                              <ul className="space-y-3">
                                 {aiInsight.learningSuggestions.map((s, i) => (
-                                  <li key={i} className="text-xs flex gap-2">
-                                    <span className="text-accent">•</span> {s}
+                                  <li key={i} className="text-xs flex gap-3 items-start font-medium">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-accent mt-1 shrink-0" /> {s}
                                   </li>
                                 ))}
                               </ul>
@@ -608,9 +642,9 @@ function StudentsContent() {
                           </div>
                         </div>
                       ) : (
-                        <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-                          <BrainCircuit className="h-10 w-10 opacity-20" />
-                          <p className="text-sm font-medium">Clique em "Gerar Insights" para uma análise detalhada pela IA.</p>
+                        <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-3">
+                          <BrainCircuit className="h-12 w-12 opacity-10" />
+                          <p className="text-sm font-bold opacity-60">Utilize a IA para analisar o desempenho deste aluno.</p>
                         </div>
                       )}
                     </CardContent>
@@ -622,18 +656,18 @@ function StudentsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Occurrence Dialog */}
+      {/* Ocorrência Dialog */}
       <Dialog open={isOccurrenceOpen} onOpenChange={setIsOccurrenceOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-white">
+        <DialogContent className="sm:max-w-[425px] bg-white shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Registrar Intervenção</DialogTitle>
-            <DialogDescription>Descreva a situação observada para o aluno {selectedStudent?.name}.</DialogDescription>
+            <DialogTitle className="text-xl font-bold">Registrar Intervenção</DialogTitle>
+            <DialogDescription>Situação observada para {selectedStudent?.name}.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Tipo de Registro</Label>
+              <Label className="font-bold">Tipo de Registro</Label>
               <Select value={occurrenceData.type} onValueChange={(v) => setOccurrenceData({...occurrenceData, type: v})}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Pedagógica">Pedagógica</SelectItem>
                   <SelectItem value="Comportamental">Comportamental</SelectItem>
@@ -643,23 +677,22 @@ function StudentsContent() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Descrição Detalhada</Label>
+              <Label className="font-bold">Descrição Detalhada</Label>
               <Textarea 
                 placeholder="Ex: O aluno apresentou dificuldades na interpretação de charges..." 
-                className="min-h-[120px]"
+                className="min-h-[140px] text-sm"
                 value={occurrenceData.description}
                 onChange={(e) => setOccurrenceData({...occurrenceData, description: e.target.value})}
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsOccurrenceOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAddOccurrence}>Salvar Registro</Button>
+            <Button onClick={handleAddOccurrence} className="font-bold">Salvar Registro</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       
-      {/* Hidden canvas for photo capture */}
       <canvas ref={canvasRef} className="hidden" />
     </div>
   )
@@ -667,7 +700,7 @@ function StudentsContent() {
 
 export default function StudentsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2"><Clock className="h-4 w-4 animate-spin" /> Carregando gestão de alunos...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2 font-bold"><Clock className="h-5 w-5 animate-spin" /> Carregando gestão de alunos...</div>}>
       <StudentsContent />
     </Suspense>
   )
