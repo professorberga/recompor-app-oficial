@@ -28,8 +28,6 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { generateBloomAssessmentItems } from "@/ai/flows/bloom-assessment-item-generator"
@@ -59,6 +57,75 @@ const MOCK_STUDENTS = [
   { id: '4', name: 'Daniela Lima Ferreira', ra: '456789' },
   { id: '5', name: 'Eduardo Pereira Costa', ra: '567890' },
 ]
+
+interface Class {
+  id: string
+  name: string
+}
+
+interface ClassMultiSelectProps {
+  classes: Class[]
+  value: string[]
+  onChange: (value: string[]) => void
+}
+
+function ClassMultiSelect({ classes, value, onChange }: ClassMultiSelectProps) {
+  const toggleClass = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter(c => c !== id))
+    } else {
+      onChange([...value, id])
+    }
+  }
+
+  const selectAll = () => {
+    onChange(classes.map(c => c.id))
+  }
+
+  const clearAll = () => {
+    onChange([])
+  }
+
+  return (
+    <div className="border rounded-md p-3 space-y-3 bg-white shadow-sm">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={selectAll}
+          className="text-xs font-bold px-3 py-1.5 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+        >
+          Selecionar todas
+        </button>
+        <button
+          type="button"
+          onClick={clearAll}
+          className="text-xs font-bold px-3 py-1.5 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
+        >
+          Limpar
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+        {classes.map((turma) => (
+          <label
+            key={turma.id}
+            className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition-colors group"
+          >
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+              checked={value.includes(turma.id)}
+              onChange={() => toggleClass(turma.id)}
+            />
+            <span className="text-sm font-medium group-hover:text-primary transition-colors">
+              {turma.name}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 interface RubricLevel {
   id: string;
@@ -138,10 +205,7 @@ export default function AssessmentPage() {
     date: new Date().toISOString().split('T')[0],
   })
   
-  // Refactored Class Selection State
   const [selectedClasses, setSelectedClasses] = useState<string[]>([])
-  const [classSearchTerm, setClassSearchTerm] = useState("")
-  
   const [newRubric, setNewRubric] = useState<RubricCriterion[]>([])
   const [tempGrades, setTempGrades] = useState<Record<string, Record<string, string>>>({})
   
@@ -150,35 +214,6 @@ export default function AssessmentPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Functional MultiSelect Logic
-  const toggleClassSelection = (classId: string) => {
-    setSelectedClasses(prev => {
-      const isSelected = prev.includes(classId)
-      const newState = isSelected 
-        ? prev.filter(id => id !== classId)
-        : [...prev, classId]
-      console.log("selectedClasses update:", newState)
-      return newState
-    })
-  }
-
-  const selectAllClasses = () => {
-    const allIds = MOCK_CLASSES.map(c => c.id)
-    setSelectedClasses(allIds)
-    console.log("selectedClasses select all:", allIds)
-  }
-
-  const clearClassSelection = () => {
-    setSelectedClasses([])
-    console.log("selectedClasses clear")
-  }
-
-  const filteredClasses = useMemo(() => {
-    return MOCK_CLASSES.filter(c => 
-      c.name.toLowerCase().includes(classSearchTerm.toLowerCase())
-    )
-  }, [classSearchTerm])
 
   const handleGenerateAI = async () => {
     if (!competencyIA) {
@@ -371,91 +406,12 @@ export default function AssessmentPage() {
                     </div>
 
                     <div className="space-y-3 col-span-1 md:col-span-2">
-                      <Label className="font-bold flex items-center justify-between">
-                        <span>Turmas Vinculadas</span>
-                        <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          {selectedClasses.length} selecionada(s)
-                        </span>
-                      </Label>
-                      
-                      <div className="flex flex-wrap gap-2 mb-2 min-h-[44px] p-2 bg-white rounded-md border border-input shadow-sm items-center">
-                        {selectedClasses.length === 0 ? (
-                          <span className="text-sm text-muted-foreground px-2">Nenhuma turma selecionada</span>
-                        ) : (
-                          selectedClasses.map(id => {
-                            const turma = MOCK_CLASSES.find(c => c.id === id)
-                            return (
-                              <Badge key={id} variant="secondary" className="gap-1 pr-1 pl-2.5 h-7 font-bold bg-primary/10 text-primary border-primary/20">
-                                {turma?.name}
-                                <button 
-                                  type="button" 
-                                  onClick={(e) => { e.preventDefault(); toggleClassSelection(id); }}
-                                  className="ml-1 hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            )
-                          })
-                        )}
-                        
-                        <Popover modal={false}>
-                          <PopoverTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold uppercase tracking-wider ml-auto gap-1 border border-dashed border-primary/40 text-primary hover:bg-primary/5">
-                              <Plus className="h-3 w-3" /> Gerenciar Turmas
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[320px] p-0 shadow-2xl z-[60]" align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
-                            <div className="p-3 border-b bg-slate-50 space-y-3">
-                              <div className="relative">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                  placeholder="Buscar turma..." 
-                                  className="pl-9 h-9 bg-white"
-                                  value={classSearchTerm}
-                                  onChange={(e) => setClassSearchTerm(e.target.value)}
-                                />
-                              </div>
-                              <div className="flex items-center justify-between gap-2">
-                                <Button type="button" variant="outline" size="sm" className="h-7 text-[9px] flex-1 font-bold" onClick={selectAllClasses}>
-                                  Selecionar Todas
-                                </Button>
-                                <Button type="button" variant="outline" size="sm" className="h-7 text-[9px] flex-1 font-bold text-destructive hover:bg-destructive/5" onClick={clearClassSelection}>
-                                  Limpar Seleção
-                                </Button>
-                              </div>
-                            </div>
-                            <ScrollArea className="h-[200px]">
-                              <div className="p-1">
-                                {filteredClasses.map((cls) => (
-                                  <div 
-                                    key={cls.id} 
-                                    className="flex items-center space-x-2 p-2.5 hover:bg-muted rounded-md transition-colors"
-                                  >
-                                    <Checkbox 
-                                      id={`class-item-${cls.id}`} 
-                                      checked={selectedClasses.includes(cls.id)}
-                                      onCheckedChange={() => toggleClassSelection(cls.id)}
-                                    />
-                                    <Label 
-                                      htmlFor={`class-item-${cls.id}`} 
-                                      className="text-sm font-semibold flex-1 cursor-pointer"
-                                    >
-                                      {cls.name}
-                                    </Label>
-                                    {selectedClasses.includes(cls.id) && (
-                                      <Check className="h-4 w-4 text-primary" />
-                                    )}
-                                  </div>
-                                ))}
-                                {filteredClasses.length === 0 && (
-                                  <p className="text-center py-8 text-xs text-muted-foreground italic">Nenhuma turma encontrada.</p>
-                                )}
-                              </div>
-                            </ScrollArea>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                      <Label className="font-bold">Turmas Vinculadas ({selectedClasses.length} selecionada(s))</Label>
+                      <ClassMultiSelect 
+                        classes={MOCK_CLASSES} 
+                        value={selectedClasses} 
+                        onChange={setSelectedClasses} 
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -492,8 +448,8 @@ export default function AssessmentPage() {
 
                   <Separator className="my-10" />
 
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between sticky top-0 bg-transparent py-2 z-10">
+                  <div className="space-y-6 pb-12">
+                    <div className="flex items-center justify-between bg-transparent py-2">
                       <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                         <LayoutList className="h-4 w-4" /> Critérios da Rubrica
                       </h4>
@@ -820,7 +776,7 @@ export default function AssessmentPage() {
 
       {/* Grades Dialog */}
       <Dialog open={isGradesDialogOpen} onOpenChange={isGradesDialogOpen ? setIsGradesDialogOpen : undefined}>
-        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl">
+        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl border-none">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between pr-8">
               <div>
