@@ -1,8 +1,8 @@
 "use client"
 
-import { Line, LineChart, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts"
+import React from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 const data = [
   { month: "Jan", remembering: 40, understanding: 24, applying: 15 },
@@ -12,72 +12,63 @@ const data = [
   { month: "Mai", remembering: 90, understanding: 75, applying: 65 },
 ]
 
-const chartConfig = {
-  remembering: {
-    label: "Lembrar",
-    color: "hsl(var(--primary))",
-  },
-  understanding: {
-    label: "Entender",
-    color: "hsl(var(--accent))",
-  },
-  applying: {
-    label: "Aplicar",
-    color: "hsl(var(--chart-3))",
-  },
-} satisfies ChartConfig
-
 export function EvolutionChart() {
   return (
     <Card className="border-none shadow-md bg-white col-span-4">
       <CardHeader>
-        <CardTitle className="text-lg">Evolução de Competências (Média Geral)</CardTitle>
+        <CardTitle className="text-lg font-bold">Evolução de Competências (Média Geral)</CardTitle>
         <CardDescription>Percentual de alunos que atingiram cada nível da Taxonomia de Bloom</CardDescription>
       </CardHeader>
-      <CardContent className="flex justify-center items-center h-[200px]">
-        <ChartContainer config={chartConfig}>
-          <LineChart 
-            width={275} 
-            height={155} 
-            data={data} 
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="month" 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: 'hsl(var(--muted-foreground))' }} 
-            />
-            <YAxis 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: 'hsl(var(--muted-foreground))' }} 
-            />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Line
-              type="monotone"
-              dataKey="remembering"
-              stroke="var(--color-remembering)"
-              strokeWidth={3}
-              dot={{ r: 4, fill: "var(--color-remembering)" }}
-            />
-            <Line
-              type="monotone"
-              dataKey="understanding"
-              stroke="var(--color-understanding)"
-              strokeWidth={3}
-              dot={{ r: 4, fill: "var(--color-understanding)" }}
-            />
-            <Line
-              type="monotone"
-              dataKey="applying"
-              stroke="var(--color-applying)"
-              strokeWidth={3}
-              dot={{ r: 4, fill: "var(--color-applying)" }}
-            />
-          </LineChart>
-        </ChartContainer>
+      <CardContent>
+        <div style={{ width: '100%', height: '350px', minHeight: '350px', position: 'relative' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="month" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+              />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+              <Line
+                type="monotone"
+                dataKey="remembering"
+                name="Lembrar"
+                stroke="hsl(var(--primary))"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "hsl(var(--primary))" }}
+                activeDot={{ r: 8 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="understanding"
+                name="Entender"
+                stroke="hsl(var(--accent))"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "hsl(var(--accent))" }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="applying"
+                name="Aplicar"
+                stroke="hsl(var(--chart-3))"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "hsl(var(--chart-3))" }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )
