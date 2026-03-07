@@ -5,63 +5,33 @@ import {
   School, 
   Settings as SettingsIcon, 
   Bell, 
-  ShieldCheck, 
-  Save, 
-  Moon, 
-  Sun,
-  Globe,
-  Lock,
+  Plus,
+  Search,
+  BookOpen,
   Users,
   UserPlus,
   Mail,
   Trash2,
-  Check,
-  MoreHorizontal,
-  Search,
   Pencil,
-  Key,
-  BookOpen,
   Clock,
-  Plus,
-  UserCheck,
   Info,
   ChevronRight,
-  UserCircle,
-  X
+  UserCheck,
+  UserCircle
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
-
-type UserRole = 'Admin' | 'Professor';
-
-interface SystemUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  status: 'Ativo' | 'Inativo';
-}
-
-interface Discipline {
-  id: string;
-  name: string;
-  classId: string;
-  teacherId: string;
-  schedule: string;
-}
+import { SystemUser, Discipline, UserRole } from "@/lib/types"
 
 const INITIAL_USERS: SystemUser[] = [
   { 
@@ -120,7 +90,7 @@ export default function SettingsPage() {
   
   const [isSaving, setIsSaving] = useState(false)
 
-  // Estados para Gestão de Usuários
+  // Gestão de Usuários
   const [users, setUsers] = useState<SystemUser[]>(INITIAL_USERS)
   const [userSearch, setUserSearch] = useState("")
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
@@ -132,7 +102,7 @@ export default function SettingsPage() {
     assignedDisciplineIds: [] as string[]
   })
 
-  // Estados para Gestão de Disciplinas
+  // Gestão de Disciplinas
   const [disciplines, setDisciplines] = useState<Discipline[]>(INITIAL_DISCIPLINES)
   const [isDisciplineDialogOpen, setIsDisciplineDialogOpen] = useState(false)
   const [selectedDisciplineForStudents, setSelectedDisciplineForStudents] = useState<Discipline | null>(null)
@@ -141,8 +111,8 @@ export default function SettingsPage() {
   const [newDiscipline, setNewDiscipline] = useState({
     name: "",
     classIds: [] as string[],
-    teacherAssignments: {} as Record<string, string>, // classId -> teacherId
-    schedules: {} as Record<string, string> // classId -> schedule
+    teacherAssignments: {} as Record<string, string>,
+    schedules: {} as Record<string, string>
   })
 
   useEffect(() => {
@@ -187,18 +157,16 @@ export default function SettingsPage() {
     }
 
     // Sincronizar disciplinas associadas
-    if (userFormData.role === 'Professor' || userFormData.role === 'Admin') {
-      const updatedDisciplines = disciplines.map(d => {
-        const isAssigned = userFormData.assignedDisciplineIds.includes(d.id);
-        if (isAssigned) {
-          return { ...d, teacherId: targetUserId };
-        } else if (d.teacherId === targetUserId) {
-          return { ...d, teacherId: "" };
-        }
-        return d;
-      });
-      setDisciplines(updatedDisciplines);
-    }
+    const updatedDisciplines = disciplines.map(d => {
+      const isAssigned = userFormData.assignedDisciplineIds.includes(d.id);
+      if (isAssigned) {
+        return { ...d, teacherId: targetUserId };
+      } else if (d.teacherId === targetUserId) {
+        return { ...d, teacherId: "" };
+      }
+      return d;
+    });
+    setDisciplines(updatedDisciplines);
 
     setIsUserDialogOpen(false)
     setEditingUser(null)
@@ -267,7 +235,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-primary">Configurações do Sistema</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-primary">Configurações</h2>
         <p className="text-muted-foreground mt-1">Gerencie disciplinas, usuários e parâmetros da instituição.</p>
       </div>
 
@@ -285,7 +253,7 @@ export default function SettingsPage() {
             <CardHeader className="flex flex-col md:flex-row md:items-center justify-between border-b pb-6 gap-4">
               <div>
                 <CardTitle>Gestão de Disciplinas</CardTitle>
-                <CardDescription>Cadastre matérias e associe-as a turmas, professores e horários.</CardDescription>
+                <CardDescription>Associe matérias a turmas, professores e horários.</CardDescription>
               </div>
               <Dialog open={isDisciplineDialogOpen} onOpenChange={setIsDisciplineDialogOpen}>
                 <DialogTrigger asChild>
@@ -296,7 +264,7 @@ export default function SettingsPage() {
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
                   <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>Cadastrar Disciplina</DialogTitle>
-                    <DialogDescription>Preencha os dados e vincule turmas, professores e horários específicos.</DialogDescription>
+                    <DialogDescription>Vincule turmas e professores individualmente.</DialogDescription>
                   </DialogHeader>
                   <ScrollArea className="flex-1">
                     <form id="discipline-form" onSubmit={handleDisciplineSubmit} className="space-y-8 p-8 pb-12">
@@ -311,7 +279,7 @@ export default function SettingsPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <Label className="font-bold">Vincular Turmas ({newDiscipline.classIds.length} selecionadas)</Label>
+                        <Label className="font-bold">Vincular Turmas</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded-xl border">
                           {MOCK_CLASSES.map(c => (
                             <label key={c.id} className={cn(
@@ -330,23 +298,20 @@ export default function SettingsPage() {
 
                       {newDiscipline.classIds.length > 0 && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Atribuição de Professores e Horários por Turma</Label>
+                          <Label className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Definição Individual por Turma</Label>
                           <div className="space-y-4">
                             {newDiscipline.classIds.map(cid => {
                               const turma = MOCK_CLASSES.find(c => c.id === cid)
                               return (
-                                <div key={cid} className="flex flex-col gap-4 p-5 rounded-xl border bg-white shadow-sm hover:border-primary/20 transition-colors">
+                                <div key={cid} className="flex flex-col gap-4 p-5 rounded-xl border bg-white shadow-sm">
                                   <div className="flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-black text-primary uppercase tracking-wider">Turma Selecionada</span>
-                                      <span className="text-lg font-bold">{turma?.name}</span>
-                                    </div>
-                                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">Definição Individual</Badge>
+                                    <span className="text-lg font-bold">{turma?.name}</span>
+                                    <Badge variant="outline" className="bg-primary/5 text-primary">Configurar</Badge>
                                   </div>
                                   
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Professor Responsável</Label>
+                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground">Professor</Label>
                                       <Select 
                                         value={newDiscipline.teacherAssignments[cid] || ""} 
                                         onValueChange={(v) => setNewDiscipline({
@@ -354,11 +319,11 @@ export default function SettingsPage() {
                                           teacherAssignments: { ...newDiscipline.teacherAssignments, [cid]: v }
                                         })}
                                       >
-                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
-                                          <SelectValue placeholder="Selecione o professor" />
+                                        <SelectTrigger className="h-10">
+                                          <SelectValue placeholder="Selecionar..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {users.filter(u => u.role === 'Professor' || u.role === 'Admin').map(u => (
+                                          {users.filter(u => u.role !== 'Admin').map(u => (
                                             <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                                           ))}
                                         </SelectContent>
@@ -366,7 +331,7 @@ export default function SettingsPage() {
                                     </div>
 
                                     <div className="space-y-1.5">
-                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Horário da Aula nesta Turma</Label>
+                                      <Label className="text-[10px] font-bold uppercase text-muted-foreground">Horário</Label>
                                       <Select 
                                         value={newDiscipline.schedules[cid] || MOCK_SCHEDULES[0]} 
                                         onValueChange={(v) => setNewDiscipline({
@@ -374,8 +339,8 @@ export default function SettingsPage() {
                                           schedules: { ...newDiscipline.schedules, [cid]: v }
                                         })}
                                       >
-                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
-                                          <SelectValue placeholder="Selecione o horário" />
+                                        <SelectTrigger className="h-10">
+                                          <SelectValue placeholder="Selecionar..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                           {MOCK_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -393,7 +358,7 @@ export default function SettingsPage() {
                   </ScrollArea>
                   <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
                     <Button variant="outline" onClick={() => setIsDisciplineDialogOpen(false)}>Cancelar</Button>
-                    <Button type="submit" form="discipline-form" className="px-10 shadow-lg font-bold">Salvar Disciplinas</Button>
+                    <Button type="submit" form="discipline-form" className="px-10 shadow-lg font-bold">Salvar</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -413,16 +378,15 @@ export default function SettingsPage() {
                   <tbody className="divide-y">
                     {disciplines.map((d) => (
                       <tr key={d.id} className="hover:bg-muted/10 transition-colors">
-                        <td className="px-6 py-4 font-bold">
+                        <td className="px-6 py-4">
                           <button 
                             onClick={() => {
                               setSelectedDisciplineForStudents(d);
                               setIsViewStudentsDialogOpen(true);
                             }}
-                            className="text-primary hover:underline flex items-center gap-1.5 transition-all text-left"
+                            className="text-primary font-bold hover:underline flex items-center gap-1.5"
                           >
-                            {d.name}
-                            <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+                            {d.name} <ChevronRight className="h-3 w-3" />
                           </button>
                         </td>
                         <td className="px-6 py-4">
@@ -430,10 +394,10 @@ export default function SettingsPage() {
                         </td>
                         <td className="px-6 py-4 flex items-center gap-2">
                           <UserCheck className="h-3 w-3 text-muted-foreground" />
-                          {users.find(u => u.id === d.teacherId)?.name || "Não atribuído"}
+                          {users.find(u => u.id === d.teacherId)?.name || "N/A"}
                         </td>
-                        <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
-                          <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {d.schedule}</div>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 text-[11px]"><Clock className="h-3 w-3" /> {d.schedule}</div>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Button variant="ghost" size="icon" onClick={() => setDisciplines(disciplines.filter(x => x.id !== d.id))}>
@@ -442,11 +406,6 @@ export default function SettingsPage() {
                         </td>
                       </tr>
                     ))}
-                    {disciplines.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="text-center py-20 text-muted-foreground italic">Nenhuma disciplina cadastrada.</td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -459,22 +418,19 @@ export default function SettingsPage() {
             <CardHeader className="flex flex-col md:flex-row md:items-center justify-between border-b pb-6 gap-4">
               <div>
                 <CardTitle>Gestão de Usuários</CardTitle>
-                <CardDescription>Adicione ou remova permissões de acesso ao sistema.</CardDescription>
+                <CardDescription>Gerencie perfis e atribuições de aulas.</CardDescription>
               </div>
               <Dialog open={isUserDialogOpen} onOpenChange={(open) => {
                 setIsUserDialogOpen(open);
-                if (!open) {
-                  setEditingUser(null);
-                  setUserFormData({ name: "", email: "", role: "Professor", assignedDisciplineIds: [] });
-                }
+                if (!open) setEditingUser(null);
               }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2 shadow-lg"><UserPlus className="h-4 w-4" /> Novo Usuário</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+                <DialogContent className="max-w-2xl w-[95vw] h-[90vh] bg-white flex flex-col p-0 overflow-hidden shadow-2xl">
                   <DialogHeader className="p-6 border-b shrink-0">
                     <DialogTitle>{editingUser ? 'Editar Usuário' : 'Cadastrar Usuário'}</DialogTitle>
-                    <DialogDescription>Dados de acesso e atribuições de disciplinas.</DialogDescription>
+                    <DialogDescription>Acesso e atribuições.</DialogDescription>
                   </DialogHeader>
                   <ScrollArea className="flex-1">
                     <form id="user-form" onSubmit={handleUserSubmit} className="space-y-6 p-6">
@@ -488,7 +444,7 @@ export default function SettingsPage() {
                           <Input type="email" value={userFormData.email} onChange={(e) => setUserFormData({...userFormData, email: e.target.value})} />
                         </div>
                         <div className="space-y-2">
-                          <Label>Perfil de Acesso</Label>
+                          <Label>Perfil</Label>
                           <Select value={userFormData.role} onValueChange={(v: any) => setUserFormData({...userFormData, role: v})}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -501,13 +457,11 @@ export default function SettingsPage() {
 
                       {(userFormData.role === 'Professor' || userFormData.role === 'Admin') && (
                         <div className="space-y-4 pt-4 border-t">
-                          <h4 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                            <BookOpen className="h-4 w-4" /> Atribuição de Aulas
-                          </h4>
+                          <Label className="font-bold">Atribuição de Aulas</Label>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {disciplines.map((d) => (
                               <label key={d.id} className={cn(
-                                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer",
                                 userFormData.assignedDisciplineIds.includes(d.id) ? "bg-primary/5 border-primary/20" : "hover:bg-muted/5"
                               )}>
                                 <Checkbox 
@@ -516,13 +470,10 @@ export default function SettingsPage() {
                                 />
                                 <div className="flex flex-col">
                                   <span className="text-sm font-bold">{d.name}</span>
-                                  <span className="text-[10px] text-muted-foreground uppercase">{MOCK_CLASSES.find(c => c.id === d.classId)?.name} • {d.schedule}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase">{MOCK_CLASSES.find(c => c.id === d.classId)?.name}</span>
                                 </div>
                               </label>
                             ))}
-                            {disciplines.length === 0 && (
-                              <p className="text-xs italic text-muted-foreground col-span-2 py-4">Nenhuma disciplina cadastrada para atribuição.</p>
-                            )}
                           </div>
                         </div>
                       )}
@@ -530,7 +481,7 @@ export default function SettingsPage() {
                   </ScrollArea>
                   <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
                     <Button variant="outline" onClick={() => setIsUserDialogOpen(false)}>Cancelar</Button>
-                    <Button type="submit" form="user-form" className="px-8 shadow-lg font-bold">Salvar Alterações</Button>
+                    <Button type="submit" form="user-form" className="px-8 shadow-lg font-bold">Salvar</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -542,86 +493,74 @@ export default function SettingsPage() {
                   <Input placeholder="Buscar usuários..." className="pl-10 h-10 bg-white" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-muted/20 border-b text-[10px] font-bold uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-6 py-4">Usuário</th>
-                      <th className="px-6 py-4">Perfil</th>
-                      <th className="px-6 py-4">Disciplinas</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredUsers.map((user) => {
-                      const teacherDisciplines = disciplines.filter(d => d.teacherId === user.id);
-                      return (
-                        <tr key={user.id} className="hover:bg-muted/10 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="font-semibold">{user.name}</span>
-                              <span className="text-xs text-muted-foreground">{user.email}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4"><Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>{user.role}</Badge></td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-wrap gap-1 max-w-[200px]">
-                              {teacherDisciplines.length > 0 ? (
-                                teacherDisciplines.map(d => (
-                                  <Badge key={d.id} variant="outline" className="text-[9px] h-4">
-                                    {d.name}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground italic">Nenhuma</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4"><Badge variant="outline" className="text-green-600 bg-green-50">{user.status}</Badge></td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => {
-                                setEditingUser(user);
-                                setUserFormData({
-                                  name: user.name,
-                                  email: user.email,
-                                  role: user.role,
-                                  assignedDisciplineIds: disciplines.filter(d => d.teacherId === user.id).map(d => d.id)
-                                });
-                                setIsUserDialogOpen(true);
-                              }}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => setUsers(users.filter(x => x.id !== user.id))}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/20 border-b text-[10px] font-bold uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-6 py-4">Usuário</th>
+                    <th className="px-6 py-4">Perfil</th>
+                    <th className="px-6 py-4">Disciplinas</th>
+                    <th className="px-6 py-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredUsers.map((user) => {
+                    const teacherDisciplines = disciplines.filter(d => d.teacherId === user.id);
+                    return (
+                      <tr key={user.id} className="hover:bg-muted/10 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{user.name}</span>
+                            <span className="text-xs text-muted-foreground">{user.email}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4"><Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>{user.role}</Badge></td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {teacherDisciplines.map(d => (
+                              <Badge key={d.id} variant="outline" className="text-[9px] h-4">{d.name}</Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => {
+                              setEditingUser(user);
+                              setUserFormData({
+                                name: user.name,
+                                email: user.email,
+                                role: user.role,
+                                assignedDisciplineIds: teacherDisciplines.map(d => d.id)
+                              });
+                              setIsUserDialogOpen(true);
+                            }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setUsers(users.filter(x => x.id !== user.id))}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="school" className="mt-6">
           <Card className="border-none shadow-md bg-white">
-            <CardHeader>
-              <CardTitle>Dados da Unidade Escolar</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
+            <CardHeader><CardTitle>Dados da Escola</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Nome da Unidade Escolar</Label>
                 <Input defaultValue="E.E. Professor Milton Santos" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ano Letivo</Label>
-                  <Select defaultValue="2024"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2024">2024</SelectItem></SelectContent></Select>
+                  <Input defaultValue="2024" />
                 </div>
                 <div className="space-y-2">
                   <Label>Bimestre</Label>
@@ -630,70 +569,41 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter className="border-t p-6">
-              <Button onClick={handleSave} disabled={isSaving} className="ml-auto">Salvar Alterações</Button>
+              <Button onClick={handleSave} disabled={isSaving}>Salvar Alterações</Button>
             </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Alunos Matriculados na Disciplina */}
       <Dialog open={isViewStudentsDialogOpen} onOpenChange={setIsViewStudentsDialogOpen}>
-        <DialogContent className="max-w-[500px] w-[95vw] h-[600px] max-h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl border-none">
+        <DialogContent className="max-w-[500px] w-[95vw] h-[600px] flex flex-col p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center border border-white/40">
-                <Users className="h-6 w-6" />
-              </div>
+              <Users className="h-6 w-6" />
               <div>
-                <DialogTitle className="text-xl font-black uppercase tracking-tight">
-                  {selectedDisciplineForStudents?.name}
-                </DialogTitle>
-                <DialogDescription className="text-primary-foreground/80 font-medium">
-                  Alunos Matriculados nesta Disciplina
-                </DialogDescription>
+                <DialogTitle>{selectedDisciplineForStudents?.name}</DialogTitle>
+                <DialogDescription className="text-primary-foreground/80">Alunos Matriculados</DialogDescription>
               </div>
             </div>
           </DialogHeader>
-          
-          <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-slate-50/50">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <Info className="h-4 w-4" /> Total de Alunos: {enrolledStudentsForSelectedDiscipline.length}
-            </span>
-            <Badge variant="outline" className="border-primary/20 text-primary uppercase text-[10px] font-bold">
-              {MOCK_CLASSES.find(c => c.id === selectedDisciplineForStudents?.classId)?.name}
-            </Badge>
-          </div>
-
           <ScrollArea className="flex-1 px-6">
             <div className="space-y-2 py-4">
               {enrolledStudentsForSelectedDiscipline.map((student) => (
-                <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                      {student.name.charAt(0)}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold group-hover:text-primary transition-colors">{student.name}</span>
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">RA: {student.ra}</span>
-                    </div>
+                <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold">{student.name}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">RA: {student.ra}</span>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
+                  <Badge variant="outline">{MOCK_CLASSES.find(c => c.id === selectedDisciplineForStudents?.classId)?.name}</Badge>
                 </div>
               ))}
-
               {enrolledStudentsForSelectedDiscipline.length === 0 && (
-                <div className="py-20 text-center opacity-30 flex flex-col items-center">
-                  <UserCircle className="h-10 w-10 mb-2" />
-                  <p className="text-sm font-bold">Nenhum aluno matriculado.</p>
-                </div>
+                <div className="py-20 text-center opacity-30 italic">Nenhum aluno matriculado.</div>
               )}
             </div>
           </ScrollArea>
-
-          <DialogFooter className="p-4 bg-slate-50 border-t shrink-0">
-            <Button variant="outline" className="w-full" onClick={() => setIsViewStudentsDialogOpen(false)}>
-              Fechar Visualização
-            </Button>
+          <DialogFooter className="p-4 border-t shrink-0">
+            <Button variant="outline" className="w-full" onClick={() => setIsViewStudentsDialogOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

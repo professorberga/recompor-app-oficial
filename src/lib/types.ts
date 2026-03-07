@@ -2,44 +2,79 @@ export type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Eval
 
 export type Subject = 'Portuguese' | 'Math';
 
+export type UserRole = 'Admin' | 'Professor';
+
+export interface SystemUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: 'Ativo' | 'Inativo';
+}
+
+export interface Discipline {
+  id: string;
+  name: string;
+  classId: string;
+  teacherId: string;
+  schedule: string;
+}
+
 export interface Student {
   id: string;
   name: string;
-  email?: string;
-  birthDate?: string;
+  class: string;
   classId: string;
-  observations: string[];
+  callNumber: string;
+  ra: string;
+  raDigit: string;
+  status: 'Ativo' | 'Inativo';
+  photo: string | null;
+  enrollments: string[]; // IDs das disciplinas
+  history: {
+    attendance: Array<{ date: string; status: 'present' | 'absent' }>;
+    assessments: Array<{ 
+      subject: string; 
+      competency: string; 
+      level: BloomLevel; 
+      score: number; 
+      date: string 
+    }>;
+    occurrences: Array<{ 
+      id: string; 
+      date: string; 
+      type: string; 
+      description: string 
+    }>;
+    observations: string[];
+  };
 }
 
 export interface Class {
   id: string;
   name: string;
-  subject: Subject;
-  teacherId: string;
 }
 
-export interface Assessment {
+export interface AssessmentRecord {
   id: string;
-  studentId: string;
-  competency: string;
-  skill: string;
-  bloomLevel: BloomLevel;
-  score: number;
-  date: string;
-  notes?: string;
-}
-
-export interface AttendanceRecord {
-  id: string;
-  date: string;
-  studentId: string;
-  status: 'present' | 'absent';
-}
-
-export interface LessonPlan {
-  id: string;
-  classId: string;
-  date: string;
   title: string;
-  content: string;
+  subject: Subject;
+  classIds: string[];
+  bloomLevel: string;
+  date: string;
+  rubric: RubricCriterion[];
+  grades: Record<string, number>;
+  studentCriterionGrades: Record<string, Record<string, string>>;
+}
+
+export interface RubricLevel {
+  id: string;
+  label: string;
+  points: number;
+}
+
+export interface RubricCriterion {
+  id: string;
+  title: string;
+  levels: RubricLevel[];
 }
