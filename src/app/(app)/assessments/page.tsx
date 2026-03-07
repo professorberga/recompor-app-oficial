@@ -193,6 +193,7 @@ export default function AssessmentPage() {
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false)
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
+  const [gradingClassId, setGradingClassId] = useState<string>("")
   
   // Spreadsheet State
   const [spreadsheetClassId, setSpreadsheetClassId] = useState<string>("1")
@@ -307,6 +308,7 @@ export default function AssessmentPage() {
   const openGradesDialog = (assessment: AssessmentRecord) => {
     setSelectedAssessment(assessment)
     setTempGrades(assessment.studentCriterionGrades || {})
+    setGradingClassId(assessment.classIds[0] || "")
     setIsGradesDialogOpen(true)
   }
 
@@ -619,7 +621,7 @@ export default function AssessmentPage() {
               <div className="flex items-center gap-4">
                 <div className="flex flex-col">
                   <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Selecionar Turma</Label>
-                  <Select value={spreadsheetClassId} onValueChange={setSpreadsheetClassId}>
+                  <Select value={spreadsheetClassId} onValueChange={spreadsheetClassId ? setSpreadsheetClassId : undefined}>
                     <SelectTrigger className="w-[180px] h-9">
                       <SelectValue placeholder="Turma" />
                     </SelectTrigger>
@@ -775,14 +777,14 @@ export default function AssessmentPage() {
       </Tabs>
 
       {/* Grades Dialog */}
-      <Dialog open={isGradesDialogOpen} onOpenChange={isGradesDialogOpen ? setIsGradesDialogOpen : undefined}>
+      <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl border-none">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">
             <div className="flex items-center justify-between pr-8">
               <div>
                 <DialogTitle className="text-2xl font-black">{selectedAssessment?.title}</DialogTitle>
                 <p className="text-sm text-primary-foreground/80 mt-1">
-                  Lançamento por Rubrica • Turmas: {selectedAssessment?.classIds.map(id => MOCK_CLASSES.find(c => c.id === id)?.name).join(", ")}
+                  Lançamento de Notas por Rubrica
                 </p>
               </div>
               <div className="text-right hidden sm:block">
@@ -793,6 +795,30 @@ export default function AssessmentPage() {
               </div>
             </div>
           </DialogHeader>
+
+          <div className="px-6 py-4 bg-slate-50 border-b flex items-center justify-between shrink-0">
+            <div className="flex flex-col gap-1.5 flex-1 max-w-sm">
+              <Label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Turma em Avaliação</Label>
+              <Select value={gradingClassId} onValueChange={setGradingClassId}>
+                <SelectTrigger className="h-10 bg-white border-slate-200">
+                  <SelectValue placeholder="Selecione a turma" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedAssessment?.classIds.map(id => (
+                    <SelectItem key={id} value={id}>
+                      {MOCK_CLASSES.find(c => c.id === id)?.name || `Turma ${id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Status do Lançamento</span>
+              <Badge variant="outline" className="bg-white">
+                {gradingClassId ? MOCK_CLASSES.find(c => c.id === gradingClassId)?.name : 'Selecione uma turma'}
+              </Badge>
+            </div>
+          </div>
           
           <ScrollArea className="flex-1 w-full">
             <div className="p-6 space-y-8">
