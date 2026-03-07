@@ -360,7 +360,7 @@ export default function AssessmentPage() {
                     </div>
                     <div className="space-y-2">
                       <Label className="font-bold">Turmas Vinculadas</Label>
-                      <Popover>
+                      <Popover modal={false}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full justify-between h-10 font-normal bg-white">
                             <span className="truncate">
@@ -371,26 +371,37 @@ export default function AssessmentPage() {
                             <ChevronDown className="h-4 w-4 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-2 bg-white shadow-xl" align="start">
+                        <PopoverContent 
+                          className="w-[300px] p-2 bg-white shadow-xl z-[60]" 
+                          align="start"
+                          onCloseAutoFocus={(e) => e.preventDefault()}
+                        >
                           <div className="space-y-1">
                             {MOCK_CLASSES.map((cls) => (
                               <div 
                                 key={cls.id} 
-                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors"
+                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const isChecked = newAssessment.classIds.includes(cls.id);
+                                  setNewAssessment(prev => ({
+                                    ...prev,
+                                    classIds: isChecked 
+                                      ? prev.classIds.filter(id => id !== cls.id)
+                                      : [...prev.classIds, cls.id]
+                                  }));
+                                }}
                               >
                                 <Checkbox 
                                   id={`class-${cls.id}`} 
                                   checked={newAssessment.classIds.includes(cls.id)}
-                                  onCheckedChange={(checked) => {
-                                    const ids = checked 
-                                      ? [...newAssessment.classIds, cls.id]
-                                      : newAssessment.classIds.filter(id => id !== cls.id);
-                                    setNewAssessment({...newAssessment, classIds: ids});
-                                  }}
+                                  onCheckedChange={() => {}} // Lógica tratada pelo contêiner pai
                                 />
                                 <label 
                                   htmlFor={`class-${cls.id}`} 
                                   className="text-sm font-medium leading-none cursor-pointer flex-1 py-1"
+                                  onClick={(e) => e.preventDefault()}
                                 >
                                   {cls.name}
                                 </label>
