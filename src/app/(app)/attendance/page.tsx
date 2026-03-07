@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import Link from "next/link"
 import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX, BookOpen, Clock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
@@ -47,12 +47,14 @@ const MOCK_STUDENTS: Student[] = [
 const MOCK_DISCIPLINES: Discipline[] = [
   { id: 'd1', name: 'Língua Portuguesa', classId: '1', teacherId: 'prof-1', schedule: '07:00 às 07:50' },
   { id: 'd2', name: 'Matemática', classId: '1', teacherId: 'prof-1', schedule: '07:50 às 08:40' },
+  { id: 'd3', name: 'Ciências', classId: '2', teacherId: 'prof-2', schedule: '07:00 às 07:50' },
 ]
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
 export default function AttendancePage() {
   const [mounted, setMounted] = useState(false)
+  const [userRole, setUserRole] = useState<'Admin' | 'Professor'>('Admin')
   const [selectedDisciplineId, setSelectedDisciplineId] = useState("d1")
   const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -62,9 +64,25 @@ export default function AttendancePage() {
   useEffect(() => {
     setMounted(true)
     setCurrentDate(new Date())
+    const role = localStorage.getItem('proto_user_role') as any
+    if (role) setUserRole(role)
   }, [])
 
-  const selectedDiscipline = MOCK_DISCIPLINES.find(d => d.id === selectedDisciplineId);
+  const isAdmin = userRole === 'Admin'
+
+  // Filtra as disciplinas visíveis baseadas no professor logado
+  const availableDisciplines = useMemo(() => {
+    return MOCK_DISCIPLINES.filter(d => isAdmin || d.teacherId === 'prof-1'); // Ricardo Silva no mock
+  }, [isAdmin]);
+
+  // Garante que a disciplina selecionada é válida
+  useEffect(() => {
+    if (availableDisciplines.length > 0 && !availableDisciplines.find(d => d.id === selectedDisciplineId)) {
+      setSelectedDisciplineId(availableDisciplines[0].id)
+    }
+  }, [availableDisciplines, selectedDisciplineId]);
+
+  const selectedDiscipline = availableDisciplines.find(d => d.id === selectedDisciplineId);
 
   const filteredStudents = useMemo(() => {
     return MOCK_STUDENTS.filter(s => {
@@ -100,7 +118,11 @@ export default function AttendancePage() {
             <Select value={selectedDisciplineId} onValueChange={setSelectedDisciplineId}>
               <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {MOCK_DISCIPLINES.map(d => <SelectItem key={d.id} value={d.id}>{d.name} • {d.schedule}</SelectItem>)}
+                {availableDisciplines.map(d => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name} • {d.schedule}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

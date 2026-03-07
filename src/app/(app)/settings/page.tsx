@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { 
   School, 
   Settings as SettingsIcon, 
@@ -86,6 +87,7 @@ const MOCK_STUDENTS = [
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
   
   const [isSaving, setIsSaving] = useState(false)
@@ -117,7 +119,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    // Verificação de permissão no cliente (protótipo)
+    const role = localStorage.getItem('proto_user_role')
+    if (role === 'Professor') {
+      router.push('/dashboard')
+    }
+  }, [router])
 
   const handleSave = () => {
     setIsSaving(true)

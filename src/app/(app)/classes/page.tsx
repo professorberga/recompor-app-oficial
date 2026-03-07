@@ -8,21 +8,22 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
 const INITIAL_CLASSES = [
-  { id: '1', name: '9º Ano A', subject: 'Portuguese', students: 32, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva' },
-  { id: '2', name: '9º Ano B', subject: 'Portuguese', students: 28, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva' },
-  { id: '3', name: '8º Ano A', subject: 'Math', students: 30, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa' },
-  { id: '4', name: '8º Ano B', subject: 'Math', students: 34, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa' },
+  { id: '1', name: '9º Ano A', subject: 'Portuguese', students: 32, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva', teacherId: 'prof-1' },
+  { id: '2', name: '9º Ano B', subject: 'Portuguese', students: 28, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva', teacherId: 'prof-1' },
+  { id: '3', name: '8º Ano A', subject: 'Math', students: 30, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa', teacherId: 'prof-2' },
+  { id: '4', name: '8º Ano B', subject: 'Math', students: 34, iconColor: 'bg-accent', teacher: 'Profa. Marina Costa', teacherId: 'prof-2' },
 ]
 
 export default function ClassesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [classes, setClasses] = useState(INITIAL_CLASSES)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [userRole, setUserRole] = useState<'Admin' | 'Professor'>('Admin')
   const { toast } = useToast()
 
   const [newClass, setNewClass] = useState({
@@ -32,18 +33,12 @@ export default function ClassesPage() {
     students: "0"
   })
 
-  // Failsafe para evitar UI Freeze ao fechar o diálogo
   useEffect(() => {
-    if (!isDialogOpen) {
-      const timer = setTimeout(() => {
-        if (typeof document !== 'undefined') {
-          document.body.style.pointerEvents = "auto";
-          document.body.style.overflow = "auto";
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isDialogOpen]);
+    const role = localStorage.getItem('proto_user_role') as any
+    if (role) setUserRole(role)
+  }, [])
+
+  const isAdmin = userRole === 'Admin'
 
   const handleCreateClass = (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +58,7 @@ export default function ClassesPage() {
       subject: newClass.subject,
       students: parseInt(newClass.students) || 0,
       teacher: newClass.teacher,
+      teacherId: 'current-user',
       iconColor: newClass.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'
     }
 
@@ -76,10 +72,15 @@ export default function ClassesPage() {
     })
   }
 
-  const filteredClasses = classes.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.teacher.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filtra turmas se for professor
+  const filteredClasses = useMemo(() => {
+    return classes.filter(c => {
+      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            c.teacher.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesTeacher = isAdmin || c.teacherId === 'prof-1'; // Ricardo Silva no mock
+      return matchesSearch && matchesTeacher;
+    });
+  }, [classes, searchTerm, isAdmin]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,70 +90,72 @@ export default function ClassesPage() {
           <p className="text-muted-foreground mt-1">Gerencie suas salas de aula e estudantes.</p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg">
-              <Plus className="h-4 w-4" /> Nova Turma
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] bg-white">
-            <DialogHeader>
-              <DialogTitle>Cadastrar Nova Turma</DialogTitle>
-              <DialogDescription>
-                Informe os detalhes da nova sala de aula para o sistema.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateClass} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome da Turma</Label>
-                <Input 
-                  id="name" 
-                  placeholder="Ex: 7º Ano C" 
-                  value={newClass.name}
-                  onChange={(e) => setNewClass({...newClass, name: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subject">Disciplina</Label>
-                <Select 
-                  value={newClass.subject} 
-                  onValueChange={(v: any) => setNewClass({...newClass, subject: v})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a matéria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Portuguese">Português</SelectItem>
-                    <SelectItem value="Math">Matemática</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="teacher">Docente Responsável</Label>
-                <Input 
-                  id="teacher" 
-                  placeholder="Nome do professor" 
-                  value={newClass.teacher}
-                  onChange={(e) => setNewClass({...newClass, teacher: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="students">Quantidade de Alunos (Estimativa)</Label>
-                <Input 
-                  id="students" 
-                  type="number"
-                  value={newClass.students}
-                  onChange={(e) => setNewClass({...newClass, students: e.target.value})}
-                />
-              </div>
-              <DialogFooter className="pt-4">
-                <Button type="submit" className="w-full">Criar Turma</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {isAdmin && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 shadow-lg">
+                <Plus className="h-4 w-4" /> Nova Turma
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] bg-white">
+              <DialogHeader>
+                <DialogTitle>Cadastrar Nova Turma</DialogTitle>
+                <DialogDescription>
+                  Informe os detalhes da nova sala de aula para o sistema.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateClass} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome da Turma</Label>
+                  <Input 
+                    id="name" 
+                    placeholder="Ex: 7º Ano C" 
+                    value={newClass.name}
+                    onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Disciplina</Label>
+                  <Select 
+                    value={newClass.subject} 
+                    onValueChange={(v: any) => setNewClass({...newClass, subject: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a matéria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Portuguese">Português</SelectItem>
+                      <SelectItem value="Math">Matemática</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="teacher">Docente Responsável</Label>
+                  <Input 
+                    id="teacher" 
+                    placeholder="Nome do professor" 
+                    value={newClass.teacher}
+                    onChange={(e) => setNewClass({...newClass, teacher: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="students">Quantidade de Alunos (Estimativa)</Label>
+                  <Input 
+                    id="students" 
+                    type="number"
+                    value={newClass.students}
+                    onChange={(e) => setNewClass({...newClass, students: e.target.value})}
+                  />
+                </div>
+                <DialogFooter className="pt-4">
+                  <Button type="submit" className="w-full">Criar Turma</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-border/50">
