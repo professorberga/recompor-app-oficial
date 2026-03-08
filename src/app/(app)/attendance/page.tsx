@@ -172,6 +172,8 @@ function AttendanceContent() {
       const lessonPromise = setDoc(lessonRef, {
         id: `${selectedClassId}_${dateStr}`,
         classId: selectedClassId,
+        className: selectedClass?.name || "",
+        class: selectedClass?.name || "",
         date: dateStr,
         teacherId: user.uid,
         content: contentSummary,

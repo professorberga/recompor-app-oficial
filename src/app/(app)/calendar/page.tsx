@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock, Search, Info, Loader2, BookCheck, Bookmark } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock, Search, Info, Loader2, BookCheck, Bookmark, Calendar } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -96,12 +96,15 @@ export default function CalendarPage() {
     }
 
     const lessonId = Math.random().toString(36).substr(2, 9)
-    const className = newEvent.classId === 'all' ? 'Geral' : (classes.find(c => c.id === newEvent.classId)?.name || 'Turma')
+    const classInfo = newEvent.classId === 'all' ? null : (classes.find(c => c.id === newEvent.classId))
+    const className = classInfo?.name || 'Geral'
 
     const lessonData = {
       id: lessonId,
-      title: newEvent.title || `${newEvent.type} - ${className}`,
+      title: newEvent.title || `${classInfo?.subject === 'Portuguese' ? 'Português' : 'Matemática'} - ${className}`,
       ...newEvent,
+      classId: newEvent.classId,
+      className: className,
       class: className,
       lessonDate: currentDate?.toISOString() || new Date().toISOString(),
       date: format(currentDate || new Date(), "yyyy-MM-dd"),
@@ -125,7 +128,17 @@ export default function CalendarPage() {
     const dayOfWeek = format(currentDate, "EEEE", { locale: ptBR }).split('-')[0].toLowerCase();
     const dayLabel = dayMap[dayOfWeek] || "";
 
-    const dailyRecorded = recordedLessons.filter(l => l.date === dateStr || l.lessonDate?.split('T')[0] === dateStr);
+    const dailyRecorded = recordedLessons
+      .filter(l => l.date === dateStr || l.lessonDate?.split('T')[0] === dateStr)
+      .map(r => {
+        // Lookup dinâmico para evitar Undefined no nome da turma
+        const classInfo = rawClasses.find(c => c.id === r.classId);
+        return {
+          ...r,
+          class: r.class || r.className || classInfo?.name || "Turma s/ Nome",
+          isPlanned: false
+        }
+      });
 
     const plannedAssignments = (profile?.assignments || [])
       .filter(a => a.dayOfWeek === dayLabel)
@@ -134,6 +147,7 @@ export default function CalendarPage() {
         title: `${a.subject} - ${a.className}`,
         classId: a.classId,
         class: a.className,
+        date: dateStr,
         time: a.lessonNumber || a.timeSlot || "Horário não definido",
         type: "Grade Horária",
         content: "Aula prevista na grade horária escolar.",
@@ -146,8 +160,8 @@ export default function CalendarPage() {
       !dailyRecorded.some(r => r.classId === p.classId && (r.time === p.time || r.lessonNumber === p.time))
     );
 
-    return [...uniquePlanned, ...dailyRecorded.map(r => ({ ...r, isPlanned: false }))];
-  }, [currentDate, recordedLessons, profile]);
+    return [...uniquePlanned, ...dailyRecorded];
+  }, [currentDate, recordedLessons, profile, rawClasses]);
 
   const filteredEvents = useMemo(() => {
     return mergedEvents.filter(event => {
@@ -293,6 +307,9 @@ export default function CalendarPage() {
                       </h4>
                       
                       <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase mb-3">
+                        <Calendar className="h-3 w-3" />
+                        {event.date ? format(new Date(event.date.includes('T') ? event.date : event.date + 'T12:00:00'), "dd/MM/yyyy") : format(currentDate, "dd/MM/yyyy")}
+                        <span className="mx-1 text-slate-300">|</span>
                         <Bookmark className="h-3 w-3" />
                         Turma: {event.class}
                       </div>
