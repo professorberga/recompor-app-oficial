@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -16,8 +16,19 @@ import { cn } from "@/lib/utils"
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, query, where } from "firebase/firestore"
+import { collection, doc, setDoc, query, where, deleteDoc } from "firebase/firestore"
 import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog"
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
@@ -33,6 +44,7 @@ function AttendanceContent() {
   const [searchTerm, setSearchTerm] = useState("")
   const [attendance, setAttendance] = useState<AttendanceState>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   // Real Firestore Classes
@@ -141,6 +153,29 @@ function AttendanceContent() {
       toast({ title: "Falha ao Salvar", description: "Erro nas permissões do Firestore.", variant: "destructive" })
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  const handleDeleteDayRecords = async () => {
+    if (!user || !selectedClassId || !currentDate || existingRecords.length === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const deletePromises = existingRecords.map(rec => 
+        deleteDoc(doc(firestore, 'teachers', user.uid, 'attendanceRecords', rec.id))
+      );
+      await Promise.all(deletePromises);
+      
+      // Reset local attendance to default (all present)
+      const newState: AttendanceState = {};
+      students.forEach(s => { newState[s.id] = 'present'; });
+      setAttendance(newState);
+
+      toast({ title: "Registros Removidos", description: "A chamada deste dia foi apagada com sucesso." });
+    } catch (err: any) {
+      toast({ title: "Erro ao Excluir", description: "Não foi possível remover os registros.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -303,14 +338,41 @@ function AttendanceContent() {
             <span className="text-xs font-black uppercase text-slate-600">{absentCount} Faltas</span>
           </div>
         </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={!selectedClassId || students.length === 0 || isSaving} 
-          className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs transition-all hover:scale-105"
-        >
-          {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-          {isSaving ? "Gravando..." : "Salvar no Firestore"}
-        </Button>
+        
+        <div className="flex gap-4">
+          {isAdmin && hasRecords && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-white font-black h-12 uppercase tracking-widest text-xs transition-all">
+                  <Trash2 className="h-4 w-4 mr-2" /> {isDeleting ? "Excluindo..." : "Excluir Chamada"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-white">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação irá remover todos os registros de presença desta turma para o dia {format(currentDate, "dd/MM")}. Esta operação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive text-white hover:bg-destructive/90">
+                    Confirmar Exclusão
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          <Button 
+            onClick={handleSave} 
+            disabled={!selectedClassId || students.length === 0 || isSaving} 
+            className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs transition-all hover:scale-105"
+          >
+            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+            {isSaving ? "Gravando..." : "Salvar no Firestore"}
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -18,9 +18,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // UID do Administrador Master (Conforme solicitado)
+    // UID do Administrador Master
     function isAdmin() {
-      return isSignedIn() && request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1";
+      return isSignedIn() && (
+        request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1" || 
+        get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.role == "Admin"
+      );
     }
 
     function isExistingOwner(userId) {
