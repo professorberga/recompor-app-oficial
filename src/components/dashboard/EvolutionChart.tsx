@@ -4,15 +4,23 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-const data = [
-  { month: "Jan", remembering: 40, understanding: 24, applying: 15 },
-  { month: "Fev", remembering: 65, understanding: 40, applying: 30 },
-  { month: "Mar", remembering: 80, understanding: 55, applying: 45 },
-  { month: "Abr", remembering: 85, understanding: 70, applying: 58 },
-  { month: "Mai", remembering: 90, understanding: 75, applying: 65 },
+const defaultData = [
+  { month: "Jan", value: 40 },
+  { month: "Fev", value: 65 },
+  { month: "Mar", value: 80 },
+  { month: "Abr", value: 85 },
+  { month: "Mai", value: 90 },
 ]
 
-export function EvolutionChart() {
+interface EvolutionChartProps {
+  data?: any[];
+}
+
+/**
+ * EvolutionChart: Componente de gráfico de linha otimizado para Next.js.
+ * Utiliza altura fixa para evitar loops de renderização do ResponsiveContainer.
+ */
+export function EvolutionChart({ data = defaultData }: EvolutionChartProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -21,8 +29,8 @@ export function EvolutionChart() {
 
   if (!mounted) {
     return (
-      <Card className="border-none shadow-md bg-white col-span-4">
-        <div style={{ width: '100%', height: '350px' }} className="flex items-center justify-center">
+      <Card className="border-none shadow-md bg-white col-span-4 h-[450px]">
+        <div className="flex items-center justify-center h-full">
           <p className="text-sm text-muted-foreground">Carregando gráfico...</p>
         </div>
       </Card>
@@ -32,8 +40,8 @@ export function EvolutionChart() {
   return (
     <Card className="border-none shadow-md bg-white col-span-4">
       <CardHeader>
-        <CardTitle className="text-lg font-bold">Evolução de Competências (Média Geral)</CardTitle>
-        <CardDescription>Percentual de alunos que atingiram cada nível da Taxonomia de Bloom</CardDescription>
+        <CardTitle className="text-lg font-bold">Evolução de Competências</CardTitle>
+        <CardDescription>Média de aproveitamento nos níveis da Taxonomia de Bloom</CardDescription>
       </CardHeader>
       <CardContent>
         <div style={{ width: '100%', height: '350px', minHeight: '350px', position: 'relative' }}>
@@ -57,30 +65,12 @@ export function EvolutionChart() {
               <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
               <Line
                 type="monotone"
-                dataKey="remembering"
-                name="Lembrar"
+                dataKey="value"
+                name="Aproveitamento"
                 stroke="hsl(var(--primary))"
                 strokeWidth={3}
                 dot={{ r: 4, fill: "hsl(var(--primary))" }}
                 activeDot={{ r: 8 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="understanding"
-                name="Entender"
-                stroke="hsl(var(--accent))"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "hsl(var(--accent))" }}
-                activeDot={{ r: 6 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="applying"
-                name="Aplicar"
-                stroke="hsl(var(--chart-3))"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "hsl(var(--chart-3))" }}
-                activeDot={{ r: 6 }}
               />
             </LineChart>
           </ResponsiveContainer>

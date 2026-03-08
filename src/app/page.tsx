@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
 export default function RootPage() {
-  // Redireciona a raiz para o dashboard dentro do grupo (app)
+  // Redireciona a raiz para o dashboard
   redirect("/dashboard")
 }

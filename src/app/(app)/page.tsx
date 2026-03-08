@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
 export default function AppRootPage() {
-  // Redireciona para /dashboard para manter consistência com o menu lateral
+  // Mantém consistência com o grupo de rotas
   redirect("/dashboard")
 }

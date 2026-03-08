@@ -29,6 +29,16 @@
     --chart-3: 200 80% 45%;
     --chart-4: 190 70% 60%;
     --chart-5: 210 40% 50%;
+    
+    /* Sidebar Variables */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 67% 10%;
+    --sidebar-primary: 215 67% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 20% 92%;
+    --sidebar-accent-foreground: 215 67% 10%;
+    --sidebar-border: 215 20% 85%;
+    --sidebar-ring: 215 67% 42%;
   }
 
   .dark {
