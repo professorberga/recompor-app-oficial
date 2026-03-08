@@ -1,4 +1,3 @@
-
 "use client"
 
 import {
@@ -84,7 +83,7 @@ const items = [
     title: "Configurações",
     url: "/settings",
     icon: Settings,
-    adminOnly: true
+    adminOnly: true // Restrito a administradores
   },
 ]
 
@@ -94,7 +93,7 @@ export function AppSidebar() {
   const { setOpenMobile, isMobile } = useSidebar()
   const [mounted, setMounted] = useState(false)
   const auth = useAuth()
-  const { user, isAdmin } = useUser()
+  const { user, profile, isAdmin } = useUser()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -108,7 +107,7 @@ export function AppSidebar() {
         title: "Sessão Encerrada",
         description: "Você saiu do sistema com segurança.",
       })
-      router.push("/login")
+      // O layout cuidará do redirecionamento após a mudança de estado
     } catch (error) {
       toast({
         title: "Erro ao sair",
@@ -124,6 +123,7 @@ export function AppSidebar() {
     }
   }
 
+  // Filtra itens com base no cargo real carregado do Firestore
   const filteredItems = useMemo(() => {
     return items.filter(item => !item.adminOnly || isAdmin);
   }, [isAdmin]);
@@ -184,18 +184,18 @@ export function AppSidebar() {
                 <SidebarMenuButton className="h-14 px-4 bg-muted/30 hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                      {user?.displayName ? (
-                        user.displayName.charAt(0) + (user.displayName.split(' ')[1]?.charAt(0) || '')
+                      {profile?.name ? (
+                        profile.name.charAt(0) + (profile.name.split(' ')[1]?.charAt(0) || '')
                       ) : (
                         user?.email?.charAt(0).toUpperCase()
                       )}
                     </div>
                     <div className="flex flex-col group-data-[collapsible=icon]:hidden text-left">
                       <span className="font-bold text-xs truncate max-w-[120px]">
-                        {user?.displayName || user?.email?.split('@')[0]}
+                        {profile?.name || user?.email?.split('@')[0]}
                       </span>
                       <span className="text-[10px] text-primary font-bold uppercase tracking-tighter">
-                        {isAdmin ? 'Administrador' : 'Professor'}
+                        {profile?.role || 'Professor'}
                       </span>
                     </div>
                     <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden" />
