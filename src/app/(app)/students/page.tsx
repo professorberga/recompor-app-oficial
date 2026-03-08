@@ -7,7 +7,7 @@ import {
   Search, UserPlus, Eye, 
   Camera, Check, Trash2, Pencil, 
   Calendar, ClipboardCheck, GraduationCap, Info,
-  Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw
+  Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw, Loader2
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,56 +23,36 @@ import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { Student, Discipline, BloomLevel } from "@/lib/types"
-
-const MOCK_DISCIPLINES: Discipline[] = [
-  { id: 'd1', name: 'Língua Portuguesa', classId: '1', teacherId: 'prof-1', schedule: '07:00 às 07:50' },
-  { id: 'd2', name: 'Matemática', classId: '1', teacherId: 'prof-1', schedule: '07:50 às 08:40' },
-]
-
-const MOCK_INITIAL_STUDENTS: Student[] = [
-  { 
-    id: '1', 
-    name: 'Ana Beatriz Silva', 
-    class: '9º Ano A', 
-    classId: '1',
-    callNumber: '01', 
-    ra: '123456', 
-    raDigit: '7', 
-    status: 'Ativo',
-    photo: null,
-    enrollments: ['d1', 'd2'],
-    history: {
-      attendance: [
-        { date: '2024-10-25', status: 'present' },
-        { date: '2024-10-24', status: 'present' },
-        { date: '2024-10-23', status: 'absent' },
-      ],
-      assessments: [
-        { subject: 'Português', competency: 'Interpretação', level: 'Understand', score: 85, date: '2024-10-15' },
-        { subject: 'Português', competency: 'Sintaxe', level: 'Apply', score: 92, date: '2024-10-05' },
-      ],
-      occurrences: [
-        { id: 'occ1', date: '2024-10-10', type: 'Pedagógica', description: 'Demonstrou liderança excepcional em trabalho de grupo.' },
-      ],
-      observations: [
-        "Estudante dedicada, porém precisa focar mais em revisões de gramática.",
-      ]
-    }
-  },
-]
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { collection, doc, setDoc, query, where } from "firebase/firestore"
 
 function StudentsContent() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { user } = useUser()
+  const firestore = useFirestore()
   
-  const [students, setStudents] = useState<Student[]>(MOCK_INITIAL_STUDENTS)
+  const classFilter = searchParams.get('class')
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-  
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isFichaOpen, setIsFichaOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   
+  // Real Firestore Data
+  const classesRef = useMemoFirebase(() => 
+    user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
+    [user, firestore]
+  )
+  const { data: classes = [] } = useCollection(classesRef)
+
+  const studentsRef = useMemoFirebase(() => {
+    if (!user || !classFilter) return null;
+    return collection(firestore, 'teachers', user.uid, 'classes', classFilter, 'students');
+  }, [user, classFilter, firestore]);
+
+  const { data: students = [], isLoading } = useCollection(studentsRef)
+
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -84,32 +64,22 @@ function StudentsContent() {
     name: "",
     ra: "",
     raDigit: "",
-    class: "9º Ano A",
-    classId: "1",
+    classId: classFilter || "",
     status: "Ativo" as 'Ativo' | 'Inativo',
     enrollments: [] as string[]
   })
 
-  const classFilter = searchParams.get('class')
+  useEffect(() => {
+    if (classFilter) setFormData(prev => ({ ...prev, classId: classFilter }));
+  }, [classFilter]);
+
   const filteredStudents = useMemo(() => {
-    return students.filter(student => {
+    return (students || []).filter(student => {
       const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            student.ra.includes(searchTerm)
-      const matchesClass = !classFilter || student.classId === classFilter
-      return matchesSearch && matchesClass
+      return matchesSearch
     })
-  }, [students, searchTerm, classFilter])
-
-  useEffect(() => {
-    const studentId = searchParams.get('id')
-    if (studentId) {
-      const student = students.find(s => s.id === studentId)
-      if (student) {
-        setSelectedStudent(student)
-        setIsFichaOpen(true)
-      }
-    }
-  }, [searchParams, students])
+  }, [students, searchTerm])
 
   const startCamera = async () => {
     try {
@@ -153,38 +123,49 @@ function StudentsContent() {
     }
   }
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user || !formData.classId) return
+    
     if (!formData.name || !formData.ra) {
-      toast({ title: "Erro", description: "Nome e RA obrigatórios.", variant: "destructive" })
+      toast({ title: "Erro", description: "Nome e RA são obrigatórios.", variant: "destructive" })
       return
     }
 
-    if (isEditing && selectedStudent) {
-      const updated: Student = { ...selectedStudent, ...formData, photo: capturedPhoto };
-      setStudents(students.map(s => s.id === selectedStudent.id ? updated : s))
-      toast({ title: "Sucesso", description: "Cadastro atualizado." })
-    } else {
-      const newStudent: Student = { 
-        id: Date.now().toString(), 
-        ...formData, 
-        photo: capturedPhoto, 
-        history: { attendance: [], assessments: [], occurrences: [], observations: [] }
-      }
-      setStudents([newStudent, ...students])
-      toast({ title: "Sucesso", description: "Aluno cadastrado." })
+    const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
+    const targetRef = doc(firestore, 'teachers', user.uid, 'classes', formData.classId, 'students', studentId)
+
+    const studentData = {
+      ...formData,
+      id: studentId,
+      photo: capturedPhoto,
+      teacherId: user.uid,
+      class: classes.find(c => c.id === formData.classId)?.name || "N/A",
+      enrollmentDate: new Date().toISOString(),
+      history: isEditing && selectedStudent ? selectedStudent.history : { attendance: [], assessments: [], occurrences: [], observations: [] }
     }
-    setIsRegisterOpen(false)
-    stopCamera()
+
+    try {
+      await setDoc(targetRef, studentData)
+      setIsRegisterOpen(false)
+      stopCamera()
+      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado." })
+    } catch (err) {
+      toast({ title: "Erro", description: "Falha ao salvar no banco de dados.", variant: "destructive" })
+    }
   }
 
   return (
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-        <Button onClick={() => { setIsEditing(false); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", class: "9º Ano A", classId: "1", status: "Ativo", enrollments: [] }); setCapturedPhoto(null); setIsRegisterOpen(true); }}>
-          <UserPlus className="h-4 w-4 mr-2" /> Cadastrar Aluno
-        </Button>
+        {classFilter ? (
+          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setIsRegisterOpen(true); }}>
+            <UserPlus className="h-4 w-4 mr-2" /> Cadastrar Aluno
+          </Button>
+        ) : (
+          <Badge variant="outline" className="p-2">Selecione uma turma na aba "Turmas" para gerenciar alunos</Badge>
+        )}
       </div>
 
       <div className="relative">
@@ -192,31 +173,50 @@ function StudentsContent() {
         <Input placeholder="Buscar por nome ou RA..." className="pl-10 h-11 bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
-      <div className="grid gap-4">
-        {filteredStudents.map((student) => (
-          <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {student.photo ? <img src={student.photo} className="h-10 w-10 rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">{student.name.charAt(0)}</div>}
-                <div className="flex flex-col">
-                  <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm hover:underline">{student.name}</button>
-                  <span className="text-[10px] text-muted-foreground font-bold">RA: {student.ra}-{student.raDigit} • {student.class}</span>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredStudents.map((student) => (
+            <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {student.photo ? (
+                    <img src={student.photo} className="h-10 w-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                      {student.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm hover:underline">{student.name}</button>
+                    <span className="text-[10px] text-muted-foreground font-bold">RA: {student.ra}-{student.raDigit} • {student.class}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon" onClick={() => { 
-                  setSelectedStudent(student); 
-                  setFormData({ callNumber: student.callNumber, name: student.name, ra: student.ra, raDigit: student.raDigit, class: student.class, classId: student.classId, status: student.status, enrollments: student.enrollments });
-                  setCapturedPhoto(student.photo);
-                  setIsEditing(true);
-                  setIsRegisterOpen(true);
-                }}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }}><Eye className="h-4 w-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => { 
+                    setSelectedStudent(student); 
+                    setFormData({ ...student });
+                    setCapturedPhoto(student.photo);
+                    setIsEditing(true);
+                    setIsRegisterOpen(true);
+                  }}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }}><Eye className="h-4 w-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {filteredStudents.length === 0 && (
+            <div className="py-20 text-center opacity-30">
+              <GraduationCap className="h-12 w-12 mx-auto mb-4" />
+              <p className="text-lg font-medium">Nenhum aluno encontrado.</p>
+              {!classFilter && <p className="text-sm">Selecione uma turma para carregar os alunos.</p>}
+            </div>
+          )}
+        </div>
+      )}
 
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { if (!open) stopCamera(); setIsRegisterOpen(open); }}>
         <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
@@ -238,22 +238,15 @@ function StudentsContent() {
                   <div className="col-span-2 space-y-2"><Label>Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} /></div>
                   <div className="space-y-2"><Label>RA</Label><Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} /></div>
                   <div className="space-y-2"><Label>Dígito</Label><Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} /></div>
-                  <div className="space-y-2"><Label>Turma</Label><Select value={formData.classId} onValueChange={(v) => setFormData({...formData, classId: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">9º Ano A</SelectItem><SelectItem value="2">9º Ano B</SelectItem><SelectItem value="3">8º Ano A</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Turma</Label>
+                    <Select value={formData.classId} onValueChange={(v) => setFormData({...formData, classId: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2"><Label>Chamada</Label><Input type="number" value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} /></div>
-                </div>
-              </div>
-              <div className="space-y-4 pt-4 border-t">
-                <Label className="font-bold">Matrícula em Disciplinas</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-10">
-                  {MOCK_DISCIPLINES.map((d) => (
-                    <label key={d.id} className={cn("p-3 rounded-lg border flex items-center gap-3 cursor-pointer", formData.enrollments.includes(d.id) ? "bg-primary/5 border-primary/30" : "hover:bg-slate-50")}>
-                      <Checkbox checked={formData.enrollments.includes(d.id)} onCheckedChange={(checked) => {
-                        const newEnr = checked ? [...formData.enrollments, d.id] : formData.enrollments.filter(id => id !== d.id);
-                        setFormData({...formData, enrollments: newEnr});
-                      }} />
-                      <div className="flex flex-col"><span className="text-sm font-bold">{d.name}</span><span className="text-[10px] text-muted-foreground">{d.schedule}</span></div>
-                    </label>
-                  ))}
                 </div>
               </div>
             </div>
@@ -274,27 +267,15 @@ function StudentsContent() {
             <TabsList className="bg-transparent border-b px-6 h-12 justify-start gap-4 rounded-none"><TabsTrigger value="info">Matrícula</TabsTrigger><TabsTrigger value="history">Histórico</TabsTrigger></TabsList>
             <ScrollArea className="flex-1 p-6">
               <TabsContent value="info" className="m-0 space-y-4">
-                <h4 className="font-bold flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Disciplinas Vinculadas</h4>
-                <div className="grid gap-2">
-                  {MOCK_DISCIPLINES.map(d => (
-                    <div key={d.id} className={cn("p-4 rounded-lg border flex items-center justify-between", selectedStudent?.enrollments.includes(d.id) ? "bg-primary/5 border-primary/20" : "opacity-40")}>
-                      <div className="flex flex-col"><span className="font-bold text-sm">{d.name}</span><span className="text-xs text-muted-foreground">{d.schedule}</span></div>
-                      {selectedStudent?.enrollments.includes(d.id) && <Badge>Matriculado</Badge>}
-                    </div>
-                  ))}
+                <h4 className="font-bold flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Dados Cadastrais</h4>
+                <div className="grid gap-2 border p-4 rounded-lg bg-slate-50">
+                   <p className="text-sm"><strong>Status:</strong> {selectedStudent?.status}</p>
+                   <p className="text-sm"><strong>Turma:</strong> {selectedStudent?.class}</p>
+                   <p className="text-sm"><strong>Número:</strong> {selectedStudent?.callNumber}</p>
                 </div>
               </TabsContent>
               <TabsContent value="history" className="m-0 space-y-4">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <Label className="uppercase text-[10px] font-bold">Ocorrências</Label>
-                    <div className="space-y-2">
-                      {selectedStudent?.history.occurrences.map(o => (
-                        <div key={o.id} className="p-3 rounded-lg border bg-red-50/20"><div className="flex justify-between mb-1"><Badge variant="destructive" className="h-4 text-[9px]">{o.type}</Badge><span className="text-[10px]">{o.date}</span></div><p className="text-xs">{o.description}</p></div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <div className="py-10 text-center text-muted-foreground italic">Histórico acadêmico em desenvolvimento.</div>
               </TabsContent>
             </ScrollArea>
           </Tabs>

@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -55,9 +55,9 @@ export const FirebaseProvider: React.FC<{
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // Quando o usuário loga, buscamos o perfil no Firestore
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
-        const unsubscribeProfile = onSnapshot(teacherRef, (docSnap) => {
+        
+        const unsubscribeProfile = onSnapshot(teacherRef, async (docSnap) => {
           if (docSnap.exists()) {
             const profileData = docSnap.data() as TeacherProfile;
             setUserAuthState({
@@ -68,18 +68,31 @@ export const FirebaseProvider: React.FC<{
               userError: null,
             });
           } else {
-            // Caso o documento não exista (primeiro login), criamos um estado básico
-            // mas mantemos o loading como falso para permitir que ele crie o perfil
-            setUserAuthState({
-              user: firebaseUser,
-              profile: null,
-              isAdmin: false,
-              isUserLoading: false,
-              userError: null,
-            });
+            // Auto-create profile on first login
+            const newProfile: TeacherProfile = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
+              email: firebaseUser.email || "",
+              role: 'Professor',
+              subjects: []
+            };
+            
+            try {
+              await setDoc(teacherRef, newProfile);
+              // Snapshot will trigger again automatically
+            } catch (err) {
+              console.error("Error creating auto-profile:", err);
+              setUserAuthState({
+                user: firebaseUser,
+                profile: null,
+                isAdmin: false,
+                isUserLoading: false,
+                userError: err as Error,
+              });
+            }
           }
         }, (error) => {
-          console.error("Erro ao buscar perfil no Firestore:", error);
+          console.error("Error fetching Firestore profile:", error);
           setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
         });
 
