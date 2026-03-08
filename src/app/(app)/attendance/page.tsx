@@ -3,11 +3,12 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
@@ -51,6 +52,19 @@ function AttendanceContent() {
   
   const { data: students = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
+  // Busca registros de presença para a data e turma selecionadas
+  const attendanceRecordsRef = useMemoFirebase(() => {
+    if (!user || !selectedClassId || !currentDate) return null;
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    return query(
+      collection(firestore, 'teachers', user.uid, 'attendanceRecords'),
+      where('classId', '==', selectedClassId),
+      where('date', '==', dateStr)
+    );
+  }, [user, selectedClassId, currentDate, firestore]);
+
+  const { data: existingRecords, isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
+
   useEffect(() => {
     setMounted(true)
     setCurrentDate(new Date())
@@ -59,6 +73,26 @@ function AttendanceContent() {
   useEffect(() => {
     if (classIdFromUrl) setSelectedClassId(classIdFromUrl)
   }, [classIdFromUrl])
+
+  // Sincroniza o estado local com os dados do Firestore quando a data ou os registros mudam
+  useEffect(() => {
+    if (mounted && students.length > 0) {
+      const newState: AttendanceState = {};
+      
+      if (existingRecords.length > 0) {
+        // Se já existem registros salvos para este dia/turma
+        existingRecords.forEach(rec => {
+          newState[rec.studentId] = rec.status === 'Presente' ? 'present' : 'absent';
+        });
+      } else {
+        // Se não existem registros, define todos como presente por padrão (Nova Chamada)
+        students.forEach(s => { 
+          newState[s.id] = 'present'; 
+        });
+      }
+      setAttendance(newState);
+    }
+  }, [existingRecords, students, mounted, currentDate]);
 
   // Filtra alunos pelo termo de busca (Nome ou RA)
   const filteredStudents = useMemo(() => {
@@ -69,18 +103,6 @@ function AttendanceContent() {
     }).sort((a, b) => (a.callNumber || 0) - (b.callNumber || 0));
   }, [students, searchTerm]);
 
-  // Inicializa o estado de presença quando os alunos carregam
-  useEffect(() => {
-    if (mounted && students.length > 0) {
-      const initialState: AttendanceState = {};
-      students.forEach(s => { 
-        // Mantém a presença se já existir no estado (ex: após busca) ou define como presente por padrão
-        initialState[s.id] = attendance[s.id] || 'present'; 
-      });
-      setAttendance(initialState);
-    }
-  }, [students, mounted]);
-
   const handleSave = async () => {
     if (!user || !selectedClassId || !currentDate) return;
 
@@ -90,6 +112,7 @@ function AttendanceContent() {
     
     try {
       const savePromises = Object.entries(attendance).map(([studentId, status]) => {
+        // Chave composta para evitar duplicidade no mesmo dia para o mesmo aluno
         const recordId = `${studentId}_${dateStr}`;
         return setDoc(doc(recordsColRef, recordId), {
           id: recordId,
@@ -113,6 +136,7 @@ function AttendanceContent() {
 
   const presentCount = Object.values(attendance).filter(v => v === 'present').length
   const absentCount = Object.values(attendance).filter(v => v === 'absent').length
+  const hasRecords = existingRecords.length > 0;
 
   if (!mounted || isUserLoading || !currentDate) return (
     <div className="flex items-center justify-center p-20">
@@ -148,19 +172,30 @@ function AttendanceContent() {
             </div>
           </div>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Filtrar aluno por nome ou RA..." 
-            className="pl-10 h-11 bg-white" 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Filtrar aluno por nome ou RA..." 
+              className="pl-10 h-11 bg-white" 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+            />
+          </div>
+          {selectedClassId && (
+            <Badge variant={hasRecords ? "default" : "outline"} className={cn("h-11 px-4 font-bold uppercase text-[10px] tracking-widest", hasRecords ? "bg-green-600 hover:bg-green-700" : "text-amber-600 border-amber-600 bg-amber-50")}>
+              {hasRecords ? (
+                <><CheckCircle2 className="h-3 w-3 mr-2" /> Chamada Realizada</>
+              ) : (
+                <><History className="h-3 w-3 mr-2" /> Nova Chamada</>
+              )}
+            </Badge>
+          )}
         </div>
       </div>
 
       <Card className="border-none shadow-md overflow-hidden bg-white">
-        {isStudentsLoading ? (
+        {(isStudentsLoading || isRecordsLoading) ? (
           <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : (
           <Table>
