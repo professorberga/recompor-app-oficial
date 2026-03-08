@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe, collection, query, where, getDocs } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -102,27 +102,31 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. Busca Perfil por UID ou E-mail (Handshake para Provisionamento)
+          // 2. Busca Perfil por UID (Prioridade) ou E-mail (Migração)
           const docSnap = await getDoc(teacherRef);
-          let profileData: TeacherProfile | null = null;
-
-          if (docSnap.exists()) {
-            profileData = { ...docSnap.data() as TeacherProfile, id: docSnap.id };
-          } else {
-            // Busca se o Admin provisionou o professor pelo e-mail antes do primeiro login
+          
+          if (!docSnap.exists()) {
+            // Busca se o perfil existe nomeado pelo e-mail ou se há documento com este e-mail
             const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
             const querySnap = await getDocs(q);
             
             if (!querySnap.empty) {
-              const provisionedDoc = querySnap.docs[0];
-              const data = provisionedDoc.data() as TeacherProfile;
-              // Cria o novo documento com o UID correto e migra os dados
-              profileData = { ...data, id: firebaseUser.uid };
+              // MIGRAÇÃO AUTOMÁTICA: Encontrou pelo e-mail
+              const legacyDoc = querySnap.docs[0];
+              const data = legacyDoc.data() as TeacherProfile;
+              
+              // Cria novo doc com UID
+              const profileData = { ...data, id: firebaseUser.uid };
               await setDoc(teacherRef, profileData);
+              
+              // Deleta o legado se o ID for diferente do UID (ex: era o e-mail)
+              if (legacyDoc.id !== firebaseUser.uid) {
+                await deleteDoc(legacyDoc.ref);
+              }
             } else {
-              // Cria perfil padrão para novo usuário não provisionado
+              // Provedor de fallback: Cria perfil básico se nada for encontrado
               const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
-              profileData = {
+              const defaultProfile = {
                 id: firebaseUser.uid,
                 name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
                 email: firebaseUser.email || "",
@@ -130,11 +134,11 @@ export const FirebaseProvider: React.FC<{
                 subjects: [],
                 assignments: []
               };
-              await setDoc(teacherRef, profileData);
+              await setDoc(teacherRef, defaultProfile);
             }
           }
 
-          // 3. Estabelece a escuta em tempo real para o perfil final
+          // 3. Estabelece a escuta em tempo real para o perfil (agora garantido no UID)
           profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
             if (snapshot.exists()) {
               const data = snapshot.data() as TeacherProfile;

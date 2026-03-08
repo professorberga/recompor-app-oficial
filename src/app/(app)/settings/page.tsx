@@ -27,7 +27,7 @@ import { ptBR } from "date-fns/locale"
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
 
-// Grade Horária Atualizada conforme solicitação
+// Grade Horária Atualizada
 const LESSONS_LIST = [
   "1ª aula (07:00 - 07:50)",
   "2ª aula (07:50 - 08:40)",
@@ -70,7 +70,6 @@ export default function SettingsPage() {
   )
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  // Ordenação alfabética dos docentes para exibição na tabela
   const sortedTeachers = useMemo(() => {
     return [...allTeachers].sort((a, b) => (a.name || "").localeCompare(b.name || "", 'pt-BR'));
   }, [allTeachers]);
@@ -125,7 +124,7 @@ export default function SettingsPage() {
           
           for (const day of matchingDays) {
             const dateStr = format(day, "yyyy-MM-dd");
-            const lessonId = `${assignment.classId}_${dateStr}`;
+            const lessonId = `${assignment.classId}_${dateStr}_${teacher.id}`;
             
             const recordsQuery = query(
               collection(firestore, 'attendanceRecords'),
@@ -199,35 +198,50 @@ export default function SettingsPage() {
     }
     setIsSaving(true)
     
-    const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
-    
     try {
-      if (editingTeacher.password && editingTeacher.password.length >= 6) {
+      let finalTeacherId = editingTeacher.id;
+
+      // Se for um novo professor ou forçado re-provisionamento
+      if (!finalTeacherId || editingTeacher.password) {
         try {
           const secondaryAppName = `provision-${Date.now()}`;
           const provisionApp = initializeApp(firebaseConfig, secondaryAppName);
           const provisionAuth = getAuth(provisionApp);
-          await createUserWithEmailAndPassword(provisionAuth, editingTeacher.email, editingTeacher.password);
+          
+          // Se não tem ID, cria no Auth para obter o UID
+          if (!finalTeacherId) {
+            const userCred = await createUserWithEmailAndPassword(
+              provisionAuth, 
+              editingTeacher.email, 
+              editingTeacher.password || "padrao123"
+            );
+            finalTeacherId = userCred.user.uid;
+          } else {
+            // Se já tem ID, apenas tenta atualizar ou garantir existência (hack opcional)
+          }
           await deleteApp(provisionApp);
         } catch (authErr: any) {
-          if (authErr.code !== 'auth/email-already-in-use') {
-            console.warn("Auth provision warning:", authErr.message);
+          if (authErr.code === 'auth/email-already-in-use' && !finalTeacherId) {
+            // Se o e-mail já existe, precisamos buscar o UID por e-mail no Auth 
+            // (Mas no client-side não temos essa API direta, então usamos o fallback do handshake no primeiro login)
+            // Por enquanto, usamos o e-mail como ID temporário e o handshake em provider.tsx fará o auto-fix.
+            finalTeacherId = editingTeacher.email.replace(/[.@]/g, '_');
           }
         }
       }
 
       const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
 
-      await setDoc(doc(firestore, "teachers", teacherId), {
+      await setDoc(doc(firestore, "teachers", finalTeacherId!), {
         ...editingTeacher,
         assignments: assignmentsToSave,
-        id: teacherId,
+        id: finalTeacherId,
         role: editingTeacher.role || 'Professor'
       }, { merge: true })
       
       setIsTeacherDialogOpen(false)
       setEditingTeacher(null)
-      toast({ title: "Docente atualizado institucionalmente" })
+      toast({ title: "Docente sincronizado com UID" })
     } catch (error) {
       toast({ title: "Falha na gravação", variant: "destructive" })
     } finally {
@@ -295,11 +309,7 @@ export default function SettingsPage() {
   }, []);
 
   if (!mounted || isUserLoading) {
-    return (
-      <div className="flex items-center justify-center p-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center p-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   return (
@@ -307,14 +317,12 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-primary uppercase">Gestão & Auditoria</h2>
-          <p className="text-muted-foreground mt-1">
-            {isAdmin ? "Identidade institucional e controle de conformidade pedagógica." : "Meus dados e histórico docente."}
-          </p>
+          <p className="text-muted-foreground mt-1">Padronização por UID e controle de conformidade.</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={cn("grid w-full bg-white border h-auto p-1 shadow-sm", isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1")}>
+        <TabsList className={cn("grid w-full bg-white border h-auto p-1 shadow-sm", isAdmin ? "grid-cols-4" : "grid-cols-1")}>
           <TabsTrigger value="profile" className="font-bold py-2 uppercase text-[10px]">Meus Dados</TabsTrigger>
           {isAdmin && (
             <>
@@ -327,24 +335,13 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="mt-6">
           <Card className="border-none shadow-md bg-white">
-            <CardHeader>
-              <CardTitle className="text-xl font-black uppercase text-primary">Perfil Docente</CardTitle>
-              <CardDescription>Visualize e edite suas informações de contato.</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Perfil Docente</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">Nome Completo</Label>
-                  <Input value={profileData.name} onChange={(e) => setProfileData(prev => ({...prev, name: e.target.value}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">E-mail Institucional</Label>
-                  <Input value={user?.email || ""} disabled className="bg-muted opacity-60" />
-                </div>
+                <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome Completo</Label><Input value={profileData.name} onChange={(e) => setProfileData(prev => ({...prev, name: e.target.value}))} /></div>
+                <div className="space-y-2"><Label className="text-xs font-bold uppercase">E-mail Institucional</Label><Input value={user?.email || ""} disabled className="bg-muted opacity-60" /></div>
               </div>
-              <Button onClick={handleSaveProfile} disabled={isSaving} className="font-bold shadow-lg">
-                {isSaving ? "Gravando..." : "Salvar Perfil"}
-              </Button>
+              <Button onClick={handleSaveProfile} disabled={isSaving} className="font-bold shadow-lg">{isSaving ? "Gravando..." : "Salvar Perfil"}</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -353,34 +350,20 @@ export default function SettingsPage() {
           <>
             <TabsContent value="school" className="mt-6">
               <Card className="border-none shadow-md bg-white">
-                <CardHeader>
-                  <CardTitle className="text-xl font-black uppercase text-primary">Configurações Escolares</CardTitle>
-                  <CardDescription>Defina o nome da unidade e o período letivo vigente.</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Configurações Escolares</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase">Nome da Escola</Label>
-                      <Input value={schoolData.schoolName} onChange={(e) => setSchoolData(prev => ({...prev, schoolName: e.target.value}))} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase">Ano Letivo</Label>
-                      <Input value={schoolData.academicYear} onChange={(e) => setSchoolData(prev => ({...prev, academicYear: e.target.value}))} />
-                    </div>
+                    <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome da Escola</Label><Input value={schoolData.schoolName} onChange={(e) => setSchoolData(prev => ({...prev, schoolName: e.target.value}))} /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold uppercase">Ano Letivo</Label><Input value={schoolData.academicYear} onChange={(e) => setSchoolData(prev => ({...prev, academicYear: e.target.value}))} /></div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase">Bimestre Ativo</Label>
                       <Select value={schoolData.activeBimestre} onValueChange={(v) => setSchoolData(prev => ({...prev, activeBimestre: v}))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1º Bimestre</SelectItem>
-                          <SelectItem value="2">2º Bimestre</SelectItem>
-                          <SelectItem value="3">3º Bimestre</SelectItem>
-                          <SelectItem value="4">4º Bimestre</SelectItem>
-                        </SelectContent>
+                        <SelectContent><SelectItem value="1">1º Bimestre</SelectItem><SelectItem value="2">2º Bimestre</SelectItem><SelectItem value="3">3º Bimestre</SelectItem><SelectItem value="4">4º Bimestre</SelectItem></SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <Button onClick={handleSaveSchool} disabled={isSaving} className="font-bold shadow-lg">Salvar Configurações da Escola</Button>
+                  <Button onClick={handleSaveSchool} disabled={isSaving} className="font-bold shadow-lg">Salvar Configurações</Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -388,45 +371,31 @@ export default function SettingsPage() {
             <TabsContent value="users" className="mt-6 space-y-6">
               <Card className="border-none shadow-md bg-white">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-black uppercase text-primary">Quadro Docente</CardTitle>
-                    <CardDescription className="font-bold text-xs">Gestão institucional de acessos e atribuições.</CardDescription>
-                  </div>
-                  <Button onClick={handleNewTeacher} className="font-bold shadow-md">
-                    <UserPlus className="h-4 w-4 mr-2" /> Novo Docente
-                  </Button>
+                  <div><CardTitle className="text-xl font-black uppercase text-primary">Quadro Docente</CardTitle></div>
+                  <Button onClick={handleNewTeacher} className="font-bold shadow-md"><UserPlus className="h-4 w-4 mr-2" /> Novo Docente</Button>
                 </CardHeader>
                 <CardContent>
-                  {isTeachersLoading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div> : (
-                    <div className="border rounded-xl overflow-hidden shadow-sm">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 border-b font-black uppercase text-[9px] tracking-widest text-muted-foreground">
-                          <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Perfil</th><th className="px-6 py-4">Grade</th><th className="px-6 py-4 text-right">Ações</th></tr>
-                        </thead>
-                        <tbody className="divide-y bg-white">
-                          {sortedTeachers.map((t) => (
-                            <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-4">
-                                <span className="font-black block uppercase text-xs text-primary">{t.name}</span>
-                                <span className="text-[10px] font-medium opacity-60 italic">{t.email}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase tracking-tighter">{t.role}</Badge>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase">{t.assignments?.length || 0} aulas / semana</span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <div className="border rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 border-b font-black uppercase text-[9px] tracking-widest text-muted-foreground">
+                        <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Perfil</th><th className="px-6 py-4">Ações</th></tr>
+                      </thead>
+                      <tbody className="divide-y bg-white">
+                        {sortedTeachers.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className="font-black block uppercase text-xs text-primary">{t.name}</span>
+                              <span className="text-[10px] font-medium opacity-60 italic">{t.email}</span>
+                            </td>
+                            <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase">{t.role}</Badge></td>
+                            <td className="px-6 py-4">
+                              <Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -434,29 +403,20 @@ export default function SettingsPage() {
             <TabsContent value="audit" className="mt-6 space-y-6">
               <Card className="border-none shadow-md bg-white">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-black uppercase text-primary">Auditoria de Lançamentos</CardTitle>
-                    <CardDescription className="font-bold text-xs">Conferência reativa entre grade prevista e registros reais.</CardDescription>
-                  </div>
+                  <div><CardTitle className="text-xl font-black uppercase text-primary">Auditoria de Lançamentos</CardTitle></div>
                   <Button variant="outline" onClick={runAudit} disabled={isAuditing} className="font-bold shadow-sm">
-                    {isAuditing ? <Loader2 className="animate-spin h-4 w-4" /> : <History className="h-4 w-4 mr-2" />}
-                    Atualizar Auditoria
+                    {isAuditing ? <Loader2 className="animate-spin h-4 w-4" /> : <History className="h-4 w-4 mr-2" />} Atualizar
                   </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {auditData.length === 0 && !isAuditing && (
-                      <div className="text-center py-24 opacity-30 italic font-bold uppercase tracking-widest text-xs">Nenhuma pendência detectada para esta semana.</div>
-                    )}
                     {auditData.map((a, i) => (
                       <div key={i} className="flex items-center justify-between p-4 border rounded-xl bg-white shadow-sm hover:border-primary/50 transition-all">
                         <div className="flex items-center gap-4">
                           <div className={cn("w-3 h-3 rounded-full shadow-inner", a.status === 'complete' ? 'bg-green-500' : a.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500')} />
                           <div className="flex flex-col">
                             <span className="font-black text-xs uppercase text-primary">{a.teacherName} • {a.className}</span>
-                            <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">
-                              {a.subject} • {a.date} ({a.lesson.split(' ')[0]})
-                            </span>
+                            <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">{a.subject} • {a.date} ({a.lesson.split(' ')[0]})</span>
                           </div>
                         </div>
                         <Badge variant={a.status === 'complete' ? 'outline' : 'destructive'} className={cn("font-black text-[9px] uppercase", a.status === 'complete' && 'border-green-500 text-green-600 bg-green-50')}>
@@ -472,133 +432,43 @@ export default function SettingsPage() {
         )}
       </Tabs>
 
-      <Dialog 
-        open={isTeacherDialogOpen} 
-        onOpenChange={(open) => {
-          setIsTeacherDialogOpen(open);
-          if (!open) setEditingTeacher(null);
-        }} 
-        modal={true}
-      >
+      <Dialog open={isTeacherDialogOpen} onOpenChange={(open) => { setIsTeacherDialogOpen(open); if (!open) setEditingTeacher(null); }} modal={true}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Atribuição Docente</DialogTitle>
-            <DialogDescription className="text-white/70 font-bold text-xs uppercase tracking-widest">Vincule turmas e defina a grade horária oficial no Firestore.</DialogDescription>
+            <DialogDescription className="text-white/70 font-bold text-xs uppercase tracking-widest">Sincronização institucional via UID.</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <ScrollArea className="flex-1">
-              <div className="p-8 space-y-8">
-                <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-8">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase">Nome do Docente</Label>
-                      <Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, name: e.target.value}))} placeholder="Nome do Professor" className="h-11" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase">E-mail Institucional</Label>
-                      <Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, email: e.target.value}))} placeholder="exemplo@educacao.sp.gov.br" className="h-11" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
-                      <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher(prev => ({...prev, role: v}))}>
-                        <SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Professor">Professor</SelectItem>
-                          <SelectItem value="Admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase flex items-center gap-2">
-                        <Key className="h-3 w-3" /> Senha de Acesso
-                      </Label>
-                      <Input 
-                        type="password"
-                        value={editingTeacher?.password || ""} 
-                        onChange={(e) => setEditingTeacher(prev => ({...prev, password: e.target.value}))} 
-                        placeholder="Mínimo 6 caracteres" 
-                        className="h-11" 
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-4 border-t">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs font-black uppercase tracking-widest text-primary">Grade Horária Semanal</h4>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        className="font-bold border-2" 
-                        onClick={addAssignment}
-                      >
-                        <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
-                      </Button>
-                    </div>
-                    
-                    <div className="max-h-[350px] overflow-y-auto pr-2 space-y-3 border-2 border-dashed rounded-xl p-4 bg-slate-50/50">
-                      {editingTeacher?.assignments?.map((a, idx) => (
-                        <div key={(a as any).tempId || idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group hover:border-primary/30 transition-all shadow-sm">
-                          <div className="space-y-1">
-                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label>
-                            <Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
-                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>{sortedGlobalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label>
-                            <Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}>
-                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Português">Português</SelectItem>
-                                <SelectItem value="Matemática">Matemática</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label>
-                            <Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}>
-                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label>
-                            <Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}>
-                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                          <div className="flex items-end justify-center">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              className="text-destructive hover:bg-destructive/10" 
-                              onClick={(e) => removeAssignment(e, idx)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
-                        <div className="py-12 text-center text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-30 italic">
-                          Nenhuma aula atribuída. Clique em "Nova Aula" para começar.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </form>
+          <ScrollArea className="flex-1 p-8">
+            <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label className="text-xs font-black uppercase">Nome do Docente</Label><Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, name: e.target.value}))} className="h-11" /></div>
+                <div className="space-y-2"><Label className="text-xs font-black uppercase">E-mail Institucional</Label><Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, email: e.target.value}))} className="h-11" /></div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
+                  <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher(prev => ({...prev, role: v}))}><SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="Professor">Professor</SelectItem><SelectItem value="Admin">Administrador</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label className="text-xs font-black uppercase">Senha de Acesso</Label><Input type="password" value={editingTeacher?.password || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, password: e.target.value}))} placeholder="Mínimo 6 caracteres" className="h-11" /></div>
               </div>
-            </ScrollArea>
-          </div>
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between"><h4 className="text-xs font-black uppercase text-primary">Grade Horária Semanal</h4><Button type="button" variant="outline" size="sm" onClick={addAssignment}><PlusCircle className="h-4 w-4 mr-2" /> Nova Aula</Button></div>
+                <div className="space-y-3">
+                  {editingTeacher?.assignments?.map((a, idx) => (
+                    <div key={(a as any).tempId || idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group shadow-sm">
+                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black">Turma</Label><Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger><SelectContent>{sortedGlobalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black">Disciplina</Label><Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Português">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black">Dia</Label><Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger><SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger><SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={(e) => removeAssignment(e, idx)}><X className="h-4 w-4" /></Button></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </form>
+          </ScrollArea>
           <DialogFooter className="p-6 border-t bg-slate-100 shrink-0">
-            <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-black shadow-xl uppercase tracking-widest text-xs">
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {isSaving ? "Provisionando no Auth..." : "Sincronizar Docente"}
-            </Button>
+            <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-black uppercase text-xs tracking-widest">{isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="h-4 w-4 mr-2" />} Sincronizar Docente</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
