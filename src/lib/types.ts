@@ -5,12 +5,19 @@ export type Subject = 'Portuguese' | 'Math';
 
 export type UserRole = 'Admin' | 'Professor';
 
+export interface TeacherAssignment {
+  classId: string;
+  className: string;
+  subject: string;
+}
+
 export interface TeacherProfile {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  subjects: string[];
+  subjects: string[]; // Legado, mantido para compatibilidade
+  assignments?: TeacherAssignment[];
   schoolName?: string;
   academicYear?: string;
   activeBimestre?: string;

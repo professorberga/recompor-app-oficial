@@ -24,7 +24,9 @@ import {
   ShieldAlert,
   Save,
   ShieldCheck,
-  MoreHorizontal
+  MoreHorizontal,
+  PlusCircle,
+  X
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,7 +41,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { TeacherProfile, UserRole } from "@/lib/types"
+import { TeacherProfile, UserRole, TeacherAssignment } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { doc, setDoc, collection, query, deleteDoc } from "firebase/firestore"
 
@@ -67,6 +69,10 @@ export default function SettingsPage() {
   const teachersRef = useMemoFirebase(() => isAdmin ? collection(firestore, "teachers") : null, [isAdmin, firestore])
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
+  // Classes para seleção nas atribuições (Admin busca de sua própria coleção ou de uma base comum)
+  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
+  const { data: globalClasses = [] } = useCollection(classesRef)
+
   useEffect(() => {
     setMounted(true)
     if (profile) {
@@ -74,9 +80,9 @@ export default function SettingsPage() {
         name: profile.name || "",
         email: profile.email || "",
         subjects: profile.subjects || [],
-        schoolName: (profile as any).schoolName || "E.E. Professor Milton Santos",
-        academicYear: (profile as any).academicYear || "2024",
-        activeBimestre: (profile as any).activeBimestre || "4"
+        schoolName: profile.schoolName || "E.E. Professor Milton Santos",
+        academicYear: profile.academicYear || "2024",
+        activeBimestre: profile.activeBimestre || "4"
       })
     }
   }, [profile])
@@ -117,7 +123,6 @@ export default function SettingsPage() {
       await setDoc(doc(firestore, "teachers", teacherId), {
         ...editingTeacher,
         id: teacherId,
-        subjects: editingTeacher.subjects || [],
         role: editingTeacher.role || 'Professor'
       }, { merge: true })
       
@@ -141,6 +146,36 @@ export default function SettingsPage() {
     } catch (error) {
       toast({ title: "Erro ao remover", variant: "destructive" })
     }
+  }
+
+  const addAssignment = () => {
+    if (!editingTeacher) return;
+    const currentAssignments = editingTeacher.assignments || [];
+    setEditingTeacher({
+      ...editingTeacher,
+      assignments: [...currentAssignments, { classId: "", className: "", subject: "Português" }]
+    });
+  }
+
+  const removeAssignment = (index: number) => {
+    if (!editingTeacher || !editingTeacher.assignments) return;
+    const next = [...editingTeacher.assignments];
+    next.splice(index, 1);
+    setEditingTeacher({ ...editingTeacher, assignments: next });
+  }
+
+  const updateAssignment = (index: number, field: keyof TeacherAssignment, value: string) => {
+    if (!editingTeacher || !editingTeacher.assignments) return;
+    const next = [...editingTeacher.assignments];
+    const assignment = { ...next[index], [field]: value };
+    
+    if (field === 'classId') {
+      const selectedClass = globalClasses.find(c => c.id === value);
+      assignment.className = selectedClass?.name || "";
+    }
+    
+    next[index] = assignment;
+    setEditingTeacher({ ...editingTeacher, assignments: next });
   }
 
   if (!mounted || isUserLoading) return (
@@ -192,7 +227,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Minhas Disciplinas</Label>
+                <Label>Minhas Disciplinas (Atribuição Manual)</Label>
                 <div className="flex flex-wrap gap-2 p-4 border rounded-lg bg-slate-50/50">
                   {['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Inglês', 'Artes'].map(subj => (
                     <label key={subj} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border cursor-pointer hover:border-primary transition-colors">
@@ -210,6 +245,18 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </div>
+              {profile?.assignments && profile.assignments.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Minhas Atribuições Administrativas</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.assignments.map((a, idx) => (
+                      <Badge key={idx} className="h-8 px-4 font-bold bg-primary/10 text-primary border-primary/20">
+                        {a.className} • {a.subject === 'Math' ? 'Matemática' : a.subject === 'Portuguese' ? 'Português' : a.subject}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -250,7 +297,7 @@ export default function SettingsPage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Gestão de Professores</CardTitle>
-                  <CardDescription>Controle de acesso e atribuição da unidade {profile?.schoolName}.</CardDescription>
+                  <CardDescription>Controle de acesso e atribuição institucional.</CardDescription>
                 </div>
                 <Button onClick={() => { setEditingTeacher({}); setIsTeacherDialogOpen(true); }} className="gap-2">
                   <UserPlus className="h-4 w-4" /> Novo Professor
@@ -264,7 +311,7 @@ export default function SettingsPage() {
                         <tr>
                           <th className="px-6 py-4">Docente</th>
                           <th className="px-6 py-4">Cargo</th>
-                          <th className="px-6 py-4">Disciplinas</th>
+                          <th className="px-6 py-4">Atribuições</th>
                           <th className="px-6 py-4 text-right">Ações</th>
                         </tr>
                       </thead>
@@ -285,8 +332,12 @@ export default function SettingsPage() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-wrap gap-1">
-                                {t.subjects?.map(s => <Badge key={s} variant="outline" className="text-[8px]">{s}</Badge>)}
-                                {(!t.subjects || t.subjects.length === 0) && <span className="text-[10px] italic opacity-50">Não atribuída</span>}
+                                {t.assignments?.map((a, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-[8px] bg-slate-50">
+                                    {a.className}: {a.subject}
+                                  </Badge>
+                                ))}
+                                {(!t.assignments || t.assignments.length === 0) && <span className="text-[10px] italic opacity-50">Sem atribuição</span>}
                               </div>
                             </td>
                             <td className="px-6 py-4 text-right">
@@ -320,71 +371,100 @@ export default function SettingsPage() {
 
       {/* DIALOG DE GESTÃO DE PROFESSOR */}
       <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
-        <DialogContent className="max-w-2xl bg-white">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
+          <DialogHeader className="p-6 border-b">
             <DialogTitle>{editingTeacher?.id ? 'Editar' : 'Novo'} Docente</DialogTitle>
-            <DialogDescription>Configure as permissões e disciplinas do professor.</DialogDescription>
+            <DialogDescription>Configure as permissões e atribuições do professor.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSaveTeacher} className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nome Completo</Label>
-                <Input 
-                  value={editingTeacher?.name || ""} 
-                  onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} 
-                  placeholder="Nome do professor" 
-                  required
-                />
+          <ScrollArea className="flex-1">
+            <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-6 p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome Completo</Label>
+                  <Input 
+                    value={editingTeacher?.name || ""} 
+                    onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} 
+                    placeholder="Nome do professor" 
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail Institucional</Label>
+                  <Input 
+                    value={editingTeacher?.email || ""} 
+                    onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} 
+                    placeholder="email@escola.gov.br" 
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Perfil de Acesso</Label>
+                  <Select value={editingTeacher?.role || "Professor"} onValueChange={(v: UserRole) => setEditingTeacher({...editingTeacher, role: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Professor">Professor</SelectItem>
+                      <SelectItem value="Admin">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Escola</Label>
+                  <Input value={editingTeacher?.schoolName || profile?.schoolName} onChange={(e) => setEditingTeacher({...editingTeacher, schoolName: e.target.value})} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>E-mail Institucional</Label>
-                <Input 
-                  value={editingTeacher?.email || ""} 
-                  onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} 
-                  placeholder="email@escola.gov.br" 
-                  required
-                />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-bold">Atribuições de Turma</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addAssignment} className="gap-2">
+                    <PlusCircle className="h-4 w-4" /> Adicionar Atribuição
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  {editingTeacher?.assignments?.map((assignment, idx) => (
+                    <div key={idx} className="flex gap-3 items-end p-4 border rounded-xl bg-slate-50 relative group">
+                      <div className="flex-1 space-y-1.5">
+                        <Label className="text-[10px] uppercase font-bold">Turma</Label>
+                        <Select value={assignment.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
+                          <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>
+                            {globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <Label className="text-[10px] uppercase font-bold">Disciplina</Label>
+                        <Select value={assignment.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}>
+                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Português">Português</SelectItem>
+                            <SelectItem value="Matemática">Matemática</SelectItem>
+                            <SelectItem value="Ciências">Ciências</SelectItem>
+                            <SelectItem value="História">História</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="text-destructive h-10 w-10 hover:bg-destructive/10" onClick={() => removeAssignment(idx)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
+                    <div className="text-center py-6 border-2 border-dashed rounded-xl opacity-40 italic text-sm">
+                      Nenhuma turma atribuída a este docente.
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Perfil de Acesso</Label>
-                <Select value={editingTeacher?.role || "Professor"} onValueChange={(v: UserRole) => setEditingTeacher({...editingTeacher, role: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Professor">Professor</SelectItem>
-                    <SelectItem value="Admin">Administrador</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Escola</Label>
-                <Input value={editingTeacher?.schoolName || profile?.schoolName} onChange={(e) => setEditingTeacher({...editingTeacher, schoolName: e.target.value})} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Atribuição de Disciplinas</Label>
-              <div className="flex flex-wrap gap-2 p-3 border rounded-lg">
-                {['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Inglês', 'Artes'].map(subj => (
-                  <label key={subj} className="flex items-center gap-2 cursor-pointer p-1">
-                    <Checkbox 
-                      checked={editingTeacher?.subjects?.includes(subj)}
-                      onCheckedChange={(checked) => {
-                        const current = editingTeacher?.subjects || [];
-                        const next = checked ? [...current, subj] : current.filter(s => s !== subj);
-                        setEditingTeacher({...editingTeacher, subjects: next});
-                      }}
-                    />
-                    <span className="text-xs">{subj}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <DialogFooter className="pt-4">
-              <Button type="submit" disabled={isSaving} className="w-full">
-                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                Gravar no Firestore
-              </Button>
-            </DialogFooter>
-          </form>
+            </form>
+          </ScrollArea>
+          <DialogFooter className="p-6 border-t bg-slate-50">
+            <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-bold shadow-lg">
+              {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Gravar Atribuição no Firestore
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

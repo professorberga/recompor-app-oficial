@@ -24,7 +24,7 @@ function AttendanceContent() {
   const searchParams = useSearchParams()
   const classIdFromUrl = searchParams.get('class')
   const [mounted, setMounted] = useState(false)
-  const { user, isUserLoading } = useUser()
+  const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   
   const [selectedClassId, setSelectedClassId] = useState(classIdFromUrl || "")
@@ -34,12 +34,22 @@ function AttendanceContent() {
   const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
 
-  // Real Firestore Classes do Professor
+  // Real Firestore Classes
   const classesRef = useMemoFirebase(() => 
     user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
     [user, firestore]
   )
-  const { data: classes = [] } = useCollection(classesRef)
+  const { data: rawClasses = [] } = useCollection(classesRef)
+
+  // Filtra as turmas com base nas atribuições feitas pelo Admin
+  const classes = useMemo(() => {
+    if (isAdmin) return rawClasses;
+    if (profile?.assignments && profile.assignments.length > 0) {
+      const assignedIds = profile.assignments.map(a => a.classId);
+      return rawClasses.filter(c => assignedIds.includes(c.id));
+    }
+    return rawClasses;
+  }, [rawClasses, profile, isAdmin]);
 
   // Busca estudantes na subcoleção do professor filtrando pela turma selecionada
   const studentsRef = useMemoFirebase(() => {
@@ -74,18 +84,15 @@ function AttendanceContent() {
     if (classIdFromUrl) setSelectedClassId(classIdFromUrl)
   }, [classIdFromUrl])
 
-  // Sincroniza o estado local com os dados do Firestore quando a data ou os registros mudam
   useEffect(() => {
     if (mounted && students.length > 0) {
       const newState: AttendanceState = {};
       
       if (existingRecords.length > 0) {
-        // Se já existem registros salvos para este dia/turma
         existingRecords.forEach(rec => {
           newState[rec.studentId] = rec.status === 'Presente' ? 'present' : 'absent';
         });
       } else {
-        // Se não existem registros, define todos como presente por padrão (Nova Chamada)
         students.forEach(s => { 
           newState[s.id] = 'present'; 
         });
@@ -94,7 +101,6 @@ function AttendanceContent() {
     }
   }, [existingRecords, students, mounted, currentDate]);
 
-  // Filtra alunos pelo termo de busca (Nome ou RA)
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
       const nameMatch = s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
@@ -112,7 +118,6 @@ function AttendanceContent() {
     
     try {
       const savePromises = Object.entries(attendance).map(([studentId, status]) => {
-        // Chave composta para evitar duplicidade no mesmo dia para o mesmo aluno
         const recordId = `${studentId}_${dateStr}`;
         return setDoc(doc(recordsColRef, recordId), {
           id: recordId,
@@ -127,8 +132,7 @@ function AttendanceContent() {
       await Promise.all(savePromises);
       toast({ title: "Diário Gravado", description: `Chamada do dia ${format(currentDate, "dd/MM")} salva no Firestore.` })
     } catch (err: any) {
-      console.error("Erro ao salvar chamada:", err);
-      toast({ title: "Falha ao Salvar", description: "Verifique suas permissões de escrita no Firestore.", variant: "destructive" })
+      toast({ title: "Falha ao Salvar", description: "Erro nas permissões do Firestore.", variant: "destructive" })
     } finally {
       setIsSaving(false);
     }
