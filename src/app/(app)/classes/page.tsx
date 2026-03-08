@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, UserCircle, Loader2, Trash2, ArrowRight, User } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,7 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
+import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 
 export default function ClassesPage() {
   const { user, profile, isAdmin, isUserLoading } = useUser()
@@ -182,19 +182,17 @@ export default function ClassesPage() {
                     <GraduationCap className="h-4 w-4 text-primary" />
                     <span className="font-bold">{getStudentCount(cls.id)} Alunos Ativos</span>
                   </div>
-                  <div className="space-y-1.5 pt-2 border-t border-dashed">
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-                      <UserCircle className="h-3 w-3" /> Professores Responsáveis
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {classTeachers.length > 0 ? (
-                        classTeachers.map((name, i) => (
-                          <Badge key={i} variant="outline" className="text-[9px] font-bold uppercase border-primary/20 bg-primary/5">{name}</Badge>
-                        ))
-                      ) : (
-                        <span className="text-[9px] font-bold text-muted-foreground italic">Nenhuma atribuição docente</span>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5 pt-3 border-t border-dashed">
+                    {classTeachers.length > 0 ? (
+                      classTeachers.map((name, i) => (
+                        <Badge key={i} variant="secondary" className="bg-primary/5 text-primary border-none text-[9px] font-black uppercase py-0.5 px-2 flex items-center gap-1 hover:bg-primary/10 transition-colors">
+                          <User className="h-2.5 w-2.5" />
+                          {name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-[9px] font-bold text-muted-foreground italic opacity-50">Nenhuma atribuição docente</span>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
