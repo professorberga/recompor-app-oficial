@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight, Pencil } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
@@ -20,6 +20,7 @@ export default function ClassesPage() {
   const firestore = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingClassId, setEditingClassId] = useState<string | null>(null)
   const { toast } = useToast()
 
   // Busca turmas da coleção GLOBAL
@@ -34,7 +35,7 @@ export default function ClassesPage() {
   const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore]);
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  const [newClass, setNewClass] = useState({
+  const [classForm, setClassForm] = useState({
     name: "",
     subject: "Portuguese" as "Portuguese" | "Math",
   })
@@ -58,27 +59,28 @@ export default function ClassesPage() {
     ).map(t => t.name);
   }
 
-  const handleCreateClass = async (e: React.FormEvent) => {
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newClass.name) {
+    if (!classForm.name) {
       toast({ title: "Campo Vazio", variant: "destructive" })
       return
     }
 
-    const classId = Math.random().toString(36).substr(2, 9)
+    const classId = editingClassId || Math.random().toString(36).substr(2, 9)
     const classData = {
       id: classId,
-      name: newClass.name,
-      subject: newClass.subject,
+      name: classForm.name,
+      subject: classForm.subject,
       year: new Date().getFullYear(),
-      createdAt: new Date().toISOString()
+      ...(editingClassId ? {} : { createdAt: new Date().toISOString() })
     }
 
     try {
-      await setDoc(doc(firestore, 'classes', classId), classData)
+      await setDoc(doc(firestore, 'classes', classId), classData, { merge: true })
       setIsDialogOpen(false)
-      setNewClass({ name: "", subject: "Portuguese" })
-      toast({ title: "Turma Criada" })
+      setEditingClassId(null)
+      setClassForm({ name: "", subject: "Portuguese" })
+      toast({ title: editingClassId ? "Turma Atualizada" : "Turma Criada" })
     } catch (err: any) {
       toast({ title: "Falha na Gravação", variant: "destructive" })
     }
@@ -94,6 +96,15 @@ export default function ClassesPage() {
     } catch (err) {
       toast({ title: "Falha ao Excluir", variant: "destructive" })
     }
+  }
+
+  const handleEditClick = (cls: any) => {
+    setEditingClassId(cls.id)
+    setClassForm({
+      name: cls.name,
+      subject: cls.subject as "Portuguese" | "Math"
+    })
+    setIsDialogOpen(true)
   }
 
   const filteredClasses = useMemo(() => {
@@ -113,7 +124,13 @@ export default function ClassesPage() {
         </div>
 
         {isAdmin && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingClassId(null);
+              setClassForm({ name: "", subject: "Portuguese" });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
                 <Plus className="h-5 w-5" /> Nova Turma
@@ -121,17 +138,21 @@ export default function ClassesPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] bg-white">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-black text-primary uppercase">Adicionar Turma</DialogTitle>
-                <DialogDescription>A nova turma ficará disponível em todo o sistema escolar.</DialogDescription>
+                <DialogTitle className="text-2xl font-black text-primary uppercase">
+                  {editingClassId ? "Editar Turma" : "Adicionar Turma"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingClassId ? "Atualize os dados institucionais desta turma." : "A nova turma ficará disponível em todo o sistema escolar."}
+                </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleCreateClass} className="space-y-5 py-4">
+              <form onSubmit={handleSaveClass} className="space-y-5 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="name" className="font-bold uppercase text-[10px]">Nome da Turma</Label>
-                  <Input id="name" placeholder="Ex: 9º Ano B" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required />
+                  <Input id="name" placeholder="Ex: 9º Ano B" value={classForm.name} onChange={(e) => setClassForm({...classForm, name: e.target.value})} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="subject" className="font-bold uppercase text-[10px]">Disciplina Base</Label>
-                  <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
+                  <Select value={classForm.subject} onValueChange={(v: any) => setClassForm({...classForm, subject: v})}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Portuguese">Português</SelectItem>
@@ -140,7 +161,9 @@ export default function ClassesPage() {
                   </Select>
                 </div>
                 <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full h-12 font-black shadow-xl uppercase text-xs tracking-widest">Sincronizar Turma</Button>
+                  <Button type="submit" className="w-full h-12 font-black shadow-xl uppercase text-xs tracking-widest">
+                    {editingClassId ? "Atualizar Turma" : "Sincronizar Turma"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -172,9 +195,14 @@ export default function ClassesPage() {
                     </Badge>
                   </div>
                   {isAdmin && (
-                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" onClick={() => handleEditClick(cls)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </CardHeader>
                 <CardContent className="pb-4 space-y-3">
