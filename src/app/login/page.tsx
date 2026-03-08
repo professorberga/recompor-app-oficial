@@ -8,11 +8,13 @@ import {
   setPersistence, 
   browserLocalPersistence,
   sendPasswordResetEmail,
-  signOut
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth"
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { useAuth, useUser, useFirestore } from "@/firebase/provider"
-import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
+import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Globe } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +26,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   
   const auth = useAuth()
@@ -32,13 +35,30 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.2.6"
+  const SYSTEM_VERSION = "v1.3.0"
 
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/dashboard")
     }
   }, [user, isUserLoading, router])
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true)
+    const provider = new GoogleAuthProvider()
+    
+    // Opcional: Forçar domínio institucional se necessário
+    // provider.setCustomParameters({ hd: 'prof.educacao.sp.gov.br' });
+
+    try {
+      const result = await signInWithPopup(auth, provider)
+      await checkProfileAndRedirect(result.user)
+    } catch (error: any) {
+      handleAuthError(error)
+    } finally {
+      setIsGoogleLoading(false)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,55 +70,73 @@ export default function LoginPage() {
     try {
       await setPersistence(auth, browserLocalPersistence)
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
-      
-      // Verificação Híbrida: Tenta UID e depois E-mail (Handshake de Migração)
-      const teacherRef = doc(firestore, 'teachers', userCredential.user.uid)
-      const profileSnap = await getDoc(teacherRef)
-      
-      let profileExists = profileSnap.exists();
-      
-      if (!profileExists) {
-        // Fallback: Busca se há perfil pendente pelo e-mail
-        const q = query(collection(firestore, 'teachers'), where('email', '==', sanitizedEmail));
-        const qSnap = await getDocs(q);
-        profileExists = !qSnap.empty;
-      }
-      
-      if (!profileExists) {
-        await signOut(auth)
-        toast({
-          title: "Acesso Negado",
-          description: "Perfil não encontrado no sistema escolar. Fale com o Coordenador Berga.",
-          variant: "destructive",
-        })
-        setIsLoading(false)
-        return
-      }
-
-      toast({ title: "Bem-vindo de volta!", description: "Acesso autorizado." })
-      router.push("/dashboard")
+      await checkProfileAndRedirect(userCredential.user)
     } catch (error: any) {
-      let message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga."
-      if (error.code === "auth/invalid-email") message = "Formato de e-mail inválido."
-      if (error.code === "auth/too-many-requests") message = "Muitas tentativas. Tente mais tarde."
-
-      toast({ title: "Falha na Autenticação", description: message, variant: "destructive" })
+      handleAuthError(error)
     } finally {
       setIsLoading(false)
     }
   }
 
+  const checkProfileAndRedirect = async (firebaseUser: any) => {
+    const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
+    const profileSnap = await getDoc(teacherRef)
+    
+    let profileExists = profileSnap.exists();
+    
+    if (!profileExists) {
+      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+      const qSnap = await getDocs(q);
+      profileExists = !qSnap.empty;
+    }
+    
+    if (!profileExists) {
+      await signOut(auth)
+      toast({
+        title: "Acesso Não Autorizado",
+        description: "Seu e-mail está autenticado no Google, mas não possui um perfil docente vinculado no Recompor+. Contate o Coordenador Berga.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({ title: "Acesso Autorizado", description: `Bem-vindo, ${firebaseUser.displayName || 'Professor'}!` })
+    router.push("/dashboard")
+  }
+
+  const handleAuthError = (error: any) => {
+    console.error("Auth Error:", error.code, error.message)
+    let title = "Falha na Autenticação"
+    let message = "Verifique suas credenciais ou tente novamente mais tarde."
+
+    if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+      message = "E-mail ou senha incorretos. Se este for um e-mail institucional, tente o botão 'Entrar com Google'."
+    } else if (error.code === "auth/unauthorized-domain") {
+      message = "Este domínio de internet não está autorizado no Firebase. O Administrador deve adicioná-lo nos 'Domínios Autorizados'."
+    } else if (error.code === "auth/operation-not-allowed") {
+      message = "O provedor de login selecionado não está ativo no Firebase Console."
+    } else if (error.code === "auth/account-exists-with-different-credential") {
+      message = "Já existe uma conta com este e-mail usando outro método de login."
+    } else if (error.code === "auth/popup-blocked") {
+      message = "O navegador bloqueou a janela de login do Google. Por favor, autorize pop-ups."
+    } else if (error.code === "auth/admin-restricted-operation" || error.message.includes("restricted")) {
+      message = "Sua conta institucional possui restrições de segurança do Google Admin. Tente usar um e-mail pessoal ou contate o TI da Unidade Escolar."
+    }
+
+    toast({ title, description: message, variant: "destructive" })
+  }
+
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "Campo Vazio", description: "Digite seu e-mail institucional.", variant: "destructive" })
+      toast({ title: "E-mail Necessário", description: "Digite seu e-mail institucional no campo acima.", variant: "destructive" })
       return
     }
     setIsResetting(true)
     try {
       await sendPasswordResetEmail(auth, email.trim())
-      toast({ title: "E-mail Enviado", description: "Verifique seu e-mail para redefinir a senha." })
+      toast({ title: "Recuperação Enviada", description: "Um link para criar uma nova senha foi enviado para seu e-mail." })
     } catch (error: any) {
-      toast({ title: "Erro ao Recuperar", variant: "destructive" })
+      toast({ title: "Erro no Envio", description: "Não foi possível enviar o e-mail de recuperação.", variant: "destructive" })
     } finally {
       setIsResetting(false)
     }
@@ -120,13 +158,28 @@ export default function LoginPage() {
         </div>
         <Card className="border-none shadow-xl bg-white overflow-hidden">
           <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold">Acesse sua conta</CardTitle>
-            <CardDescription>Entre com suas credenciais institucionais</CardDescription>
+            <CardTitle className="text-2xl font-bold">Portal do Docente</CardTitle>
+            <CardDescription>Acesse o diário de classe digital</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            <Button 
+              variant="outline" 
+              className="w-full h-12 gap-3 font-bold border-2 hover:bg-slate-50" 
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading || isLoading}
+            >
+              {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-5 w-5 text-blue-500" />}
+              Entrar com Google (Institucional)
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+              <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-2 text-muted-foreground">Ou use e-mail e senha</span></div>
+            </div>
+
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-muted-foreground">E-mail Institucional</Label>
+                <Label className="text-xs font-bold uppercase text-muted-foreground">E-mail</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
@@ -149,7 +202,7 @@ export default function LoginPage() {
                     onClick={handleForgotPassword} 
                     disabled={isResetting}
                   >
-                    {isResetting ? "Enviando..." : "Esqueci minha senha"}
+                    {isResetting ? "Processando..." : "Esqueci a senha"}
                   </Button>
                 </div>
                 <div className="relative">
@@ -170,18 +223,18 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest text-xs" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest text-xs" disabled={isLoading || isGoogleLoading}>
                 {isLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Autenticando...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando...</>
                 ) : (
-                  <>Entrar no Sistema <ArrowRight className="ml-2 h-4 w-4" /></>
+                  <>Acessar Sistema <ArrowRight className="ml-2 h-4 w-4" /></>
                 )}
               </Button>
             </form>
           </CardContent>
           <CardFooter className="bg-slate-50 p-6 border-t flex flex-col items-center gap-1">
             <p className="text-[10px] text-center w-full text-muted-foreground uppercase font-black tracking-widest">
-              Ambiente Seguro • {schoolName}
+              Ambiente Institucional Seguro
             </p>
             <p className="text-[8px] text-center w-full text-muted-foreground font-mono mt-1">
               Versão {SYSTEM_VERSION}
