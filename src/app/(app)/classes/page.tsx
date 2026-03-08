@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, UserCircle, Loader2, Trash2 } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, UserCircle, Loader2, Trash2, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,7 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Real Firestore Classes Collection under the teacher
+  // Referência real para as turmas do professor logado
   const classesRef = useMemoFirebase(() => 
     user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
     [user, firestore]
@@ -33,7 +33,6 @@ export default function ClassesPage() {
   const [newClass, setNewClass] = useState({
     name: "",
     subject: "Portuguese" as "Portuguese" | "Math",
-    teacher: profile?.name || "Professor",
   })
 
   const handleCreateClass = async (e: React.FormEvent) => {
@@ -41,7 +40,7 @@ export default function ClassesPage() {
     if (!user || !classesRef) return
     
     if (!newClass.name) {
-      toast({ title: "Erro", description: "O nome da turma é obrigatório.", variant: "destructive" })
+      toast({ title: "Campo Vazio", description: "O nome da turma é obrigatório.", variant: "destructive" })
       return
     }
 
@@ -53,21 +52,17 @@ export default function ClassesPage() {
       year: new Date().getFullYear(),
       gradeLevel: newClass.name.split(' ')[0] || "N/A",
       teacherId: user.uid,
-      teacherName: newClass.teacher,
+      teacherName: profile?.name || user.email?.split('@')[0],
       studentsCount: 0
     }
 
     try {
       await setDoc(doc(classesRef, classId), classData)
       setIsDialogOpen(false)
-      setNewClass({ 
-        name: "", 
-        subject: "Portuguese", 
-        teacher: profile?.name || "Professor", 
-      })
-      toast({ title: "Turma criada!", description: `A turma ${classData.name} foi adicionada ao seu perfil.` })
+      setNewClass({ name: "", subject: "Portuguese" })
+      toast({ title: "Turma Criada", description: `${classData.name} foi registrada no Firestore.` })
     } catch (err) {
-      toast({ title: "Erro ao criar", description: "Verifique suas permissões no Firestore.", variant: "destructive" })
+      toast({ title: "Erro de Permissão", description: "Verifique as Security Rules no console.", variant: "destructive" })
     }
   }
 
@@ -75,9 +70,9 @@ export default function ClassesPage() {
     if (!classesRef) return
     try {
       await deleteDoc(doc(classesRef, id))
-      toast({ title: "Turma removida" })
+      toast({ title: "Removido", description: "Turma excluída com sucesso." })
     } catch (err) {
-      toast({ title: "Erro ao excluir", variant: "destructive" })
+      toast({ title: "Falha ao Excluir", variant: "destructive" })
     }
   }
 
@@ -86,33 +81,33 @@ export default function ClassesPage() {
   }, [classes, searchTerm]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Suas Turmas</h2>
-          <p className="text-muted-foreground mt-1">Dados reais carregados do seu perfil docente.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">Diário de Turmas</h2>
+          <p className="text-muted-foreground mt-1">Dados reais carregados do seu repositório docente no Firebase.</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg">
-              <Plus className="h-4 w-4" /> Nova Turma
+            <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
+              <Plus className="h-5 w-5" /> Nova Turma
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] bg-white">
             <DialogHeader>
-              <DialogTitle>Cadastrar Nova Turma</DialogTitle>
-              <DialogDescription>A turma será vinculada exclusivamente ao seu UID.</DialogDescription>
+              <DialogTitle className="text-2xl font-black">Adicionar Turma</DialogTitle>
+              <DialogDescription>A nova turma será vinculada exclusivamente ao seu UID.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateClass} className="space-y-4 py-4">
+            <form onSubmit={handleCreateClass} className="space-y-5 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome da Turma</Label>
-                <Input id="name" placeholder="Ex: 3º Ano A - Matutino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required />
+                <Label htmlFor="name" className="font-bold">Nome da Turma</Label>
+                <Input id="name" placeholder="Ex: 9º Ano B - Vespertino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required className="h-11" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="subject">Disciplina Principal</Label>
+                <Label htmlFor="subject" className="font-bold">Disciplina</Label>
                 <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a matéria" /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Portuguese">Português</SelectItem>
                     <SelectItem value="Math">Matemática</SelectItem>
@@ -120,67 +115,60 @@ export default function ClassesPage() {
                 </Select>
               </div>
               <DialogFooter className="pt-4">
-                <Button type="submit" className="w-full h-12 font-bold shadow-lg">Criar Turma no Firestore</Button>
+                <Button type="submit" className="w-full h-12 font-black shadow-xl">GRAVAR NO BANCO</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-border/50">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar em minhas turmas..." className="pl-10 bg-muted/30 border-none h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Filtrar minhas turmas no Firestore..." className="pl-10 bg-white border-none shadow-sm h-12 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-24"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredClasses.map((cls) => (
-            <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-xl transition-all duration-300 bg-white">
-              <div className={`h-2 ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'}`} />
-              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-3">
-                <div className={`h-12 w-12 rounded-lg ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-inner`}>
+            <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-2xl transition-all duration-300 bg-white border-l-4 border-l-primary">
+              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4">
+                <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-lg`}>
                   <BookOpen className="h-6 w-6" />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{cls.name}</CardTitle>
-                  <Badge variant="secondary" className="text-[10px] font-bold uppercase mt-1">
-                    {cls.subject === 'Portuguese' ? 'Português' : 'Matemática'}
+                  <CardTitle className="text-xl font-black group-hover:text-primary transition-colors truncate">{cls.name}</CardTitle>
+                  <Badge variant="secondary" className="text-[9px] font-black uppercase mt-1 tracking-wider">
+                    {cls.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática'}
                   </Badge>
                 </div>
-                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteClass(cls.id)}>
-                   <Trash2 className="h-4 w-4 text-destructive" />
+                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
+                   <Trash2 className="h-4 w-4" />
                 </Button>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-primary/60" />
-                    <span>{cls.studentsCount || 0} Estudantes cadastrados</span>
-                  </div>
+              <CardContent className="pb-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span>{cls.studentsCount || 0} Alunos vinculados</span>
                 </div>
               </CardContent>
-              <CardFooter className="bg-muted/30 p-4 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 font-bold" asChild>
-                  <Link href={`/students?class=${cls.id}`}>Alunos</Link>
+              <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
+                <Button variant="outline" size="sm" className="flex-1 font-black h-10 hover:bg-primary hover:text-white transition-colors" asChild>
+                  <Link href={`/students?class=${cls.id}`}>GERENCIAR</Link>
                 </Button>
-                <Button size="sm" className="flex-1 font-bold shadow-md" asChild>
-                  <Link href={`/attendance?class=${cls.id}`}>Chamada</Link>
+                <Button size="sm" className="flex-1 font-black h-10 shadow-md gap-2" asChild>
+                  <Link href={`/attendance?class=${cls.id}`}>CHAMADA <ArrowRight className="h-3 w-3" /></Link>
                 </Button>
               </CardFooter>
             </Card>
           ))}
 
           {filteredClasses.length === 0 && (
-            <div className="col-span-full py-20 text-center opacity-30 border-2 border-dashed rounded-xl">
-              <BookOpen className="h-12 w-12 mx-auto mb-4" />
-              <p className="text-lg font-medium">Você ainda não tem turmas no Firestore.</p>
-              <p className="text-sm">Clique em "Nova Turma" para começar seu diário.</p>
+            <div className="col-span-full py-32 text-center opacity-40 border-4 border-dashed rounded-3xl bg-muted/10 flex flex-col items-center">
+              <BookOpen className="h-20 w-20 mb-6 text-primary/40" />
+              <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">Nenhuma turma encontrada</p>
+              <p className="text-sm font-medium mt-2">Clique no botão "Nova Turma" para registrar sua primeira classe no Firestore.</p>
             </div>
           )}
         </div>

@@ -20,11 +20,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
-import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
-import { Student, Discipline, BloomLevel } from "@/lib/types"
+import { Student } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, query, where } from "firebase/firestore"
+import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 
 function StudentsContent() {
   const searchParams = useSearchParams()
@@ -39,13 +38,14 @@ function StudentsContent() {
   const [isFichaOpen, setIsFichaOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   
-  // Real Firestore Data
+  // Turmas do professor para o Select
   const classesRef = useMemoFirebase(() => 
     user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
     [user, firestore]
   )
   const { data: classes = [] } = useCollection(classesRef)
 
+  // Estudantes da turma selecionada
   const studentsRef = useMemoFirebase(() => {
     if (!user || !classFilter) return null;
     return collection(firestore, 'teachers', user.uid, 'classes', classFilter, 'students');
@@ -65,8 +65,7 @@ function StudentsContent() {
     ra: "",
     raDigit: "",
     classId: classFilter || "",
-    status: "Ativo" as 'Ativo' | 'Inativo',
-    enrollments: [] as string[]
+    status: "Ativo" as 'Ativo' | 'Inativo'
   })
 
   useEffect(() => {
@@ -74,7 +73,7 @@ function StudentsContent() {
   }, [classFilter]);
 
   const filteredStudents = useMemo(() => {
-    return (students || []).filter(student => {
+    return students.filter(student => {
       const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            student.ra.includes(searchTerm)
       return matchesSearch
@@ -128,7 +127,7 @@ function StudentsContent() {
     if (!user || !formData.classId) return
     
     if (!formData.name || !formData.ra) {
-      toast({ title: "Erro", description: "Nome e RA são obrigatórios.", variant: "destructive" })
+      toast({ title: "Campos Obrigatórios", description: "Nome e RA devem ser preenchidos.", variant: "destructive" })
       return
     }
 
@@ -140,79 +139,79 @@ function StudentsContent() {
       id: studentId,
       photo: capturedPhoto,
       teacherId: user.uid,
-      class: classes.find(c => c.id === formData.classId)?.name || "N/A",
-      enrollmentDate: new Date().toISOString(),
-      history: isEditing && selectedStudent ? selectedStudent.history : { attendance: [], assessments: [], occurrences: [], observations: [] }
+      class: classes.find(c => c.id === formData.classId)?.name || "Turma",
+      enrollmentDate: new Date().toISOString()
     }
 
     try {
       await setDoc(targetRef, studentData)
       setIsRegisterOpen(false)
       stopCamera()
-      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado." })
+      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado no Firestore." })
     } catch (err) {
-      toast({ title: "Erro", description: "Falha ao salvar no banco de dados.", variant: "destructive" })
+      toast({ title: "Falha ao Salvar", description: "Verifique as regras de segurança do Firestore.", variant: "destructive" })
+    }
+  }
+
+  const handleDelete = async (studentId: string) => {
+    if (!user || !classFilter) return
+    try {
+      await deleteDoc(doc(firestore, 'teachers', user.uid, 'classes', classFilter, 'students', studentId))
+      toast({ title: "Removido", description: "Aluno excluído do banco de dados." })
+    } catch (err) {
+      toast({ title: "Erro ao excluir", variant: "destructive" })
     }
   }
 
   return (
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
+          <p className="text-sm text-muted-foreground">Listagem real baseada em sua conta docente.</p>
+        </div>
         {classFilter ? (
-          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setIsRegisterOpen(true); }}>
-            <UserPlus className="h-4 w-4 mr-2" /> Cadastrar Aluno
+          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter, status: "Ativo" }); setIsRegisterOpen(true); }}>
+            <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
           </Button>
         ) : (
-          <Badge variant="outline" className="p-2">Selecione uma turma na aba "Turmas" para gerenciar alunos</Badge>
+          <Badge variant="outline" className="p-2 bg-yellow-50 border-yellow-200 text-yellow-700">Selecione uma turma para gerenciar</Badge>
         )}
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nome ou RA..." className="pl-10 h-11 bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <Input placeholder="Buscar por nome ou RA no Firestore..." className="pl-10 h-11 bg-white shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {filteredStudents.map((student) => (
-            <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white">
+            <Card key={student.id} className="border-none shadow-sm hover:shadow-md transition-all group bg-white">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  {student.photo ? (
-                    <img src={student.photo} className="h-10 w-10 rounded-full object-cover" />
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                      {student.name.charAt(0)}
-                    </div>
-                  )}
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-primary/20">
+                    {student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <span className="font-bold text-primary">{student.name.charAt(0)}</span>}
+                  </div>
                   <div className="flex flex-col">
-                    <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm hover:underline">{student.name}</button>
-                    <span className="text-[10px] text-muted-foreground font-bold">RA: {student.ra}-{student.raDigit} • {student.class}</span>
+                    <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm text-left hover:text-primary transition-colors">{student.name}</button>
+                    <span className="text-[10px] text-muted-foreground font-bold tracking-tight">RA: {student.ra}-{student.raDigit} • {student.class}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => { 
-                    setSelectedStudent(student); 
-                    setFormData({ ...student });
-                    setCapturedPhoto(student.photo);
-                    setIsEditing(true);
-                    setIsRegisterOpen(true);
-                  }}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }}><Eye className="h-4 w-4" /></Button>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" onClick={() => { setSelectedStudent(student); setFormData({ ...student }); setCapturedPhoto(student.photo); setIsEditing(true); setIsRegisterOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(student.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </CardContent>
             </Card>
           ))}
           {filteredStudents.length === 0 && (
-            <div className="py-20 text-center opacity-30">
-              <GraduationCap className="h-12 w-12 mx-auto mb-4" />
-              <p className="text-lg font-medium">Nenhum aluno encontrado.</p>
-              {!classFilter && <p className="text-sm">Selecione uma turma para carregar os alunos.</p>}
+            <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
+              <GraduationCap className="h-16 w-16 mx-auto mb-4" />
+              <p className="text-xl font-bold">Nenhum aluno no Firestore</p>
+              <p className="text-sm">Cadastre novos alunos para começar o acompanhamento.</p>
             </div>
           )}
         </div>
@@ -220,63 +219,60 @@ function StudentsContent() {
 
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { if (!open) stopCamera(); setIsRegisterOpen(open); }}>
         <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
-          <DialogHeader className="p-6 border-b shrink-0"><DialogTitle>{isEditing ? 'Editar' : 'Novo'} Aluno</DialogTitle></DialogHeader>
+          <DialogHeader className="p-6 border-b shrink-0"><DialogTitle>{isEditing ? 'Atualizar' : 'Novo'} Registro de Aluno</DialogTitle></DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex flex-col items-center gap-4 shrink-0">
-                  <div className="h-40 w-40 rounded-2xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
-                    {capturedPhoto ? <img src={capturedPhoto} className="h-full w-full object-cover" /> : isCameraActive ? <video ref={videoRef} autoPlay muted className="h-full w-full object-cover" /> : <ImageIcon className="h-12 w-12 text-muted-foreground" />}
+                  <div className="h-44 w-44 rounded-2xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden shadow-inner">
+                    {capturedPhoto ? <img src={capturedPhoto} className="h-full w-full object-cover" /> : isCameraActive ? <video ref={videoRef} autoPlay muted className="h-full w-full object-cover" /> : <ImageIcon className="h-14 w-14 text-muted-foreground" />}
                   </div>
                   <div className="flex gap-2">
-                    {isCameraActive ? <Button size="sm" onClick={capturePhoto}><Check className="h-4 w-4 mr-2" /> Capturar</Button> : <Button variant="outline" size="sm" onClick={startCamera}><Camera className="h-4 w-4 mr-2" /> Câmera</Button>}
-                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4 mr-2" /> Upload</Button>
-                    <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                    {isCameraActive ? <Button size="sm" onClick={capturePhoto} className="bg-green-600 hover:bg-green-700"><Check className="h-4 w-4 mr-2" /> Capturar</Button> : <Button variant="outline" size="sm" onClick={startCamera}><Camera className="h-4 w-4 mr-2" /> Câmera</Button>}
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4 mr-2" /> Foto</Button>
+                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 flex-1">
-                  <div className="col-span-2 space-y-2"><Label>Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} /></div>
-                  <div className="space-y-2"><Label>RA</Label><Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} /></div>
-                  <div className="space-y-2"><Label>Dígito</Label><Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} /></div>
-                  <div className="space-y-2"><Label>Turma</Label>
+                  <div className="col-span-2 space-y-1.5"><Label>Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ex: João da Silva" /></div>
+                  <div className="space-y-1.5"><Label>RA</Label><Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} placeholder="000.000.000" /></div>
+                  <div className="space-y-1.5"><Label>Dígito</Label><Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} placeholder="X" /></div>
+                  <div className="space-y-1.5"><Label>Turma</Label>
                     <Select value={formData.classId} onValueChange={(v) => setFormData({...formData, classId: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
                         {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2"><Label>Chamada</Label><Input type="number" value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} /></div>
+                  <div className="space-y-1.5"><Label>Nº Chamada</Label><Input type="number" value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} /></div>
                 </div>
               </div>
             </div>
           </ScrollArea>
-          <DialogFooter className="p-6 border-t bg-slate-50 shrink-0"><Button variant="outline" onClick={() => setIsRegisterOpen(false)}>Cancelar</Button><Button onClick={handleRegisterSubmit}>Salvar Aluno</Button></DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50 shrink-0"><Button variant="ghost" onClick={() => setIsRegisterOpen(false)}>Cancelar</Button><Button onClick={handleRegisterSubmit} className="shadow-lg">Gravar no Firestore</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
-          <DialogHeader className="p-6 bg-primary text-white shrink-0">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">{selectedStudent?.photo ? <img src={selectedStudent.photo} className="h-full w-full object-cover" /> : selectedStudent?.name.charAt(0)}</div>
-              <div><DialogTitle className="text-2xl font-bold">{selectedStudent?.name}</DialogTitle><DialogDescription className="text-sm opacity-80">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</DialogDescription></div>
+          <DialogHeader className="p-8 bg-primary text-white shrink-0">
+            <div className="flex items-center gap-6">
+              <div className="h-20 w-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/50">{selectedStudent?.photo ? <img src={selectedStudent.photo} className="h-full w-full object-cover" /> : <span className="text-3xl font-bold">{selectedStudent?.name.charAt(0)}</span>}</div>
+              <div><DialogTitle className="text-3xl font-black">{selectedStudent?.name}</DialogTitle><DialogDescription className="text-white/80 font-medium">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</DialogDescription></div>
             </div>
           </DialogHeader>
           <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="bg-transparent border-b px-6 h-12 justify-start gap-4 rounded-none"><TabsTrigger value="info">Matrícula</TabsTrigger><TabsTrigger value="history">Histórico</TabsTrigger></TabsList>
-            <ScrollArea className="flex-1 p-6">
-              <TabsContent value="info" className="m-0 space-y-4">
-                <h4 className="font-bold flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Dados Cadastrais</h4>
-                <div className="grid gap-2 border p-4 rounded-lg bg-slate-50">
-                   <p className="text-sm"><strong>Status:</strong> {selectedStudent?.status}</p>
-                   <p className="text-sm"><strong>Turma:</strong> {selectedStudent?.class}</p>
-                   <p className="text-sm"><strong>Número:</strong> {selectedStudent?.callNumber}</p>
+            <TabsList className="bg-slate-50 border-b px-8 h-14 justify-start gap-8 rounded-none"><TabsTrigger value="info" className="font-bold">Informações</TabsTrigger><TabsTrigger value="history" className="font-bold">Histórico</TabsTrigger></TabsList>
+            <ScrollArea className="flex-1 p-8">
+              <TabsContent value="info" className="m-0 space-y-6">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border bg-slate-50"><Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Status</Label><p className="font-bold text-green-600">{selectedStudent?.status}</p></div>
+                  <div className="p-4 rounded-xl border bg-slate-50"><Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Turma</Label><p className="font-bold">{selectedStudent?.class}</p></div>
+                  <div className="p-4 rounded-xl border bg-slate-50"><Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Chamada</Label><p className="font-bold">#{selectedStudent?.callNumber}</p></div>
                 </div>
               </TabsContent>
-              <TabsContent value="history" className="m-0 space-y-4">
-                <div className="py-10 text-center text-muted-foreground italic">Histórico acadêmico em desenvolvimento.</div>
-              </TabsContent>
+              <TabsContent value="history" className="m-0 py-20 text-center opacity-30 italic">Nenhum histórico disponível para este aluno no momento.</TabsContent>
             </ScrollArea>
           </Tabs>
         </DialogContent>
@@ -287,5 +283,5 @@ function StudentsContent() {
 }
 
 export default function StudentsPage() {
-  return <Suspense fallback={<div>Carregando...</div>}><StudentsContent /></Suspense>
+  return <Suspense fallback={<div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div>}><StudentsContent /></Suspense>
 }
