@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { 
-  School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle, Key
+  School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle, Key, Trash2
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,6 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { TeacherProfile, TeacherAssignment } from "@/lib/types"
@@ -222,9 +232,7 @@ export default function SettingsPage() {
           await deleteApp(provisionApp);
         } catch (authErr: any) {
           if (authErr.code === 'auth/email-already-in-use' && !finalTeacherId) {
-            // Se o e-mail já existe, precisamos buscar o UID por e-mail no Auth 
-            // (Mas no client-side não temos essa API direta, então usamos o fallback do handshake no primeiro login)
-            // Por enquanto, usamos o e-mail como ID temporário e o handshake em provider.tsx fará o auto-fix.
+            // Fallback: se o e-mail já existe, o handshake do login cuidará do pareamento
             finalTeacherId = editingTeacher.email.replace(/[.@]/g, '_');
           }
         }
@@ -249,6 +257,41 @@ export default function SettingsPage() {
       setIsSaving(false)
     }
   }, [isAdmin, firestore, editingTeacher, toast]);
+
+  /**
+   * Executa a exclusão de um professor através da API Administrativa.
+   * Remove tanto o acesso (Auth) quanto os dados de perfil (Firestore).
+   */
+  const handleDeleteTeacher = useCallback(async (uid: string) => {
+    if (!isAdmin || !user) return;
+    setIsSaving(true);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ uid })
+      });
+
+      if (response.ok) {
+        toast({ title: "Usuário Excluído", description: "O acesso e o perfil foram removidos do sistema." });
+      } else {
+        const err = await response.json();
+        toast({ 
+          title: "Erro na Exclusão", 
+          description: err.error || "Não foi possível completar a operação.", 
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ title: "Falha na Comunicação", description: "Erro ao contactar o servidor de administração.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isAdmin, user, toast]);
 
   const updateAssignment = useCallback((index: number, field: keyof TeacherAssignment, value: string) => {
     setEditingTeacher(prev => {
@@ -390,7 +433,33 @@ export default function SettingsPage() {
                             </td>
                             <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase">{t.role}</Badge></td>
                             <td className="px-6 py-4">
-                              <Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                                {user?.uid !== t.id && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="bg-white">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="font-black uppercase text-primary">Excluir Docente?</AlertDialogTitle>
+                                        <AlertDialogDescription className="font-bold text-xs uppercase">
+                                          Esta ação removerá permanentemente o acesso institucional e o perfil de <strong>{t.name}</strong>. Esta operação não pode ser desfeita.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel className="font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => handleDeleteTeacher(t.id)} 
+                                          className="bg-destructive font-black uppercase text-[10px] tracking-widest"
+                                        >
+                                          Confirmar Exclusão
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
