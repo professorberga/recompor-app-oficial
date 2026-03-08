@@ -37,7 +37,7 @@ function AttendanceContent() {
   const searchParams = useSearchParams()
   const classIdFromUrl = searchParams.get('class')
   const [mounted, setMounted] = useState(false)
-  const { user, profile, isAdmin, isUserLoading } = useUser()
+  const { user, profile, schoolConfig, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   
   const [selectedClassId, setSelectedClassId] = useState(classIdFromUrl || "")
@@ -49,13 +49,11 @@ function AttendanceContent() {
   const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
-  const classesRef = useMemoFirebase(() => 
-    user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
-    [user, firestore]
-  )
-  const { data: rawClasses = [] } = useCollection(classesRef)
+  // Busca turmas Globais
+  const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
+  const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas por atribuição
+  // Filtra turmas conforme atribuição no perfil
   const classes = useMemo(() => {
     if (isAdmin) return rawClasses;
     if (profile?.assignments && profile.assignments.length > 0) {
@@ -65,6 +63,7 @@ function AttendanceContent() {
     return [];
   }, [rawClasses, profile, isAdmin]);
 
+  // Alunos vinculados ao professor logado (conforme backend.json)
   const studentsRef = useMemoFirebase(() => {
     if (!user || !selectedClassId) return null;
     return query(
@@ -96,7 +95,6 @@ function AttendanceContent() {
     if (classIdFromUrl) setSelectedClassId(classIdFromUrl)
   }, [classIdFromUrl])
 
-  // Load existing data when class/date changes
   useEffect(() => {
     async function loadLessonContent() {
       if (!user || !selectedClassId || !currentDate) return;
@@ -133,10 +131,18 @@ function AttendanceContent() {
     }).sort((a, b) => (Number(a.callNumber) || 0) - (Number(b.callNumber) || 0));
   }, [students, searchTerm]);
 
-  const dateBimestre = useMemo(() => currentDate ? getBimestreFromDate(currentDate) : null, [currentDate]);
+  const dateBimestre = useMemo(() => {
+    if (!currentDate) return schoolConfig?.activeBimestre || "1";
+    return getBimestreFromDate(currentDate);
+  }, [currentDate, schoolConfig]);
+
+  const isOutsideActiveBimestre = useMemo(() => {
+    if (!schoolConfig?.activeBimestre) return false;
+    return dateBimestre !== schoolConfig.activeBimestre;
+  }, [dateBimestre, schoolConfig]);
 
   const handleSave = async () => {
-    if (!user || !selectedClassId || !currentDate || !dateBimestre) return;
+    if (!user || !selectedClassId || !currentDate) return;
     if (!contentSummary.trim()) {
       toast({ title: "Campo Obrigatório", description: "O resumo do conteúdo ministrado é necessário para a auditoria.", variant: "destructive" });
       return;
@@ -149,7 +155,6 @@ function AttendanceContent() {
     const selectedClass = classes.find(c => c.id === selectedClassId);
 
     try {
-      // 1. Save Student Statuses
       const savePromises = Object.entries(attendance).map(([studentId, status]) => {
         const recordId = `${studentId}_${dateStr}`;
         return setDoc(doc(recordsColRef, recordId), {
@@ -163,7 +168,6 @@ function AttendanceContent() {
         }, { merge: true });
       });
 
-      // 2. Save Lesson Content
       const lessonPromise = setDoc(lessonRef, {
         id: `${selectedClassId}_${dateStr}`,
         classId: selectedClassId,
@@ -175,9 +179,9 @@ function AttendanceContent() {
       }, { merge: true });
 
       await Promise.all([...savePromises, lessonPromise]);
-      toast({ title: "Diário Sincronizado", description: "Frequência e conteúdo salvos com sucesso." })
+      toast({ title: "Diário Sincronizado", description: `Dados gravados no ${BIMESTRE_LABELS[dateBimestre]}.` })
     } catch (err: any) {
-      toast({ title: "Falha ao Salvar", description: "Erro nas permissões do Firestore.", variant: "destructive" })
+      toast({ title: "Falha ao Salvar", description: "Erro de permissão no Firestore.", variant: "destructive" })
     } finally {
       setIsSaving(false);
     }
@@ -210,7 +214,7 @@ function AttendanceContent() {
       <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Turma</Label>
+            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Turma Atribuída</Label>
             <Select value={selectedClassId} onValueChange={setSelectedClassId}>
               <SelectTrigger className="h-11 shadow-sm"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
               <SelectContent>
@@ -219,7 +223,7 @@ function AttendanceContent() {
                     <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="none" disabled>Nenhuma turma atribuída</SelectItem>
+                  <SelectItem value="none" disabled>Nenhuma turma atribuída pela coordenação</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -235,13 +239,19 @@ function AttendanceContent() {
             </div>
           </div>
         </div>
+        {isOutsideActiveBimestre && (
+          <div className="bg-yellow-50 border-yellow-200 border p-3 rounded-lg flex items-center gap-2 text-yellow-800 text-xs font-bold animate-pulse">
+            <AlertCircle className="h-4 w-4" />
+            Atenção: Você está visualizando uma data fora do Bimestre Ativo ({BIMESTRE_LABELS[schoolConfig?.activeBimestre || "1"]}).
+          </div>
+        )}
       </div>
 
-      {classes.length === 0 ? (
+      {!isUserLoading && classes.length === 0 ? (
         <Card className="p-20 text-center flex flex-col items-center gap-4 bg-white shadow-sm border-dashed border-2">
           <AlertCircle className="h-12 w-12 text-muted-foreground opacity-20" />
-          <p className="font-bold text-muted-foreground">Nenhuma turma atribuída ao seu perfil.</p>
-          <p className="text-xs text-muted-foreground">Contate o Coordenador Berga para registrar sua grade horária.</p>
+          <p className="font-bold text-muted-foreground">Aguardando atribuição de turmas pelo Coordenador Berga.</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">Escola: {schoolConfig?.schoolName}</p>
         </Card>
       ) : (
         <Card className="border-none shadow-md overflow-hidden bg-white">
@@ -305,7 +315,7 @@ function AttendanceContent() {
               value={contentSummary} 
               onChange={(e) => setContentSummary(e.target.value)} 
             />
-            <p className="text-[10px] text-muted-foreground mt-2 font-bold uppercase">* Obrigatório para auditoria pedagógica</p>
+            <p className="text-[10px] text-muted-foreground mt-2 font-bold uppercase">* Obrigatório para conformidade pedagógica</p>
           </Card>
 
           <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">

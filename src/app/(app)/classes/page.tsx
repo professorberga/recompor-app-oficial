@@ -22,21 +22,17 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Referência para as turmas vinculadas ao PRÓPRIO UID do usuário logado.
-  // IMPORTANTE: Isso respeita a regra isOwner(teacherId) e evita Missing Permissions.
-  const classesRef = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    return collection(firestore, 'teachers', user.uid, 'classes');
-  }, [user, firestore]);
-  
+  // Busca turmas da coleção GLOBAL para que o professor veja o que lhe foi atribuído
+  const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore]);
   const { data: rawClasses = [], isLoading: isClassesLoading } = useCollection(classesRef)
 
-  const allStudentsRef = useMemoFirebase(() => {
+  // Busca estudantes no subdiretório do próprio professor (conforme backend.json)
+  const myStudentsRef = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return collection(firestore, 'teachers', user.uid, 'students');
   }, [user, firestore]);
   
-  const { data: allStudents = [], isLoading: isStudentsLoading } = useCollection(allStudentsRef)
+  const { data: myStudents = [], isLoading: isStudentsLoading } = useCollection(myStudentsRef)
 
   const [newClass, setNewClass] = useState({
     name: "",
@@ -45,25 +41,21 @@ export default function ClassesPage() {
 
   // Filtra as turmas com base nas atribuições feitas pelo Admin
   const classes = useMemo(() => {
+    if (isUserLoading || !profile) return [];
     if (isAdmin) return rawClasses;
     
-    // Se for professor comum, ele só vê turmas que estão no seu array assignments
-    if (profile?.assignments && profile.assignments.length > 0) {
-      const assignedIds = profile.assignments.map(a => a.classId);
-      return rawClasses.filter(c => assignedIds.includes(c.id));
-    }
-    
-    // Se não tiver atribuições, não vê nada (regra de segurança pedagógica)
-    return [];
-  }, [rawClasses, profile, isAdmin]);
+    // Se for professor, ele vê o que está em assignments ou o que ele mesmo criou na coleção global
+    const assignedIds = profile.assignments?.map(a => a.classId) || [];
+    return rawClasses.filter(c => assignedIds.includes(c.id) || c.teacherId === user?.uid);
+  }, [rawClasses, profile, isAdmin, isUserLoading, user]);
 
   const getStudentCount = (classId: string) => {
-    return allStudents.filter(s => s.classId === classId).length;
+    return myStudents.filter(s => s.classId === classId).length;
   }
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.uid || !classesRef) return;
+    if (!user?.uid) return;
     
     if (!newClass.name) {
       toast({ title: "Campo Vazio", description: "O nome da turma é obrigatório.", variant: "destructive" })
@@ -83,21 +75,25 @@ export default function ClassesPage() {
     }
 
     try {
-      await setDoc(doc(classesRef, classId), classData)
+      // Salva na coleção GLOBAL de classes conforme sugerido para coordenação institucional
+      await setDoc(doc(firestore, 'classes', classId), classData)
       setIsDialogOpen(false)
       setNewClass({ name: "", subject: "Portuguese" })
-      toast({ title: "Turma Criada", description: `${classData.name} foi registrada no seu diário.` })
+      toast({ title: "Turma Criada", description: `${classData.name} foi registrada com sucesso.` })
     } catch (err: any) {
-      toast({ title: "Falha na Gravação", description: "Erro ao acessar seu diário no Firestore.", variant: "destructive" })
+      toast({ title: "Falha na Gravação", description: "Erro de permissão no Firestore.", variant: "destructive" })
     }
   }
 
   const handleDeleteClass = async (id: string) => {
-    if (!user?.uid || !classesRef) return
-    if (!confirm("Excluir esta turma?")) return;
+    if (!isAdmin) {
+      toast({ title: "Acesso Negado", description: "Apenas coordenadores podem excluir turmas globais.", variant: "destructive" });
+      return;
+    }
+    if (!confirm("Excluir esta turma permanentemente?")) return;
 
     try {
-      await deleteDoc(doc(classesRef, id))
+      await deleteDoc(doc(firestore, 'classes', id))
       toast({ title: "Removido", description: "Turma excluída com sucesso." })
     } catch (err) {
       toast({ title: "Falha ao Excluir", variant: "destructive" })
@@ -117,43 +113,45 @@ export default function ClassesPage() {
           <h2 className="text-3xl font-bold tracking-tight text-primary">Diário de Turmas</h2>
           <p className="text-muted-foreground mt-1">
             {isAdmin 
-              ? "Gerenciamento global de turmas da unidade escolar." 
-              : "Exibindo turmas atribuídas e registradas no seu perfil."}
+              ? "Gerenciamento institucional de turmas e atribuições." 
+              : "Exibindo turmas atribuídas e registradas no seu diário."}
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
-              <Plus className="h-5 w-5" /> Nova Turma
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] bg-white">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
-              <DialogDescription>A nova turma será registrada exclusivamente no seu perfil.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateClass} className="space-y-5 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="font-bold">Nome da Turma</Label>
-                <Input id="name" placeholder="Ex: 9º Ano B - Vespertino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required className="h-11" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subject" className="font-bold">Disciplina Base</Label>
-                <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Portuguese">Português</SelectItem>
-                    <SelectItem value="Math">Matemática</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter className="pt-4">
-                <Button type="submit" className="w-full h-12 font-black shadow-xl">GRAVAR NO BANCO</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {isAdmin && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
+                <Plus className="h-5 w-5" /> Nova Turma
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] bg-white">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
+                <DialogDescription>A nova turma ficará disponível para atribuição global.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateClass} className="space-y-5 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="font-bold">Nome da Turma</Label>
+                  <Input id="name" placeholder="Ex: 9º Ano B - Vespertino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required className="h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject" className="font-bold">Disciplina Base</Label>
+                  <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Portuguese">Português</SelectItem>
+                      <SelectItem value="Math">Matemática</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter className="pt-4">
+                  <Button type="submit" className="w-full h-12 font-black shadow-xl">GRAVAR NO BANCO</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="relative">
@@ -177,14 +175,16 @@ export default function ClassesPage() {
                     {cls.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática'}
                   </Badge>
                 </div>
-                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <GraduationCap className="h-4 w-4 text-primary" />
-                  <span className="font-bold">{getStudentCount(cls.id)} Alunos vinculados</span>
+                  <span className="font-bold">{getStudentCount(cls.id)} Alunos registrados</span>
                 </div>
               </CardContent>
               <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
@@ -198,16 +198,16 @@ export default function ClassesPage() {
             </Card>
           ))}
 
-          {filteredClasses.length === 0 && (
+          {!isClassesLoading && filteredClasses.length === 0 && (
             <div className="col-span-full py-32 text-center opacity-40 border-4 border-dashed rounded-3xl bg-muted/10 flex flex-col items-center">
               <BookOpen className="h-20 w-20 mb-6 text-primary/40" />
               <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">
-                Nenhuma turma encontrada
+                {isAdmin ? "Nenhuma turma cadastrada" : "Aguardando atribuição do Coordenador"}
               </p>
               <p className="text-sm font-medium mt-2 px-10 text-center">
-                {profile?.assignments?.length 
-                  ? "As turmas atribuídas pelo Admin ainda não possuem registros no seu diário." 
-                  : "Crie uma nova turma clicando no botão acima ou aguarde atribuição da coordenação."}
+                {isAdmin 
+                  ? "Crie as turmas da escola para começar as atribuições." 
+                  : "Nenhuma turma foi vinculada ao seu perfil pelo Administrador Berga."}
               </p>
             </div>
           )}
