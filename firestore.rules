@@ -22,17 +22,9 @@ service cloud.firestore {
 
     // --- PROFESSORES (IDENTIDADE E MIGRAÇÃO) ---
     match /teachers/{teacherId} {
-      // Permite leitura se o ID for o UID OU se o e-mail no documento for o e-mail do token
-      // Isso é vital para o código de migração conseguir ler o perfil antigo (ID=e-mail/RA)
-      allow get: if isSignedIn() && (
-        request.auth.uid == teacherId || 
-        resource.data.email == request.auth.token.email
-      );
-      // Permite listagem via query de e-mail para o próprio usuário ou Admin
-      allow list: if isSignedIn() && (
-        isAdmin() || 
-        (request.auth.token.email != null && resource.data.email == request.auth.token.email)
-      );
+      // Permite leitura para qualquer usuário autenticado (necessário para ver colegas nas turmas)
+      allow read: if isSignedIn();
+      
       // Permite escrita se for Admin ou se o e-mail do documento corresponder ao token
       // O campo email deve ser soberano para permitir a migração (criação do novo e delete do antigo)
       allow write: if isAdmin() || (isSignedIn() && (
