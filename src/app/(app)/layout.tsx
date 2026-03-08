@@ -1,14 +1,34 @@
+
 "use client"
 
 import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { Toaster } from "@/components/ui/toaster"
+import { useUser } from "@/firebase/provider"
+import { Loader2 } from "lucide-react"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { user, isUserLoading } = useUser()
+  const router = useRouter()
+
   useEffect(() => {
-    console.log("[AppLayout] Componente montado");
-  }, []);
+    if (!isUserLoading && !user) {
+      router.push("/login")
+    }
+  }, [user, isUserLoading, router])
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">Verificando credenciais...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <SidebarProvider>

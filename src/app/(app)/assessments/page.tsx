@@ -156,7 +156,6 @@ export default function AssessmentPage() {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState("manager")
   
-  // Assessment Manager State
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([
     {
       id: 'initial-1',
@@ -190,16 +189,13 @@ export default function AssessmentPage() {
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   const [gradingClassId, setGradingClassId] = useState<string>("")
-  
-  // Spreadsheet & Performance Map State
   const [spreadsheetClassId, setSpreadsheetClassId] = useState<string>("1")
 
-  // New Assessment Form State
   const [newAssessment, setNewAssessment] = useState({
     title: "",
     subject: "Portuguese" as "Portuguese" | "Math",
     bloomLevel: "Understand",
-    date: new Date().toISOString().split('T')[0],
+    date: "",
   })
   
   const [selectedClasses, setSelectedClasses] = useState<string[]>([])
@@ -210,6 +206,10 @@ export default function AssessmentPage() {
 
   useEffect(() => {
     setMounted(true)
+    setNewAssessment(prev => ({
+      ...prev,
+      date: new Date().toISOString().split('T')[0]
+    }))
   }, [])
 
   const handleCreateAssessment = (e: React.FormEvent) => {
@@ -308,10 +308,10 @@ export default function AssessmentPage() {
     const { rows } = spreadsheetData;
     
     const groups = {
-      excellence: [] as any[], // >= 8.0
-      satisfactory: [] as any[], // 6.0 - 7.9
-      development: [] as any[], // 4.0 - 5.9
-      critical: [] as any[] // < 4.0
+      excellence: [] as any[],
+      satisfactory: [] as any[],
+      development: [] as any[],
+      critical: [] as any[]
     };
 
     rows.forEach(row => {
@@ -784,7 +784,6 @@ export default function AssessmentPage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {/* Excellence */}
             <Card className="border-none shadow-md bg-white">
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
@@ -809,7 +808,6 @@ export default function AssessmentPage() {
               </CardContent>
             </Card>
 
-            {/* Satisfactory */}
             <Card className="border-none shadow-md bg-white">
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
@@ -834,7 +832,6 @@ export default function AssessmentPage() {
               </CardContent>
             </Card>
 
-            {/* Development */}
             <Card className="border-none shadow-md bg-white">
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
@@ -859,7 +856,6 @@ export default function AssessmentPage() {
               </CardContent>
             </Card>
 
-            {/* Critical */}
             <Card className="border-none shadow-md bg-white">
               <CardHeader className="bg-slate-50 border-b p-4">
                 <div className="flex items-center justify-between">
@@ -887,7 +883,6 @@ export default function AssessmentPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Grades Dialog */}
       <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] bg-white p-0 overflow-hidden flex flex-col shadow-2xl border-none">
           <DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0">

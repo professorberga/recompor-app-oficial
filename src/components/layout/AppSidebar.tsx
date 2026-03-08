@@ -1,3 +1,4 @@
+
 "use client"
 
 import {
@@ -11,11 +12,14 @@ import {
   ShieldCheck,
   UserCircle,
   LogOut,
-  ChevronUp
+  ChevronUp,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
+import { signOut } from "firebase/auth"
+import { useAuth, useUser } from "@/firebase/provider"
 
 import {
   Sidebar,
@@ -38,6 +42,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel
 } from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 
 const items = [
   {
@@ -86,38 +91,37 @@ const items = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { setOpenMobile, isMobile } = useSidebar()
   const [mounted, setMounted] = useState(false)
-  
-  // Simulação de troca de usuário para teste do protótipo
-  const [currentUser, setCurrentUser] = useState({
-    id: 'admin-1',
-    name: 'Marcio Bergamini',
-    role: 'Admin' as 'Admin' | 'Professor'
-  })
+  const auth = useAuth()
+  const { user } = useUser()
+  const { toast } = useToast()
 
   useEffect(() => {
     setMounted(true)
-    const saved = localStorage.getItem('proto_user_role')
-    if (saved) {
-      if (saved === 'Professor') {
-        setCurrentUser({ id: 'prof-1', name: 'Ricardo Silva', role: 'Professor' })
-      } else {
-        setCurrentUser({ id: 'admin-1', name: 'Marcio Bergamini', role: 'Admin' })
-      }
-    }
   }, [])
 
-  const switchRole = (role: 'Admin' | 'Professor') => {
-    if (role === 'Professor') {
-      localStorage.setItem('proto_user_role', 'Professor')
-    } else {
-      localStorage.setItem('proto_user_role', 'Admin')
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth)
+      toast({
+        title: "Sessão Encerrada",
+        description: "Você saiu do sistema com segurança.",
+      })
+      router.push("/login")
+    } catch (error) {
+      toast({
+        title: "Erro ao sair",
+        description: "Não foi possível encerrar a sessão. Tente novamente.",
+        variant: "destructive"
+      })
     }
-    window.location.reload()
   }
 
-  const isAdmin = currentUser.role === 'Admin'
+  // No protótipo real, o papel viria de um documento de Teacher no Firestore
+  // Aqui usaremos o e-mail ou uma flag mockada para distinguir o Admin enquanto não temos o documento
+  const isAdmin = user?.email?.includes('admin') || user?.email?.includes('marciobergamini')
   const schoolName = "E.E. Professor Milton Santos"
 
   const handleLinkClick = () => {
@@ -128,16 +132,7 @@ export function AppSidebar() {
 
   const filteredItems = items.filter(item => !item.adminOnly || isAdmin)
 
-  // Evita Hydration Mismatch renderizando o ícone dinâmico/perfis apenas após a montagem
-  if (!mounted) {
-    return (
-      <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
-        <SidebarHeader className="p-4" />
-        <SidebarContent />
-        <SidebarFooter className="p-4 border-t border-border mt-auto" />
-      </Sidebar>
-    )
-  }
+  if (!mounted) return null
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-white shadow-sm">
@@ -193,12 +188,18 @@ export function AppSidebar() {
                 <SidebarMenuButton className="h-14 px-4 bg-muted/30 hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                      {currentUser.name.charAt(0)}{currentUser.name.split(' ')[1]?.charAt(0)}
+                      {user?.displayName ? (
+                        user.displayName.charAt(0) + (user.displayName.split(' ')[1]?.charAt(0) || '')
+                      ) : (
+                        user?.email?.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <div className="flex flex-col group-data-[collapsible=icon]:hidden text-left">
-                      <span className="font-bold text-xs truncate max-w-[120px]">{currentUser.name}</span>
+                      <span className="font-bold text-xs truncate max-w-[120px]">
+                        {user?.displayName || user?.email?.split('@')[0]}
+                      </span>
                       <span className="text-[10px] text-primary font-bold uppercase tracking-tighter">
-                        {currentUser.role}
+                        {isAdmin ? 'Administrador' : 'Professor'}
                       </span>
                     </div>
                     <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden" />
@@ -206,20 +207,18 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="w-56 mb-2">
-                <DropdownMenuLabel>Alternar Perfil (Protótipo)</DropdownMenuLabel>
+                <DropdownMenuLabel>Sua Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => switchRole('Admin')}>
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Entrar como Admin
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => switchRole('Professor')}>
-                  <UserCircle className="mr-2 h-4 w-4" />
-                  Entrar como Professor
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center w-full">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Configurações
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sair
+                  Sair do Sistema
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

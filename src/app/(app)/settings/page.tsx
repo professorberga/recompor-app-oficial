@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -18,7 +19,8 @@ import {
   Info,
   ChevronRight,
   UserCheck,
-  UserCircle
+  UserCircle,
+  Loader2
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,6 +35,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { SystemUser, Discipline, UserRole } from "@/lib/types"
+import { useUser } from "@/firebase/provider"
 
 const INITIAL_USERS: SystemUser[] = [
   { 
@@ -89,6 +92,7 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { user, isUserLoading } = useUser()
   
   const [isSaving, setIsSaving] = useState(false)
 
@@ -119,12 +123,21 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true)
-    // Verificação de permissão no cliente (protótipo)
-    const role = localStorage.getItem('proto_user_role')
-    if (role === 'Professor') {
-      router.push('/dashboard')
+  }, [])
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      const isAdmin = user.email?.includes('admin') || user.email?.includes('marciobergamini')
+      if (!isAdmin) {
+        toast({
+          title: "Acesso Negado",
+          description: "Somente administradores podem acessar as configurações.",
+          variant: "destructive"
+        })
+        router.push('/dashboard')
+      }
     }
-  }, [router])
+  }, [user, isUserLoading, router, toast])
 
   const handleSave = () => {
     setIsSaving(true)
@@ -237,7 +250,11 @@ export default function SettingsPage() {
     ? MOCK_STUDENTS.filter(s => s.enrollments.includes(selectedDisciplineForStudents.id))
     : [];
 
-  if (!mounted) return null
+  if (!mounted || isUserLoading) return (
+    <div className="flex items-center justify-center p-20">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
@@ -444,11 +461,11 @@ export default function SettingsPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2 sm:col-span-2">
                           <Label>Nome Completo</Label>
-                          <Input value={userFormData.name} onChange={(e) => setUserFormData({...userFormData, name: e.target.value})} />
+                          <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={userFormData.name} onChange={(e) => setUserFormData({...userFormData, name: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>E-mail</Label>
-                          <Input type="email" value={userFormData.email} onChange={(e) => setUserFormData({...userFormData, email: e.target.value})} />
+                          <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" type="email" value={userFormData.email} onChange={(e) => setUserFormData({...userFormData, email: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>Perfil</Label>
@@ -562,12 +579,12 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Nome da Unidade Escolar</Label>
-                <Input defaultValue="E.E. Professor Milton Santos" />
+                <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" defaultValue="E.E. Professor Milton Santos" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ano Letivo</Label>
-                  <Input defaultValue="2024" />
+                  <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" defaultValue="2024" />
                 </div>
                 <div className="space-y-2">
                   <Label>Bimestre</Label>

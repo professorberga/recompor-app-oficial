@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX, BookOpen, Clock } from "lucide-react"
+import { Search, Calendar, ChevronLeft, ChevronRight, Save, UserCheck, UserX, BookOpen, Clock, Loader2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { Student, Discipline } from "@/lib/types"
+import { useUser } from "@/firebase/provider"
 
 const MOCK_STUDENTS: Student[] = [
   { 
@@ -54,7 +56,7 @@ type AttendanceState = Record<string, 'present' | 'absent'>;
 
 export default function AttendancePage() {
   const [mounted, setMounted] = useState(false)
-  const [userRole, setUserRole] = useState<'Admin' | 'Professor'>('Admin')
+  const { user, isUserLoading } = useUser()
   const [selectedDisciplineId, setSelectedDisciplineId] = useState("d1")
   const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -64,15 +66,13 @@ export default function AttendancePage() {
   useEffect(() => {
     setMounted(true)
     setCurrentDate(new Date())
-    const role = localStorage.getItem('proto_user_role') as any
-    if (role) setUserRole(role)
   }, [])
 
-  const isAdmin = userRole === 'Admin'
+  const isAdmin = user?.email?.includes('admin') || user?.email?.includes('marciobergamini')
 
   // Filtra as disciplinas visíveis baseadas no professor logado
   const availableDisciplines = useMemo(() => {
-    return MOCK_DISCIPLINES.filter(d => isAdmin || d.teacherId === 'prof-1'); // Ricardo Silva no mock
+    return MOCK_DISCIPLINES.filter(d => isAdmin || d.teacherId === 'prof-1');
   }, [isAdmin]);
 
   // Garante que a disciplina selecionada é válida
@@ -107,7 +107,11 @@ export default function AttendancePage() {
   const presentCount = Object.values(attendance).filter(v => v === 'present').length
   const absentCount = Object.values(attendance).filter(v => v === 'absent').length
 
-  if (!mounted || !currentDate) return null;
+  if (!mounted || isUserLoading || !currentDate) return (
+    <div className="flex items-center justify-center p-20">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
