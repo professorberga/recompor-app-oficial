@@ -7,7 +7,8 @@ import {
   Search, UserPlus, Eye, 
   Camera, Check, Trash2, Pencil, 
   Calendar, ClipboardCheck, GraduationCap, Info,
-  Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw, Loader2
+  Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw, Loader2,
+  CheckCircle2, XCircle, BarChart3, TrendingUp
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { Student } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
+import { Progress } from "@/components/ui/progress"
 
 /**
  * Utilitário para comprimir e redimensionar imagens para Thumbnail (200x200px).
@@ -38,7 +40,6 @@ const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Prom
       let width = img.width;
       let height = img.height;
 
-      // Cálculo de redimensionamento proporcional
       if (width > height) {
         if (width > maxWidth) {
           height *= maxWidth / width;
@@ -54,7 +55,6 @@ const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Prom
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      // Retorna JPEG com qualidade otimizada
       resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
   });
@@ -90,6 +90,27 @@ function StudentsContent() {
   }, [user, classFilter, firestore]);
 
   const { data: students = [], isLoading } = useCollection(studentsRef)
+
+  // Query para buscar histórico de presença do aluno selecionado
+  const attendanceHistoryRef = useMemoFirebase(() => {
+    if (!user?.uid || !selectedStudent?.id) return null;
+    return query(
+      collection(firestore, 'teachers', user.uid, 'attendanceRecords'),
+      where('studentId', '==', selectedStudent.id)
+    );
+  }, [user, selectedStudent, firestore]);
+
+  const { data: attendanceHistory = [] } = useCollection(attendanceHistoryRef)
+
+  // Cálculos de Frequência
+  const attendanceStats = useMemo(() => {
+    if (attendanceHistory.length === 0) return { total: 0, present: 0, absent: 0, rate: 0 };
+    const total = attendanceHistory.length;
+    const present = attendanceHistory.filter(h => h.status === 'Presente').length;
+    const absent = total - present;
+    const rate = Math.round((present / total) * 100);
+    return { total, present, absent, rate };
+  }, [attendanceHistory]);
 
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -142,14 +163,11 @@ function StudentsContent() {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext('2d')
       if (context) {
-        // Redimensionamento imediato para Thumbnail 200x200
         const targetWidth = 200;
         const targetHeight = (videoRef.current.videoHeight / videoRef.current.videoWidth) * targetWidth;
-        
         canvasRef.current.width = targetWidth
         canvasRef.current.height = targetHeight
         context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight)
-        
         const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.6)
         setCapturedPhoto(rawBase64)
         stopCamera()
@@ -184,27 +202,18 @@ function StudentsContent() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.uid) {
-       toast({ title: "Erro", description: "Usuário não autenticado.", variant: "destructive" });
-       return;
-    }
-    
+    if (!user?.uid) return
     if (!formData.name || !formData.ra || !formData.classId) {
       toast({ title: "Campos Obrigatórios", description: "Nome, RA e Turma são essenciais.", variant: "destructive" })
       return
     }
 
     setIsSubmitting(true);
-
     try {
       const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
       const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
-
-      // Garante compressão final da foto
       let finalPhoto = capturedPhoto;
-      if (capturedPhoto) {
-        finalPhoto = await compressImage(capturedPhoto);
-      }
+      if (capturedPhoto) finalPhoto = await compressImage(capturedPhoto);
 
       const studentData = {
         ...formData,
@@ -216,23 +225,12 @@ function StudentsContent() {
       }
 
       await setDoc(targetRef, studentData, { merge: true })
-      
-      toast({ 
-        title: "Sucesso!", 
-        description: isEditing ? "Cadastro do aluno atualizado." : "Aluno registrado no diário com sucesso." 
-      })
-      
-      // Limpeza e fechamento automático
+      toast({ title: "Sucesso!", description: isEditing ? "Cadastro atualizado." : "Aluno registrado." })
       resetForm()
       setIsRegisterOpen(false)
       stopCamera()
     } catch (err: any) {
-      console.error("Erro ao salvar aluno:", err);
-      const errorMessage = err.message?.includes('longer than 1048487 bytes') 
-        ? "A foto excedeu o limite do banco. Tente capturar novamente em baixa resolução."
-        : "Erro ao conectar com o banco de dados. Tente novamente.";
-      
-      toast({ title: "Falha na Gravação", description: errorMessage, variant: "destructive" })
+      toast({ title: "Falha na Gravação", description: "Erro ao conectar com o Firestore.", variant: "destructive" })
     } finally {
       setIsSubmitting(false);
     }
@@ -242,9 +240,9 @@ function StudentsContent() {
     if (!user?.uid || !window.confirm("Confirmar exclusão permanente deste aluno?")) return
     try {
       await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
-      toast({ title: "Aluno Removido", description: "O registro foi excluído do seu diário." })
+      toast({ title: "Aluno Removido", description: "O registro foi excluído." })
     } catch (err) {
-      toast({ title: "Erro na Exclusão", description: "Não foi possível remover o registro.", variant: "destructive" })
+      toast({ title: "Erro na Exclusão", variant: "destructive" })
     }
   }
 
@@ -292,12 +290,12 @@ function StudentsContent() {
             <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
               <GraduationCap className="h-16 w-16 mx-auto mb-4" />
               <p className="text-xl font-bold text-primary">Nenhum aluno cadastrado</p>
-              <p className="text-sm px-10">Cadastre seus alunos para iniciar o acompanhamento de frequência e avaliações.</p>
             </div>
           )}
         </div>
       )}
 
+      {/* DIALOG DE CADASTRO */}
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { if (!open) { stopCamera(); setIsRegisterOpen(open); } else { setIsRegisterOpen(open); } }}>
         <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
           <DialogHeader className="p-6 border-b shrink-0"><DialogTitle className="text-primary font-black">{isEditing ? 'Atualizar' : 'Novo'} Registro de Aluno</DialogTitle></DialogHeader>
@@ -326,7 +324,6 @@ function StudentsContent() {
                     </Button>
                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center max-w-[150px]">As fotos são redimensionadas para 200x200px para otimizar o diário.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 flex-1">
                   <div className="col-span-2 space-y-1.5">
@@ -361,22 +358,13 @@ function StudentsContent() {
           <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
             <Button variant="ghost" onClick={() => { stopCamera(); setIsRegisterOpen(false); }} disabled={isSubmitting}>Cancelar</Button>
             <Button onClick={handleRegisterSubmit} disabled={isSubmitting} className="shadow-lg min-w-[150px]">
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Gravando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  {isEditing ? 'Atualizar Aluno' : 'Gravar no Firestore'}
-                </>
-              )}
+              {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Gravando...</> : <><Save className="h-4 w-4 mr-2" /> {isEditing ? 'Atualizar' : 'Salvar'}</>}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* FICHA DO ALUNO (HISTÓRICO) */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
@@ -393,26 +381,71 @@ function StudentsContent() {
           <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="bg-slate-50 border-b px-8 h-14 justify-start gap-8 rounded-none">
               <TabsTrigger value="info" className="font-bold">Informações</TabsTrigger>
-              <TabsTrigger value="history" className="font-bold">Histórico</TabsTrigger>
+              <TabsTrigger value="history" className="font-bold">Frequência & Histórico</TabsTrigger>
             </TabsList>
             <ScrollArea className="flex-1 p-8">
               <TabsContent value="info" className="m-0 space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl border bg-slate-50">
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
                     <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Status</Label>
                     <p className="font-bold text-green-600">{selectedStudent?.status}</p>
                   </div>
-                  <div className="p-4 rounded-xl border bg-slate-50">
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
                     <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Turma</Label>
                     <p className="font-bold">{selectedStudent?.class}</p>
                   </div>
-                  <div className="p-4 rounded-xl border bg-slate-50">
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
                     <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Chamada</Label>
                     <p className="font-bold">#{selectedStudent?.callNumber}</p>
                   </div>
                 </div>
               </TabsContent>
-              <TabsContent value="history" className="m-0 py-20 text-center opacity-30 italic">O histórico de recomposição será gerado a partir das avaliações lançadas.</TabsContent>
+              <TabsContent value="history" className="m-0 space-y-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className="bg-slate-50 border-none">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Total de Aulas</CardTitle></CardHeader>
+                    <CardContent className="p-4 pt-0"><p className="text-3xl font-black">{attendanceStats.total}</p></CardContent>
+                  </Card>
+                  <Card className="bg-green-50 border-none">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-green-600">Presenças</CardTitle></CardHeader>
+                    <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-green-700">{attendanceStats.present}</p></CardContent>
+                  </Card>
+                  <Card className="bg-red-50 border-none">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-red-600">Faltas</CardTitle></CardHeader>
+                    <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-red-700">{attendanceStats.absent}</p></CardContent>
+                  </Card>
+                  <Card className="bg-primary/5 border-none">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-primary">Frequência</CardTitle></CardHeader>
+                    <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-primary">{attendanceStats.rate}%</p></CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução de Frequência</h4>
+                    <Badge variant="outline" className="font-bold">{attendanceStats.rate >= 75 ? 'Dentro da Meta' : 'Abaixo da Meta'}</Badge>
+                  </div>
+                  <Progress value={attendanceStats.rate} className="h-3" />
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Últimos Registros</h4>
+                  <div className="border rounded-xl divide-y">
+                    {attendanceHistory.slice(0, 5).map((record) => (
+                      <div key={record.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{new Date(record.date).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <Badge variant={record.status === 'Presente' ? 'default' : 'destructive'} className="font-bold px-3">
+                          {record.status === 'Presente' ? <><CheckCircle2 className="h-3 w-3 mr-1" /> PRESENTE</> : <><XCircle className="h-3 w-3 mr-1" /> FALTA</>}
+                        </Badge>
+                      </div>
+                    ))}
+                    {attendanceHistory.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhum registro de chamada encontrado no Firestore.</p>}
+                  </div>
+                </div>
+              </TabsContent>
             </ScrollArea>
           </Tabs>
         </DialogContent>
