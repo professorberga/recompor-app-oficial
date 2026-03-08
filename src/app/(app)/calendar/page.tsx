@@ -44,9 +44,20 @@ export default function CalendarPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  // Real Data from Firestore
-  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
-  const { data: classes = [] } = useCollection(classesRef)
+  // Busca turmas Globais para filtro
+  const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
+  const { data: rawClasses = [] } = useCollection(globalClassesRef)
+
+  // Filtra turmas conforme atribuição
+  const classes = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'Admin') return rawClasses;
+    if (profile.assignments && profile.assignments.length > 0) {
+      const assignedIds = profile.assignments.map(a => a.classId);
+      return rawClasses.filter(c => assignedIds.includes(c.id));
+    }
+    return [];
+  }, [rawClasses, profile]);
 
   const lessonsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'lessons') : null, [user, firestore])
   const { data: recordedLessons = [], isLoading: isLessonsLoading } = useCollection(lessonsRef)
@@ -95,7 +106,6 @@ export default function CalendarPage() {
     }
   }
 
-  // Lógica de cruzamento: Aulas na Grade (Planned) vs Aulas Gravadas (Real)
   const mergedEvents = useMemo(() => {
     if (!currentDate) return [];
 
@@ -103,10 +113,8 @@ export default function CalendarPage() {
     const dayOfWeek = format(currentDate, "EEEE", { locale: ptBR }).split('-')[0].toLowerCase();
     const dayLabel = dayMap[dayOfWeek] || "";
 
-    // 1. Filtrar aulas já gravadas no Firestore para este dia
     const dailyRecorded = recordedLessons.filter(l => l.date === dateStr || l.lessonDate?.split('T')[0] === dateStr);
 
-    // 2. Projetar aulas previstas na grade (assignments) para este dia da semana
     const plannedAssignments = (profile?.assignments || [])
       .filter(a => a.dayOfWeek === dayLabel)
       .map(a => ({
@@ -121,7 +129,6 @@ export default function CalendarPage() {
         recorded: dailyRecorded.some(r => r.classId === a.classId)
       }));
 
-    // 3. Unir os dois, priorizando o que foi gravado ou exibindo ambos
     return [...plannedAssignments, ...dailyRecorded.map(r => ({ ...r, isPlanned: false }))];
   }, [currentDate, recordedLessons, profile]);
 
@@ -150,7 +157,10 @@ export default function CalendarPage() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild><Button className="gap-2 shadow-lg h-11 px-6 font-bold"><Plus className="h-5 w-5" /> Novo Planejamento</Button></DialogTrigger>
           <DialogContent className="bg-white">
-            <DialogHeader><DialogTitle className="text-xl font-black text-primary uppercase">Novo Registro</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black text-primary uppercase">Novo Registro</DialogTitle>
+              <DialogDescription>Adicione um registro manual de conteúdo ou planejamento ao calendário.</DialogDescription>
+            </DialogHeader>
             <form onSubmit={handleCreateEvent} className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Título (Opcional)</Label>

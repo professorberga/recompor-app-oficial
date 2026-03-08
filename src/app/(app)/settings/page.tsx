@@ -55,11 +55,9 @@ export default function SettingsPage() {
   )
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  const classesRef = useMemoFirebase(() => 
-    user ? collection(firestore, 'teachers', user.uid, 'classes') : null, 
-    [user, firestore]
-  )
-  const { data: globalClasses = [] } = useCollection(classesRef)
+  // Busca turmas Globais para atribuição
+  const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
+  const { data: globalClasses = [] } = useCollection(globalClassesRef)
 
   useEffect(() => {
     setMounted(true)
@@ -164,7 +162,10 @@ export default function SettingsPage() {
       return;
     }
     setIsSaving(true)
-    const teacherId = editingTeacher.id || Math.random().toString(36).substr(2, 9)
+    
+    // Se for novo, gera um ID baseado no e-mail para evitar duplicatas antes do login do professor
+    const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
+    
     try {
       await setDoc(doc(firestore, "teachers", teacherId), {
         ...editingTeacher,
@@ -173,7 +174,7 @@ export default function SettingsPage() {
       }, { merge: true })
       setIsTeacherDialogOpen(false)
       setEditingTeacher(null)
-      toast({ title: "Docente atualizado" })
+      toast({ title: "Docente atualizado institucionalmente" })
     } catch (error) {
       toast({ title: "Falha na gravação", variant: "destructive" })
     } finally {
@@ -222,7 +223,10 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="mt-6">
           <Card className="border-none shadow-md bg-white">
-            <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Perfil Docente</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-xl font-black uppercase text-primary">Perfil Docente</CardTitle>
+              <CardDescription>Visualize e edite suas informações de contato.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome Completo</Label><Input value={profileData.name} onChange={(e) => setProfileData({...profileData, name: e.target.value})} /></div>
@@ -236,7 +240,10 @@ export default function SettingsPage() {
         {isAdmin && (
           <TabsContent value="school" className="mt-6">
             <Card className="border-none shadow-md bg-white">
-              <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Configurações Globais</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-xl font-black uppercase text-primary">Configurações Escolares</CardTitle>
+                <CardDescription>Defina o nome da unidade e o período letivo vigente.</CardDescription>
+              </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome da Escola</Label><Input value={schoolData.schoolName} onChange={(e) => setSchoolData({...schoolData, schoolName: e.target.value})} /></div>
@@ -280,7 +287,11 @@ export default function SettingsPage() {
                             <td className="px-6 py-4"><span className="font-black block uppercase text-xs text-primary">{t.name}</span><span className="text-[10px] font-medium opacity-60 italic">{t.email}</span></td>
                             <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase tracking-tighter">{t.role}</Badge></td>
                             <td className="px-6 py-4"><span className="text-[10px] font-black text-muted-foreground uppercase">{t.assignments?.length || 0} aulas / semana</span></td>
-                            <td className="px-6 py-4 text-right"><Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></td>
+                            <td className="px-6 py-4 text-right">
+                              <Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe, collection, query, where, getDocs } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -84,7 +84,6 @@ export const FirebaseProvider: React.FC<{
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Limpa listeners anteriores
       if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
       if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
 
@@ -93,48 +92,57 @@ export const FirebaseProvider: React.FC<{
         const schoolRef = doc(firestore, 'settings', 'school');
         
         try {
-          // 1. Escuta Global de Configurações da Escola (Independente do Professor)
+          // 1. Escuta Global de Configurações da Escola
           schoolUnsubscribeRef.current = onSnapshot(schoolRef, (snapshot) => {
             if (snapshot.exists()) {
               setUserAuthState(prev => ({ 
                 ...prev, 
                 schoolConfig: snapshot.data() as SchoolConfig 
               }));
-            } else {
-              // Provisiona config global inicial se não existir (apenas admin ou primeiro acesso)
-              const defaultConfig = {
-                schoolName: "E.E. Professor Milton Santos",
-                academicYear: new Date().getFullYear().toString(),
-                activeBimestre: "1"
-              };
-              setDoc(schoolRef, defaultConfig);
             }
-          }, () => {});
+          });
 
-          // 2. Verifica/Provisiona perfil do professor
+          // 2. Busca Perfil por UID ou E-mail (Handshake para Provisionamento)
           const docSnap = await getDoc(teacherRef);
-          if (!docSnap.exists()) {
-            const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
-            const newProfile: TeacherProfile = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
-              email: firebaseUser.email || "",
-              role: isKnownAdmin ? 'Admin' : 'Professor',
-              subjects: [],
-              assignments: []
-            };
-            await setDoc(teacherRef, newProfile);
+          let profileData: TeacherProfile | null = null;
+
+          if (docSnap.exists()) {
+            profileData = { ...docSnap.data() as TeacherProfile, id: docSnap.id };
+          } else {
+            // Busca se o Admin provisionou o professor pelo e-mail antes do primeiro login
+            const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+            const querySnap = await getDocs(q);
+            
+            if (!querySnap.empty) {
+              const provisionedDoc = querySnap.docs[0];
+              const data = provisionedDoc.data() as TeacherProfile;
+              // Cria o novo documento com o UID correto e migra os dados
+              profileData = { ...data, id: firebaseUser.uid };
+              await setDoc(teacherRef, profileData);
+            } else {
+              // Cria perfil padrão para novo usuário não provisionado
+              const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
+              profileData = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
+                email: firebaseUser.email || "",
+                role: isKnownAdmin ? 'Admin' : 'Professor',
+                subjects: [],
+                assignments: []
+              };
+              await setDoc(teacherRef, profileData);
+            }
           }
 
-          // 3. Estabelece a escuta em tempo real para o perfil
+          // 3. Estabelece a escuta em tempo real para o perfil final
           profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
             if (snapshot.exists()) {
-              const profileData = snapshot.data() as TeacherProfile;
+              const data = snapshot.data() as TeacherProfile;
               setUserAuthState(prev => ({
                 ...prev,
                 user: firebaseUser,
-                profile: { ...profileData, id: snapshot.id },
-                isAdmin: profileData.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
+                profile: { ...data, id: snapshot.id },
+                isAdmin: data.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
                 isUserLoading: false,
                 userError: null,
               }));

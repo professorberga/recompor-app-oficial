@@ -53,7 +53,7 @@ function AttendanceContent() {
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição no perfil
+  // Filtra turmas conforme atribuição no perfil (Essencial para o Professor)
   const classes = useMemo(() => {
     if (isAdmin) return rawClasses;
     if (profile?.assignments && profile.assignments.length > 0) {
@@ -63,7 +63,7 @@ function AttendanceContent() {
     return [];
   }, [rawClasses, profile, isAdmin]);
 
-  // Alunos vinculados ao professor logado (conforme backend.json)
+  // Alunos vinculados ao professor logado
   const studentsRef = useMemoFirebase(() => {
     if (!user || !selectedClassId) return null;
     return query(
@@ -223,7 +223,7 @@ function AttendanceContent() {
                     <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="none" disabled>Nenhuma turma atribuída pela coordenação</SelectItem>
+                  <SelectItem value="none" disabled>Nenhuma turma atribuída pelo Coordenador</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -332,8 +332,11 @@ function AttendanceContent() {
                 <AlertDialog>
                   <AlertDialogTrigger asChild><Button variant="outline" className="text-destructive border-destructive font-black h-12 uppercase text-[10px]">Limpar Diário</Button></AlertDialogTrigger>
                   <AlertDialogContent className="bg-white">
-                    <AlertDialogHeader><AlertDialogTitle>Apagar registros?</AlertDialogTitle><AlertDialogDescription>Isso removerá a frequência e o resumo de conteúdo deste dia.</AlertDialogDescription></AlertDialogHeader>
-                    <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive">Confirmar</AlertDialogAction></AlertDialogFooter>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Apagar registros?</AlertDialogTitle>
+                      <AlertDialogDescription>Isso removerá a frequência e o resumo de conteúdo deste dia para todos os alunos desta turma.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive">Confirmar Exclusão</AlertDialogAction></AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               )}
