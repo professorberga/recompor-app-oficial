@@ -7,6 +7,10 @@ import { Firestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
+// Re-exportando hooks de documentos e coleções para acesso centralizado
+export * from './firestore/use-collection';
+export * from './firestore/use-doc';
+
 interface TeacherProfile {
   id: string;
   name: string;
@@ -68,7 +72,7 @@ export const FirebaseProvider: React.FC<{
               userError: null,
             });
           } else {
-            // Auto-create profile on first login
+            // Criação automática do perfil no primeiro login
             const newProfile: TeacherProfile = {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
@@ -79,9 +83,8 @@ export const FirebaseProvider: React.FC<{
             
             try {
               await setDoc(teacherRef, newProfile);
-              // Snapshot will trigger again automatically
             } catch (err) {
-              console.error("Error creating auto-profile:", err);
+              console.error("Erro ao criar perfil automático:", err);
               setUserAuthState({
                 user: firebaseUser,
                 profile: null,
@@ -92,7 +95,7 @@ export const FirebaseProvider: React.FC<{
             }
           }
         }, (error) => {
-          console.error("Error fetching Firestore profile:", error);
+          console.error("Erro ao buscar perfil no Firestore:", error);
           setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
         });
 
@@ -132,9 +135,9 @@ export const FirebaseProvider: React.FC<{
 
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-  if (context === undefined) throw new Error('useFirebase must be used within a FirebaseProvider.');
+  if (context === undefined) throw new Error('useFirebase deve ser usado dentro de um FirebaseProvider.');
   if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Firebase core services not available.');
+    throw new Error('Serviços core do Firebase não disponíveis.');
   }
   return context as FirebaseServicesAndUser;
 };
