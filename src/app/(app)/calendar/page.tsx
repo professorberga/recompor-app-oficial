@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock, Search, Info } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock, Search, Info, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,17 +15,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { collection, doc, setDoc } from "firebase/firestore"
 
 const CLASS_SCHEDULES = [
-  "07:00 às 07:50",
-  "07:50 às 08:40",
-  "08:40 às 09:30",
-  "09:45 às 10:35",
-  "10:35 às 11:25",
-  "12:25 às 13:15",
-  "13:15 às 14:05",
-  "14:20 às 15:10",
-  "15:10 às 16:00",
+  "07:00 às 07:50", "07:50 às 08:40", "08:40 às 09:30", "09:45 às 10:35", "10:35 às 11:25"
 ]
 
 const ACTIVITY_TYPES = [
@@ -34,25 +28,28 @@ const ACTIVITY_TYPES = [
   { value: 'Monitoria', label: 'Monitor do BEEM', color: 'bg-emerald-500 text-white' },
 ]
 
-const MOCK_INITIAL_EVENTS = [
-  { id: '1', title: 'Interpretação de Texto', time: '07:00 às 07:50', classId: '1', class: '9º Ano A', type: 'Regular', content: 'Revisão para a prova bimestral focando em análise de textos literários contemporâneos.' },
-  { id: '2', title: 'Sintaxe e Gramática', time: '07:50 às 08:40', classId: '2', class: '9º Ano B', type: 'Tutoria', content: 'Acompanhamento individualizado de sintaxe para alunos em nível de recomposição.' },
-  { id: '3', title: 'Reforço de Matemática', time: '14:20 às 15:10', classId: '3', class: '8º Ano A', type: 'Monitoria', content: 'Monitoria do BEEM para resolução de problemas envolvendo frações e porcentagem.' },
-]
-
 export default function CalendarPage() {
   const [mounted, setMounted] = useState(false)
+  const { user, isUserLoading } = useUser()
+  const firestore = useFirestore()
+  const { toast } = useToast()
+
   const [selectedClass, setSelectedClass] = useState("all")
   const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [events, setEvents] = useState(MOCK_INITIAL_EVENTS)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const { toast } = useToast()
+
+  // Real Data
+  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
+  const { data: classes = [] } = useCollection(classesRef)
+
+  const lessonsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'lessons') : null, [user, firestore])
+  const { data: lessons = [], isLoading: isLessonsLoading } = useCollection(lessonsRef)
 
   const [newEvent, setNewEvent] = useState({
     title: "",
     time: CLASS_SCHEDULES[0],
-    classId: "1",
+    classId: "all",
     type: "Regular",
     content: ""
   })
@@ -62,290 +59,109 @@ export default function CalendarPage() {
     setCurrentDate(new Date())
   }, [])
 
-  const handlePrevDay = () => {
-    if (currentDate) setCurrentDate(prev => addDays(prev!, -1))
-  }
-
-  const handleNextDay = () => {
-    if (currentDate) setCurrentDate(prev => addDays(prev!, 1))
-  }
-
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user || !lessonsRef) return
     
     if (!newEvent.title || !newEvent.content) {
-      toast({
-        title: "Campos incompletos",
-        description: "Por favor, preencha o título e o conteúdo do planejamento.",
-        variant: "destructive"
-      })
+      toast({ title: "Campos incompletos", variant: "destructive" })
       return
     }
 
-    const className = newEvent.classId === 'all' ? 'Geral' : 
-                    newEvent.classId === '1' ? '9º Ano A' : 
-                    newEvent.classId === '2' ? '9º Ano B' : '8º Ano A'
+    const lessonId = Math.random().toString(36).substr(2, 9)
+    const className = newEvent.classId === 'all' ? 'Geral' : (classes.find(c => c.id === newEvent.classId)?.name || 'Turma')
 
-    const createdEvent = {
-      id: Math.random().toString(36).substr(2, 9),
+    const lessonData = {
+      id: lessonId,
       ...newEvent,
-      class: className
+      class: className,
+      lessonDate: currentDate?.toISOString() || new Date().toISOString(),
+      teacherId: user.uid
     }
 
-    setEvents([createdEvent, ...events])
-    setIsDialogOpen(false)
-    setNewEvent({ title: "", time: CLASS_SCHEDULES[0], classId: "1", type: "Regular", content: "" })
-    
-    toast({
-      title: "Planejamento Criado!",
-      description: `O registro de "${createdEvent.title}" foi agendado com sucesso.`,
-    })
+    try {
+      await setDoc(doc(lessonsRef, lessonId), lessonData)
+      setIsDialogOpen(false)
+      setNewEvent({ title: "", time: CLASS_SCHEDULES[0], classId: "all", type: "Regular", content: "" })
+      toast({ title: "Planejamento Criado!", description: `Registrado com sucesso.` })
+    } catch (err) {
+      toast({ title: "Erro ao salvar", description: "Verifique permissões.", variant: "destructive" })
+    }
   }
 
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = lessons.filter(event => {
     const matchesClass = selectedClass === "all" || event.classId === selectedClass || event.classId === "all"
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesClass && matchesSearch
+    // Filtro de data simplificado (mesma data ISO string para fins de protótipo)
+    const sameDate = currentDate && event.lessonDate?.split('T')[0] === currentDate.toISOString().split('T')[0]
+    return matchesClass && matchesSearch && sameDate
   })
 
-  if (!mounted || !currentDate) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando calendário...</div>
-  }
+  if (!mounted || isUserLoading || !currentDate) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div>
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Calendário & Conteúdos</h2>
-          <p className="text-muted-foreground mt-1">Planeje suas aulas e gerencie o cronograma de atividades.</p>
-        </div>
-
+        <h2 className="text-3xl font-bold text-primary">Calendário & Conteúdos</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-lg">
-              <Plus className="h-4 w-4" /> Novo Planejamento
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] bg-white">
-            <DialogHeader>
-              <DialogTitle>Novo Registro de Conteúdo</DialogTitle>
-              <DialogDescription>
-                Adicione um novo tema ou atividade ao cronograma de {format(currentDate, "dd/MM/yyyy")}.
-              </DialogDescription>
-            </DialogHeader>
+          <DialogTrigger asChild><Button className="gap-2 shadow-lg"><Plus className="h-4 w-4" /> Novo Planejamento</Button></DialogTrigger>
+          <DialogContent className="bg-white">
+            <DialogHeader><DialogTitle>Novo Registro</DialogTitle></DialogHeader>
             <form onSubmit={handleCreateEvent} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Título da Aula/Atividade</Label>
-                <Input 
-                  id="title" 
-                  placeholder="Ex: Revisão de Orações Coordenadas" 
-                  value={newEvent.title}
-                  onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
-                  required
-                />
-              </div>
-              
+              <Input placeholder="Título" value={newEvent.title} onChange={(e) => setNewEvent({...newEvent, title: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="class">Turma</Label>
-                  <Select 
-                    value={newEvent.classId} 
-                    onValueChange={(v) => setNewEvent({...newEvent, classId: v})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">9º Ano A</SelectItem>
-                      <SelectItem value="2">9º Ano B</SelectItem>
-                      <SelectItem value="3">8º Ano A</SelectItem>
-                      <SelectItem value="all">Geral / Apoio</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Horário da Aula</Label>
-                  <Select 
-                    value={newEvent.time} 
-                    onValueChange={(v) => setNewEvent({...newEvent, time: v})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CLASS_SCHEDULES.map((schedule) => (
-                        <SelectItem key={schedule} value={schedule}>
-                          {schedule}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="type">Tipo de Atividade</Label>
-                <Select 
-                  value={newEvent.type} 
-                  onValueChange={(v: any) => setNewEvent({...newEvent, type: v})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={newEvent.classId} onValueChange={(v) => setNewEvent({...newEvent, classId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Turma" /></SelectTrigger>
                   <SelectContent>
-                    {ACTIVITY_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">Geral</SelectItem>
+                    {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Select value={newEvent.time} onValueChange={(v) => setNewEvent({...newEvent, time: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{CLASS_SCHEDULES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="content">Conteúdo / Descrição do Plano</Label>
-                <Textarea 
-                  id="content" 
-                  placeholder="Descreva os tópicos que serão abordados..." 
-                  className="min-h-[100px]"
-                  value={newEvent.content}
-                  onChange={(e) => setNewEvent({...newEvent, content: e.target.value})}
-                  required
-                />
-              </div>
-
-              <DialogFooter className="pt-4">
-                <Button type="submit" className="w-full">Salvar Planejamento</Button>
-              </DialogFooter>
+              <Textarea placeholder="Conteúdo" value={newEvent.content} onChange={(e) => setNewEvent({...newEvent, content: e.target.value})} />
+              <Button type="submit" className="w-full">Salvar no Firestore</Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-border/50">
-        <div className="flex flex-col md:flex-row gap-4 flex-1">
-          <div className="w-full md:w-72">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Filtrar Turma</label>
-            <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="bg-muted/30 border-none h-10">
-                <SelectValue placeholder="Selecione a turma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Turmas</SelectItem>
-                <SelectItem value="1">9º Ano A - Português</SelectItem>
-                <SelectItem value="2">9º Ano B - Português</SelectItem>
-                <SelectItem value="3">8º Ano A - Matemática</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block ml-1">Data de Referência</label>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-10 w-10"
-                onClick={handlePrevDay}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md border-none font-medium min-w-[220px] justify-center text-sm">
-                <CalendarIcon className="h-4 w-4 text-primary" />
-                <span className="capitalize">
-                  {format(currentDate, "dd 'de' MMMM, yyyy", { locale: ptBR })}
-                </span>
-              </div>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-10 w-10"
-                onClick={handleNextDay}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+      <div className="flex gap-4 items-end bg-white p-6 rounded-xl border">
+        <div className="w-72">
+          <Label className="text-[10px] font-bold uppercase ml-1">Filtrar Turma</Label>
+          <Select value={selectedClass} onValueChange={setSelectedClass}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Turmas</SelectItem>
+              {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-
-        <div className="relative w-full md:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Buscar conteúdo..." 
-            className="pl-10 h-10 bg-muted/10 border-border"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => setCurrentDate(prev => addDays(prev!, -1))}><ChevronLeft /></Button>
+          <div className="flex items-center gap-2 px-4 h-10 bg-muted/30 rounded-md min-w-[220px] justify-center uppercase font-bold text-xs">{format(currentDate, "dd 'de' MMMM", { locale: ptBR })}</div>
+          <Button variant="outline" size="icon" onClick={() => setCurrentDate(prev => addDays(prev!, 1))}><ChevronRight /></Button>
         </div>
       </div>
-
-      <div className="grid gap-6">
-        <Card className="border-none shadow-md bg-white">
-          <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-            <div>
-              <CardTitle>Cronograma do Dia</CardTitle>
-              <CardDescription>
-                {selectedClass === "all" ? "Exibindo todos os registros para este dia" : `Exibindo registros da turma selecionada`}
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-              {filteredEvents.length} Atividades
-            </Badge>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <ScrollArea className="h-auto pr-4">
-              <div className="space-y-8">
-                {filteredEvents.map((event) => {
-                  const activityType = ACTIVITY_TYPES.find(t => t.value === event.type) || ACTIVITY_TYPES[0];
-                  
-                  return (
-                    <div key={event.id} className="relative pl-8 pb-8 border-l-2 border-primary/20 last:pb-0 group">
-                      <div className="absolute left-[-9px] top-0 h-4 w-4 rounded-full bg-white border-2 border-primary group-hover:bg-primary transition-colors shadow-sm" />
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge className={`text-[10px] uppercase font-bold tracking-tighter px-2 border-none shadow-sm ${activityType.color}`}>
-                              {activityType.label}
-                            </Badge>
-                            <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                              {event.class}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
-                            <Clock className="h-3.5 w-3.5" /> {event.time}
-                          </span>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <h4 className="text-xl font-black group-hover:text-primary transition-colors leading-tight">
-                            {event.title}
-                          </h4>
-                        </div>
-
-                        <div className="p-4 bg-muted/30 rounded-xl border border-border/40 group-hover:border-primary/20 transition-colors">
-                          <p className="text-sm text-foreground/80 leading-relaxed italic">
-                            {event.content}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {filteredEvents.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <Info className="h-8 w-8" />
-                    </div>
-                    <p className="text-lg font-bold">Nenhum conteúdo agendado</p>
-                    <p className="text-sm">Tente mudar a turma ou a data selecionada.</p>
-                  </div>
-                )}
+      <Card className="p-6">
+        {isLessonsLoading ? <Loader2 className="animate-spin mx-auto" /> : (
+          <div className="space-y-6">
+            {filteredEvents.map(event => (
+              <div key={event.id} className="border-l-4 border-primary pl-4 py-2">
+                <div className="flex justify-between items-center mb-1">
+                  <Badge>{event.type}</Badge>
+                  <span className="text-xs text-muted-foreground">{event.time}</span>
+                </div>
+                <h4 className="font-bold text-lg">{event.title}</h4>
+                <p className="text-sm text-muted-foreground">{event.content}</p>
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+            {filteredEvents.length === 0 && <div className="text-center py-20 opacity-30">Nenhum conteúdo para este dia.</div>}
+          </div>
+        )}
+      </Card>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -56,10 +57,8 @@ export const FirebaseProvider: React.FC<{
   });
 
   useEffect(() => {
-    // Observador de estado de autenticação
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // Se houver usuário, buscamos o perfil no Firestore de forma reativa
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
         
         const unsubscribeProfile = onSnapshot(teacherRef, async (docSnap) => {
@@ -74,18 +73,17 @@ export const FirebaseProvider: React.FC<{
             });
           } else {
             // Provisionamento automático: Cria perfil se não existir
+            // Definido como Admin para este estágio de desenvolvimento conforme solicitado
             const newProfile: TeacherProfile = {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
               email: firebaseUser.email || "",
-              role: 'Professor', // Padrão para novos usuários
+              role: 'Admin', 
               subjects: []
             };
             
             try {
-              // Tentativa de criação inicial
               await setDoc(teacherRef, newProfile);
-              // O próprio onSnapshot será disparado novamente após a criação
             } catch (err) {
               console.error("Erro ao provisionar perfil:", err);
               setUserAuthState({
@@ -98,13 +96,12 @@ export const FirebaseProvider: React.FC<{
             }
           }
         }, (error) => {
-          console.error("Erro na escuta do perfil:", error);
+          console.error("Erro na escuta do perfil (Firestore Rules?):", error);
           setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
         });
 
         return () => unsubscribeProfile();
       } else {
-        // Usuário deslogado: Limpa todo o estado
         setUserAuthState({
           user: null,
           profile: null,
