@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
    */
   output: 'standalone',
   
+  experimental: {
+    /** 
+     * O firebase-admin deve ser tratado como pacote externo no servidor para evitar 
+     * erros de "clientReferenceManifest" no Next.js 15.
+     */
+    serverExternalPackages: ['firebase-admin'],
+    /**
+     * Autoriza explicitamente as origens do Firebase Studio para o Hot Reload (HMR).
+     */
+    allowedDevOrigins: ['*.cloudworkstations.dev', 'localhost:9002'],
+  },
+
   typescript: {
     /** Ignoramos erros de tipo no build para acelerar o deploy no Firebase Studio */
     ignoreBuildErrors: true,
