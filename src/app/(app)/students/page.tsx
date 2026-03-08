@@ -28,7 +28,7 @@ import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/fires
 import { Progress } from "@/components/ui/progress"
 import { BIMESTRE_LABELS } from "@/lib/date-utils"
 
-const compressImage = (base64Str: string, maxWidth = 150, maxHeight = 150): Promise<string> => {
+const compressImage = (base64Str: string, maxWidth = 120, maxHeight = 120): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.src = base64Str;
@@ -51,7 +51,7 @@ const compressImage = (base64Str: string, maxWidth = 150, maxHeight = 150): Prom
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.5)); // Qualidade 0.5 para garantir payload pequeno
+      resolve(canvas.toDataURL('image/jpeg', 0.4)); // Alta compressão para evitar Erro 400
     };
     img.onerror = () => resolve("");
   });
@@ -72,34 +72,26 @@ function StudentsContent() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
-  const classesRef = useMemoFirebase(() => 
-    user?.uid ? collection(firestore, 'teachers', user.uid, 'classes') : null,
-    [user, firestore]
-  )
+  // Turmas Globais
+  const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: classes = [] } = useCollection(classesRef)
 
+  // Alunos agora em Coleção Global para restaurar visibilidade institucional
   const studentsRef = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    const baseCol = collection(firestore, 'teachers', user.uid, 'students');
+    const baseCol = collection(firestore, 'students');
     if (classFilter) {
       return query(baseCol, where('classId', '==', classFilter));
     }
     return baseCol;
-  }, [user, classFilter, firestore]);
+  }, [classFilter, firestore]);
 
   const { data: students = [], isLoading } = useCollection(studentsRef)
 
-  useEffect(() => {
-    if (profile?.activeBimestre && selectedBimestre === "all") {
-      setSelectedBimestre(profile.activeBimestre);
-    }
-  }, [profile]);
-
+  // Histórico de Frequência Global
   const attendanceHistoryRef = useMemoFirebase(() => {
-    if (!user?.uid || !selectedStudent?.id) return null;
-    const baseQuery = collection(firestore, 'teachers', user.uid, 'attendanceRecords');
-    return query(baseQuery, where('studentId', '==', selectedStudent.id));
-  }, [user, selectedStudent, firestore]);
+    if (!selectedStudent?.id) return null;
+    return query(collection(firestore, 'attendanceRecords'), where('studentId', '==', selectedStudent.id));
+  }, [selectedStudent, firestore]);
 
   const { data: rawAttendanceHistory = [] } = useCollection(attendanceHistoryRef)
 
@@ -154,7 +146,7 @@ function StudentsContent() {
       const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            (student.ra && student.ra.includes(searchTerm))
       return matchesSearch
-    })
+    }).sort((a, b) => (Number(a.callNumber) || 0) - (Number(b.callNumber) || 0));
   }, [students, searchTerm])
 
   const startCamera = async () => {
@@ -186,7 +178,7 @@ function StudentsContent() {
         canvasRef.current.width = targetWidth
         canvasRef.current.height = targetHeight
         context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight)
-        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.5)
+        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.4)
         setCapturedPhoto(rawBase64)
         stopCamera()
       }
@@ -220,7 +212,6 @@ function StudentsContent() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.uid) return
     if (!formData.name || !formData.ra || !formData.classId) {
       toast({ title: "Campos obrigatórios", variant: "destructive" })
       return
@@ -228,19 +219,12 @@ function StudentsContent() {
     setIsSubmitting(true);
     try {
       const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
-      const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
+      const targetRef = doc(firestore, 'students', studentId)
       
-      let finalPhoto = capturedPhoto;
-      // Validação rigorosa de tamanho de imagem para evitar Erro 400
-      if (capturedPhoto && capturedPhoto.length > 30000) {
-        finalPhoto = await compressImage(capturedPhoto);
-      }
-
       const studentData = {
         ...formData,
         id: studentId,
-        photo: finalPhoto || null,
-        teacherId: user.uid,
+        photo: capturedPhoto || null,
         class: classes.find(c => c.id === formData.classId)?.name || "Turma",
         enrollmentDate: new Date().toISOString()
       }
@@ -257,9 +241,9 @@ function StudentsContent() {
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!user?.uid || !window.confirm("Confirmar exclusão?")) return
+    if (!window.confirm("Confirmar exclusão?")) return
     try {
-      await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
+      await deleteDoc(doc(firestore, 'students', studentId))
       toast({ title: "Removido" })
     } catch (err) {
       toast({ title: "Erro na exclusão", variant: "destructive" })
@@ -271,7 +255,7 @@ function StudentsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Alunos</h2>
-          <p className="text-sm text-muted-foreground">Gestão de matrículas sincronizada no Firestore.</p>
+          <p className="text-sm text-muted-foreground">Gestão de matrículas sincronizada no Firestore Global.</p>
         </div>
         <Button onClick={() => { resetForm(); setIsRegisterOpen(true); }} className="font-bold">
           <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
@@ -306,7 +290,7 @@ function StudentsContent() {
               </CardContent>
             </Card>
           ))}
-          {filteredStudents.length === 0 && <div className="text-center py-20 opacity-30 italic">Nenhum aluno encontrado.</div>}
+          {filteredStudents.length === 0 && <div className="text-center py-20 opacity-30 italic">Nenhum aluno encontrado para os critérios.</div>}
         </div>
       )}
 
@@ -315,7 +299,7 @@ function StudentsContent() {
         <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl">
           <DialogHeader className="p-6 border-b shrink-0 bg-primary text-white">
             <DialogTitle className="text-xl font-black uppercase">{isEditing ? 'Atualizar' : 'Novo'} Registro</DialogTitle>
-            <DialogDescription className="text-white/70">Preencha os dados oficiais do aluno para o diário de classe.</DialogDescription>
+            <DialogDescription className="text-white/70">Preencha os dados oficiais do aluno para o diário global.</DialogDescription>
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
@@ -411,11 +395,6 @@ function StudentsContent() {
                 </SelectContent>
               </Select>
             </div>
-            {selectedBimestre !== "all" && (
-              <Badge variant="secondary" className="bg-blue-600 text-white font-black uppercase text-[9px] tracking-tighter">
-                Filtro Ativo: {BIMESTRE_LABELS[selectedBimestre]}
-              </Badge>
-            )}
           </div>
           <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="bg-white border-b px-8 h-12 justify-start gap-8 rounded-none border-t">
@@ -478,22 +457,6 @@ function StudentsContent() {
                     {filteredAttendance.filter(record => record.status === 'Falta').length === 0 && (
                       <div className="p-16 text-center text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-20">Nenhuma ausência registrada neste período.</div>
                     )}
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="info" className="m-0 space-y-6">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
-                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Situação</Label>
-                    <Badge className="bg-green-600 font-black uppercase text-[10px]">{selectedStudent?.status}</Badge>
-                  </div>
-                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
-                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Turma Vinculada</Label>
-                    <p className="font-black text-primary uppercase text-sm">{selectedStudent?.class}</p>
-                  </div>
-                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
-                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Ordem na Chamada</Label>
-                    <p className="font-black text-2xl">#{selectedStudent?.callNumber}</p>
                   </div>
                 </div>
               </TabsContent>

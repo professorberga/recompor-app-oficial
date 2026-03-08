@@ -53,7 +53,7 @@ function AttendanceContent() {
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição no perfil (Essencial para o Professor)
+  // Filtra turmas conforme atribuição no perfil
   const classes = useMemo(() => {
     if (isAdmin) return rawClasses;
     if (profile?.assignments && profile.assignments.length > 0) {
@@ -63,26 +63,27 @@ function AttendanceContent() {
     return [];
   }, [rawClasses, profile, isAdmin]);
 
-  // Alunos vinculados ao professor logado
+  // Alunos agora buscados na coleção GLOBAL para restaurar visibilidade
   const studentsRef = useMemoFirebase(() => {
-    if (!user || !selectedClassId) return null;
+    if (!selectedClassId) return null;
     return query(
-      collection(firestore, 'teachers', user.uid, 'students'), 
+      collection(firestore, 'students'), 
       where('classId', '==', selectedClassId)
     );
-  }, [user, selectedClassId, firestore]);
+  }, [selectedClassId, firestore]);
   
   const { data: students = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
+  // Registros agora buscados na coleção GLOBAL
   const attendanceRecordsRef = useMemoFirebase(() => {
-    if (!user || !selectedClassId || !currentDate) return null;
+    if (!selectedClassId || !currentDate) return null;
     const dateStr = format(currentDate, "yyyy-MM-dd");
     return query(
-      collection(firestore, 'teachers', user.uid, 'attendanceRecords'),
+      collection(firestore, 'attendanceRecords'),
       where('classId', '==', selectedClassId),
       where('date', '==', dateStr)
     );
-  }, [user, selectedClassId, currentDate, firestore]);
+  }, [selectedClassId, currentDate, firestore]);
 
   const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
 
@@ -97,10 +98,10 @@ function AttendanceContent() {
 
   useEffect(() => {
     async function loadLessonContent() {
-      if (!user || !selectedClassId || !currentDate) return;
+      if (!selectedClassId || !currentDate) return;
       const dateStr = format(currentDate, "yyyy-MM-dd");
       const lessonId = `${selectedClassId}_${dateStr}`;
-      const lessonRef = doc(firestore, 'teachers', user.uid, 'lessons', lessonId);
+      const lessonRef = doc(firestore, 'lessons', lessonId);
       const snap = await getDoc(lessonRef);
       if (snap.exists()) {
         setContentSummary(snap.data().content || "");
@@ -121,7 +122,7 @@ function AttendanceContent() {
       setAttendance(newState);
       loadLessonContent();
     }
-  }, [existingRecords, students, mounted, currentDate, selectedClassId, user, firestore]);
+  }, [existingRecords, students, mounted, currentDate, selectedClassId, firestore]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
@@ -150,8 +151,8 @@ function AttendanceContent() {
 
     setIsSaving(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
-    const recordsColRef = collection(firestore, 'teachers', user.uid, 'attendanceRecords');
-    const lessonRef = doc(firestore, 'teachers', user.uid, 'lessons', `${selectedClassId}_${dateStr}`);
+    const recordsColRef = collection(firestore, 'attendanceRecords');
+    const lessonRef = doc(firestore, 'lessons', `${selectedClassId}_${dateStr}`);
     const selectedClass = classes.find(c => c.id === selectedClassId);
 
     try {
@@ -164,7 +165,7 @@ function AttendanceContent() {
           date: dateStr,
           bimestre: dateBimestre,
           status: status === 'present' ? 'Presente' : 'Falta',
-          recordedByTeacherId: user.uid
+          teacherId: user.uid
         }, { merge: true });
       });
 
@@ -188,16 +189,16 @@ function AttendanceContent() {
   }
 
   const handleDeleteDayRecords = async () => {
-    if (!user || !selectedClassId || !currentDate) return;
+    if (!selectedClassId || !currentDate) return;
     setIsDeleting(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
     try {
       const deletePromises = existingRecords.map(rec => 
-        deleteDoc(doc(firestore, 'teachers', user.uid, 'attendanceRecords', rec.id))
+        deleteDoc(doc(firestore, 'attendanceRecords', rec.id))
       );
       await Promise.all([
         ...deletePromises,
-        deleteDoc(doc(firestore, 'teachers', user.uid, 'lessons', `${selectedClassId}_${dateStr}`))
+        deleteDoc(doc(firestore, 'lessons', `${selectedClassId}_${dateStr}`))
       ]);
       toast({ title: "Registros Removidos" });
     } catch (err: any) {

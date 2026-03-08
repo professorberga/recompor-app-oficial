@@ -3,18 +3,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * RECOMPOR+ SECURITY RULES
-     * 
-     * Estrutura: /teachers/{teacherId}/...
-     * Enforce: isOwner(teacherId) para professores e bypass total para Admin.
-     */
-
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // UID do Administrador Master (Berga)
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1" || 
@@ -22,35 +14,47 @@ service cloud.firestore {
       );
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // --- CONFIGURAÇÕES GLOBAIS DA ESCOLA ---
+    // --- CONFIGURAÇÕES GLOBAIS ---
     match /settings/{settingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // --- COLEÇÃO DE PROFESSORES ---
+    // --- PROFESSORES ---
     match /teachers/{teacherId} {
-      // get: O próprio ou Admin. list: Somente Admin.
-      allow get: if isOwner(teacherId) || isAdmin();
-      allow list: if isAdmin(); 
-      allow create: if isOwner(teacherId) || isAdmin();
-      allow update: if isOwner(teacherId) || isAdmin();
-      allow delete: if isAdmin();
-
-      // --- SUBCOLEÇÕES (Classes, Students, Records, Lessons, Assessments) ---
-      match /{allSubcollections=**} {
-        allow read, write: if isOwner(teacherId) || isAdmin();
-      }
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == teacherId);
     }
 
-    // --- COLEÇÃO GLOBAL DE CLASSES ---
+    // --- TURMAS (GLOBAL) ---
     match /classes/{classId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // --- ESTUDANTES (GLOBAL) ---
+    match /students/{studentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- FREQUÊNCIA (GLOBAL) ---
+    match /attendanceRecords/{recordId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // --- REGISTROS DE AULA (GLOBAL) ---
+    match /lessons/{lessonId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // --- AVALIAÇÕES (GLOBAL) ---
+    match /assessments/{assessmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }

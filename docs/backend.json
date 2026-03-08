@@ -9,30 +9,44 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["Admin", "Professor"] }
+        "role": { "type": "string", "enum": ["Admin", "Professor"] },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "classId": { "type": "string" },
+              "className": { "type": "string" },
+              "subject": { "type": "string" },
+              "dayOfWeek": { "type": "string" },
+              "lessonNumber": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "Class": {
       "title": "Class",
       "type": "object",
-      "description": "Turma vinculada ao professor.",
+      "description": "Turma da unidade escolar.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "subject": { "type": "string" },
         "teacherId": { "type": "string" }
       }
     },
     "Student": {
       "title": "Student",
       "type": "object",
-      "description": "Aluno cadastrado em uma subcoleção do professor.",
+      "description": "Estudante matriculado na unidade.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "ra": { "type": "string" },
+        "raDigit": { "type": "string" },
         "classId": { "type": "string" },
-        "teacherId": { "type": "string" },
-        "photo": { "type": "string", "description": "Base64 da thumbnail (máx 200x200)" }
+        "photo": { "type": "string" }
       }
     },
     "AttendanceRecord": {
@@ -45,7 +59,8 @@
         "classId": { "type": "string" },
         "date": { "type": "string", "format": "date" },
         "status": { "type": "string" },
-        "recordedByTeacherId": { "type": "string" }
+        "teacherId": { "type": "string" },
+        "bimestre": { "type": "string" }
       }
     }
   },
@@ -55,19 +70,27 @@
   "firestore": {
     "/teachers/{teacherId}": {
       "schema": { "$ref": "#/backend/entities/Teacher" },
-      "description": "Root docente."
+      "description": "Perfis de usuários."
     },
-    "/teachers/{teacherId}/classes/{classId}": {
+    "/classes/{classId}": {
       "schema": { "$ref": "#/backend/entities/Class" },
-      "description": "Turmas do docente."
+      "description": "Coleção global de turmas."
     },
-    "/teachers/{teacherId}/students/{studentId}": {
+    "/students/{studentId}": {
       "schema": { "$ref": "#/backend/entities/Student" },
-      "description": "Estudantes vinculados ao docente (independente da classe)."
+      "description": "Coleção global de alunos."
     },
-    "/teachers/{teacherId}/attendanceRecords/{recordId}": {
+    "/attendanceRecords/{recordId}": {
       "schema": { "$ref": "#/backend/entities/AttendanceRecord" },
-      "description": "Registros de frequência."
+      "description": "Coleção global de frequências."
+    },
+    "/lessons/{lessonId}": {
+      "schema": { "type": "object" },
+      "description": "Coleção global de registros de aula (conteúdo)."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "type": "object" },
+      "description": "Coleção global de avaliações."
     }
   }
 }
