@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { useAuth, useUser } from "@/firebase/provider"
 import { Brain, Mail, Lock, ArrowRight, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -32,7 +32,11 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
+      // Garante que a sessão persista mesmo após fechar o navegador
+      await setPersistence(auth, browserLocalPersistence)
+      
       await signInWithEmailAndPassword(auth, email, password)
+      
       toast({
         title: "Bem-vindo de volta!",
         description: "Acesso autorizado com sucesso.",
@@ -40,12 +44,24 @@ export default function LoginPage() {
       router.push("/dashboard")
     } catch (error: any) {
       console.error("Erro ao fazer login:", error)
-      let message = "Ocorreu um erro ao tentar entrar. Verifique suas credenciais."
+      let message = "Ocorreu um erro ao tentar entrar. Tente novamente."
       
-      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
-        message = "E-mail ou senha incorretos."
-      } else if (error.code === "auth/invalid-email") {
-        message = "O formato do e-mail é inválido."
+      // Tratamento específico de erros do Firebase Auth
+      switch (error.code) {
+        case "auth/invalid-credential":
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+          message = "E-mail ou senha incorretos. Verifique suas credenciais."
+          break
+        case "auth/invalid-email":
+          message = "O formato do e-mail é inválido. Use um e-mail institucional."
+          break
+        case "auth/user-disabled":
+          message = "Este usuário foi desativado. Entre em contato com a administração."
+          break
+        case "auth/too-many-requests":
+          message = "Muitas tentativas sem sucesso. Tente novamente mais tarde."
+          break
       }
 
       toast({
@@ -94,7 +110,7 @@ export default function LoginPage() {
                     id="email" 
                     type="email" 
                     placeholder="nome@escola.gov.br" 
-                    className="pl-10"
+                    className="pl-10 h-11"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required 
@@ -113,14 +129,14 @@ export default function LoginPage() {
                   <Input 
                     id="password" 
                     type="password" 
-                    className="pl-10"
+                    className="pl-10 h-11"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required 
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-11 font-bold shadow-lg" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 font-bold shadow-lg" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -17,6 +17,9 @@ interface TeacherProfile {
   email: string;
   role: 'Admin' | 'Professor';
   subjects: string[];
+  schoolName?: string;
+  academicYear?: string;
+  activeBimestre?: string;
 }
 
 interface UserAuthState {
@@ -57,43 +60,44 @@ export const FirebaseProvider: React.FC<{
   });
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
         
-        const unsubscribeProfile = onSnapshot(teacherRef, async (docSnap) => {
-          if (docSnap.exists()) {
-            const profileData = docSnap.data() as TeacherProfile;
+        // Antes de liberar o carregamento, garantimos que o perfil existe ou é provisionado
+        const docSnap = await getDoc(teacherRef);
+        
+        if (!docSnap.exists()) {
+          // Provisionamento automático se o documento não existir
+          const newProfile: TeacherProfile = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
+            email: firebaseUser.email || "",
+            role: 'Professor', // Padrão seguro para novos usuários
+            subjects: [],
+            schoolName: "E.E. Professor Milton Santos",
+            academicYear: new Date().getFullYear().toString(),
+            activeBimestre: "1"
+          };
+          
+          try {
+            await setDoc(teacherRef, newProfile);
+          } catch (err) {
+            console.error("Erro ao provisionar perfil:", err);
+          }
+        }
+
+        // Estabelece a escuta em tempo real para mudanças no perfil
+        const unsubscribeProfile = onSnapshot(teacherRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const profileData = snapshot.data() as TeacherProfile;
             setUserAuthState({
               user: firebaseUser,
-              profile: { ...profileData, id: docSnap.id },
+              profile: { ...profileData, id: snapshot.id },
               isAdmin: profileData.role === 'Admin',
               isUserLoading: false,
               userError: null,
             });
-          } else {
-            // Provisionamento automático: Cria perfil se não existir
-            // Definido como Admin para este estágio de desenvolvimento conforme solicitado
-            const newProfile: TeacherProfile = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
-              email: firebaseUser.email || "",
-              role: 'Admin', 
-              subjects: []
-            };
-            
-            try {
-              await setDoc(teacherRef, newProfile);
-            } catch (err) {
-              console.error("Erro ao provisionar perfil:", err);
-              setUserAuthState({
-                user: firebaseUser,
-                profile: null,
-                isAdmin: false,
-                isUserLoading: false,
-                userError: err as Error,
-              });
-            }
           }
         }, (error) => {
           console.error("Erro na escuta do perfil (Firestore Rules?):", error);
@@ -102,6 +106,7 @@ export const FirebaseProvider: React.FC<{
 
         return () => unsubscribeProfile();
       } else {
+        // Usuário deslogado: Limpa estado e interrompe carregamento
         setUserAuthState({
           user: null,
           profile: null,
