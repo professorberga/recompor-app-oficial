@@ -55,13 +55,14 @@ function AttendanceContent() {
   )
   const { data: rawClasses = [] } = useCollection(classesRef)
 
+  // Filtra turmas por atribuição
   const classes = useMemo(() => {
     if (isAdmin) return rawClasses;
     if (profile?.assignments && profile.assignments.length > 0) {
       const assignedIds = profile.assignments.map(a => a.classId);
       return rawClasses.filter(c => assignedIds.includes(c.id));
     }
-    return rawClasses;
+    return [];
   }, [rawClasses, profile, isAdmin]);
 
   const studentsRef = useMemoFirebase(() => {
@@ -84,7 +85,7 @@ function AttendanceContent() {
     );
   }, [user, selectedClassId, currentDate, firestore]);
 
-  const { data: existingRecords, isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
+  const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
 
   useEffect(() => {
     setMounted(true)
@@ -213,9 +214,13 @@ function AttendanceContent() {
             <Select value={selectedClassId} onValueChange={setSelectedClassId}>
               <SelectTrigger className="h-11 shadow-sm"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
               <SelectContent>
-                {classes.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
-                ))}
+                {classes.length > 0 ? (
+                  classes.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>Nenhuma turma atribuída</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -232,84 +237,105 @@ function AttendanceContent() {
         </div>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden bg-white">
-        {(isStudentsLoading || isRecordsLoading) ? (
-          <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-        ) : (
-          <Table>
-            <TableHeader><TableRow className="bg-muted/10 h-14">
-              <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
-              <TableHead className="font-black uppercase text-[10px]">Estudante</TableHead>
-              <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {filteredStudents.map((s, idx) => (
-                <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
-                  <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
-                        {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-center gap-4">
-                      <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white scale-110" : "border-slate-200 text-slate-300")}>P</button>
-                      <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white scale-110" : "border-slate-200 text-slate-300")}>F</button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
-
-      <Card className="p-6 border-none shadow-md bg-white">
-        <div className="flex items-center gap-2 mb-4 text-primary">
-          <BookText className="h-5 w-5" />
-          <h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3>
-        </div>
-        <Textarea 
-          placeholder="Descreva as competências e habilidades trabalhadas nesta aula..." 
-          className="min-h-[120px] bg-slate-50 border-dashed border-2 focus:border-primary" 
-          value={contentSummary} 
-          onChange={(e) => setContentSummary(e.target.value)} 
-        />
-        <p className="text-[10px] text-muted-foreground mt-2 font-bold uppercase">* Obrigatório para auditoria pedagógica</p>
-      </Card>
-
-      <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
-        <div className="flex gap-10 px-6">
-          <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] tracking-widest bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-green-500" />
-            <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
-          </div>
-        </div>
-        
-        <div className="flex gap-4">
-          {isAdmin && existingRecords.length > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="outline" className="text-destructive border-destructive font-black h-12 uppercase text-[10px]">Limpar Diário</Button></AlertDialogTrigger>
-              <AlertDialogContent className="bg-white">
-                <AlertDialogHeader><AlertDialogTitle>Apagar registros?</AlertDialogTitle><AlertDialogDescription>Isso removerá a frequência e o resumo de conteúdo deste dia.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive">Confirmar</AlertDialogAction></AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+      {classes.length === 0 ? (
+        <Card className="p-20 text-center flex flex-col items-center gap-4 bg-white shadow-sm border-dashed border-2">
+          <AlertCircle className="h-12 w-12 text-muted-foreground opacity-20" />
+          <p className="font-bold text-muted-foreground">Nenhuma turma atribuída ao seu perfil.</p>
+          <p className="text-xs text-muted-foreground">Contate o Coordenador Berga para registrar sua grade horária.</p>
+        </Card>
+      ) : (
+        <Card className="border-none shadow-md overflow-hidden bg-white">
+          {(isStudentsLoading || isRecordsLoading) ? (
+            <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : (
+            <>
+              <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              <Table>
+                <TableHeader><TableRow className="bg-muted/10 h-14">
+                  <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
+                  <TableHead className="font-black uppercase text-[10px]">Estudante</TableHead>
+                  <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {filteredStudents.map((s, idx) => (
+                    <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
+                      <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-4">
+                          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
+                            {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
+                            <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center gap-4">
+                          <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white scale-110" : "border-slate-200 text-slate-300")}>P</button>
+                          <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white scale-110" : "border-slate-200 text-slate-300")}>F</button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredStudents.length === 0 && (
+                    <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic">Nenhum aluno encontrado para os critérios de busca.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </>
           )}
+        </Card>
+      )}
 
-          <Button onClick={handleSave} disabled={!selectedClassId || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
-            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            {isSaving ? "Gravando..." : "Salvar Diário"}
-          </Button>
-        </div>
-      </div>
+      {selectedClassId && (
+        <>
+          <Card className="p-6 border-none shadow-md bg-white">
+            <div className="flex items-center gap-2 mb-4 text-primary">
+              <BookText className="h-5 w-5" />
+              <h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3>
+            </div>
+            <Textarea 
+              placeholder="Descreva as competências e habilidades trabalhadas nesta aula..." 
+              className="min-h-[120px] bg-slate-50 border-dashed border-2 focus:border-primary" 
+              value={contentSummary} 
+              onChange={(e) => setContentSummary(e.target.value)} 
+            />
+            <p className="text-[10px] text-muted-foreground mt-2 font-bold uppercase">* Obrigatório para auditoria pedagógica</p>
+          </Card>
+
+          <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
+            <div className="flex gap-10 px-6">
+              <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] tracking-widest bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
+              <div className="flex items-center gap-3">
+                <div className="w-4 h-4 rounded-full bg-green-500" />
+                <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              {isAdmin && existingRecords.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild><Button variant="outline" className="text-destructive border-destructive font-black h-12 uppercase text-[10px]">Limpar Diário</Button></AlertDialogTrigger>
+                  <AlertDialogContent className="bg-white">
+                    <AlertDialogHeader><AlertDialogTitle>Apagar registros?</AlertDialogTitle><AlertDialogDescription>Isso removerá a frequência e o resumo de conteúdo deste dia.</AlertDialogDescription></AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive">Confirmar</AlertDialogAction></AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              <Button onClick={handleSave} disabled={!selectedClassId || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
+                {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                {isSaving ? "Gravando..." : "Salvar Diário"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

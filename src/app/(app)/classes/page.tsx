@@ -16,14 +16,14 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebas
 import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
 
 export default function ClassesPage() {
-  const { user, profile, isAdmin } = useUser()
+  const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Referência real para as turmas. 
-  // Se for professor, ele vê o que está na sua coleção subjacente filtrado pelo que lhe foi atribuído.
+  // Referência para as turmas.
+  // IMPORTANTE: Buscamos em teachers/{uid}/classes pois a regra isOwner protege essa coleção.
   const classesRef = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return collection(firestore, 'teachers', user.uid, 'classes');
@@ -31,7 +31,6 @@ export default function ClassesPage() {
   
   const { data: rawClasses = [], isLoading: isClassesLoading } = useCollection(classesRef)
 
-  // Referência para TODOS os alunos do professor para calcular contagem dinâmica
   const allStudentsRef = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return collection(firestore, 'teachers', user.uid, 'students');
@@ -46,16 +45,16 @@ export default function ClassesPage() {
 
   // Filtra as turmas com base nas atribuições feitas pelo Admin
   const classes = useMemo(() => {
-    // Se for Admin, vê tudo na sua coleção
     if (isAdmin) return rawClasses;
     
-    // Se houver atribuições específicas no perfil, filtramos a lista
+    // Se for professor comum, ele só vê turmas que estão no seu array assignments
     if (profile?.assignments && profile.assignments.length > 0) {
       const assignedIds = profile.assignments.map(a => a.classId);
       return rawClasses.filter(c => assignedIds.includes(c.id));
     }
     
-    return rawClasses;
+    // Se não tiver atribuições, não vê nada (regra de segurança pedagógica)
+    return isAdmin ? rawClasses : [];
   }, [rawClasses, profile, isAdmin]);
 
   const getStudentCount = (classId: string) => {
@@ -109,7 +108,7 @@ export default function ClassesPage() {
     return classes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [classes, searchTerm]);
 
-  const isLoading = isClassesLoading || isStudentsLoading;
+  const isLoading = isClassesLoading || isStudentsLoading || isUserLoading;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -117,9 +116,9 @@ export default function ClassesPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Diário de Turmas</h2>
           <p className="text-muted-foreground mt-1">
-            {profile?.assignments && profile.assignments.length > 0 
-              ? "Exibindo turmas atribuídas pelo Administrador." 
-              : "Gerencie suas turmas vinculadas ao seu perfil docente."}
+            {isAdmin 
+              ? "Gerenciamento global de turmas da unidade escolar." 
+              : "Exibindo turmas atribuídas pela coordenação."}
           </p>
         </div>
 
@@ -206,8 +205,14 @@ export default function ClassesPage() {
           {filteredClasses.length === 0 && (
             <div className="col-span-full py-32 text-center opacity-40 border-4 border-dashed rounded-3xl bg-muted/10 flex flex-col items-center">
               <BookOpen className="h-20 w-20 mb-6 text-primary/40" />
-              <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">Nenhuma turma {profile?.assignments?.length ? "atribuída" : "encontrada"}</p>
-              <p className="text-sm font-medium mt-2">Contate o Administrador para verificar sua atribuição de turmas.</p>
+              <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">
+                {profile?.assignments?.length ? "Nenhuma turma encontrada" : "Nenhuma turma atribuída"}
+              </p>
+              <p className="text-sm font-medium mt-2 px-10 text-center">
+                {isAdmin 
+                  ? "Crie uma nova turma clicando no botão acima." 
+                  : "Contate o Coordenador Berga para verificar sua atribuição de turmas."}
+              </p>
             </div>
           )}
         </div>

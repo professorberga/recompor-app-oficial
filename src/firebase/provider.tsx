@@ -11,6 +11,14 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
 
+interface TeacherAssignment {
+  classId: string;
+  className: string;
+  subject: string;
+  dayOfWeek?: string;
+  lessonNumber?: string;
+}
+
 interface TeacherProfile {
   id: string;
   name: string;
@@ -20,6 +28,7 @@ interface TeacherProfile {
   schoolName?: string;
   academicYear?: string;
   activeBimestre?: string;
+  assignments?: TeacherAssignment[];
 }
 
 interface UserAuthState {
@@ -79,9 +88,10 @@ export const FirebaseProvider: React.FC<{
             email: firebaseUser.email || "",
             role: isKnownAdmin ? 'Admin' : 'Professor',
             subjects: [],
-            schoolName: isKnownAdmin ? "Castello Branco" : "E.E. Professor Milton Santos",
+            schoolName: isKnownAdmin ? "Escola Central" : "E.E. Professor Milton Santos",
             academicYear: new Date().getFullYear().toString(),
-            activeBimestre: "1"
+            activeBimestre: "1",
+            assignments: []
           };
           
           try {
@@ -102,6 +112,8 @@ export const FirebaseProvider: React.FC<{
               isUserLoading: false,
               userError: null,
             });
+          } else {
+            setUserAuthState(prev => ({ ...prev, isUserLoading: false }));
           }
         }, (error) => {
           console.error("Erro na escuta do perfil (Firestore Rules?):", error);

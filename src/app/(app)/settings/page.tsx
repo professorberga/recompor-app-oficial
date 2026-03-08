@@ -50,9 +50,11 @@ export default function SettingsPage() {
     activeBimestre: "4"
   })
 
+  // Lista de professores: SOMENTE para ADM. Se não for ADM, a query será nula para evitar erro de permissão.
   const teachersRef = useMemoFirebase(() => isAdmin ? collection(firestore, "teachers") : null, [isAdmin, firestore])
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
+  // Classes para atribuição: buscaremos na coleção de classes do ADM logado
   const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
   const { data: globalClasses = [] } = useCollection(classesRef)
 
@@ -88,13 +90,23 @@ export default function SettingsPage() {
         for (const day of matchingDays) {
           const dateStr = format(day, "yyyy-MM-dd");
           const lessonId = `${assignment.classId}_${dateStr}`;
-          const lessonRef = doc(firestore, 'teachers', teacher.id, 'lessons', lessonId);
-          const lessonSnap = await getDocs(query(collection(firestore, 'teachers', teacher.id, 'lessons'), where('id', '==', lessonId)));
           
-          let status = 'pending'; // Red
-          if (!lessonSnap.empty) {
-            const lesson = lessonSnap.docs[0].data();
-            status = lesson.content ? 'complete' : 'partial'; // Green or Yellow
+          // Auditoria de Chamada
+          const recordsSnap = await getDocs(query(
+            collection(firestore, 'teachers', teacher.id, 'attendanceRecords'),
+            where('classId', '==', assignment.classId),
+            where('date', '==', dateStr)
+          ));
+          
+          // Auditoria de Conteúdo
+          const lessonSnap = await getDocs(query(
+            collection(firestore, 'teachers', teacher.id, 'lessons'),
+            where('id', '==', lessonId)
+          ));
+          
+          let status = 'pending'; 
+          if (!recordsSnap.empty) {
+            status = !lessonSnap.empty && lessonSnap.docs[0].data().content ? 'complete' : 'partial';
           }
 
           results.push({
@@ -197,23 +209,25 @@ export default function SettingsPage() {
                 <Button onClick={() => { setEditingTeacher({ assignments: [] }); setIsTeacherDialogOpen(true); }}><UserPlus className="h-4 w-4 mr-2" /> Novo Professor</Button>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-xl overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-muted/50 border-b font-black uppercase text-[10px] tracking-widest">
-                      <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Cargo</th><th className="px-6 py-4">Grade Horária</th><th className="px-6 py-4 text-right">Ações</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {allTeachers.map((t) => (
-                        <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4"><span className="font-bold block uppercase text-xs">{t.name}</span><span className="text-[10px] opacity-60">{t.email}</span></td>
-                          <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'secondary'}>{t.role}</Badge></td>
-                          <td className="px-6 py-4"><span className="text-xs font-bold">{t.assignments?.length || 0} aulas previstas</span></td>
-                          <td className="px-6 py-4 text-right"><Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {isTeachersLoading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div> : (
+                  <div className="border rounded-xl overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-muted/50 border-b font-black uppercase text-[10px] tracking-widest">
+                        <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Cargo</th><th className="px-6 py-4">Grade Horária</th><th className="px-6 py-4 text-right">Ações</th></tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {allTeachers.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4"><span className="font-bold block uppercase text-xs">{t.name}</span><span className="text-[10px] opacity-60">{t.email}</span></td>
+                            <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'secondary'}>{t.role}</Badge></td>
+                            <td className="px-6 py-4"><span className="text-xs font-bold">{t.assignments?.length || 0} aulas previstas</span></td>
+                            <td className="px-6 py-4 text-right"><Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -258,6 +272,16 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Nome</Label><Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} /></div>
                 <div className="space-y-2"><Label>E-mail</Label><Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} /></div>
+                <div className="space-y-2">
+                  <Label>Perfil de Acesso</Label>
+                  <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher({...editingTeacher, role: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Professor">Professor</SelectItem>
+                      <SelectItem value="Admin">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -272,6 +296,9 @@ export default function SettingsPage() {
                       <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
                     </div>
                   ))}
+                  {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
+                    <div className="text-center py-10 border-2 border-dashed rounded-xl opacity-30 italic">Nenhuma aula na grade horária.</div>
+                  )}
                 </div>
               </div>
             </form>
