@@ -3,90 +3,100 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
-interface FirebaseProviderProps {
-  children: ReactNode;
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
+interface TeacherProfile {
+  id: string;
+  name: string;
+  email: string;
+  role?: 'Admin' | 'Professor';
+  subjects: string[];
 }
 
 interface UserAuthState {
   user: User | null;
+  profile: TeacherProfile | null;
   isAdmin: boolean;
   isUserLoading: boolean;
   userError: Error | null;
 }
 
-export interface FirebaseContextState {
+export interface FirebaseContextState extends UserAuthState {
   areServicesAvailable: boolean;
   firebaseApp: FirebaseApp | null;
   firestore: Firestore | null;
   auth: Auth | null;
-  user: User | null;
-  isAdmin: boolean;
-  isUserLoading: boolean;
-  userError: Error | null;
 }
 
-export interface FirebaseServicesAndUser {
+export interface FirebaseServicesAndUser extends FirebaseContextState {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
-  user: User | null;
-  isAdmin: boolean;
-  isUserLoading: boolean;
-  userError: Error | null;
-}
-
-export interface UserHookResult {
-  user: User | null;
-  isAdmin: boolean;
-  isUserLoading: boolean;
-  userError: Error | null;
 }
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
-  children,
-  firebaseApp,
-  firestore,
-  auth,
-}) => {
+export const FirebaseProvider: React.FC<{
+  children: ReactNode;
+  firebaseApp: FirebaseApp;
+  firestore: Firestore;
+  auth: Auth;
+}> = ({ children, firebaseApp, firestore, auth }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
+    profile: null,
     isAdmin: false,
     isUserLoading: true,
     userError: null,
   });
 
   useEffect(() => {
-    if (!auth) {
-      setUserAuthState({ user: null, isAdmin: false, isUserLoading: false, userError: new Error("Auth service not provided.") });
-      return;
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Quando o usuário loga, buscamos o perfil no Firestore
+        const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
+        const unsubscribeProfile = onSnapshot(teacherRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const profileData = docSnap.data() as TeacherProfile;
+            setUserAuthState({
+              user: firebaseUser,
+              profile: { ...profileData, id: docSnap.id },
+              isAdmin: profileData.role === 'Admin',
+              isUserLoading: false,
+              userError: null,
+            });
+          } else {
+            // Caso o documento não exista (primeiro login), criamos um estado básico
+            // mas mantemos o loading como falso para permitir que ele crie o perfil
+            setUserAuthState({
+              user: firebaseUser,
+              profile: null,
+              isAdmin: false,
+              isUserLoading: false,
+              userError: null,
+            });
+          }
+        }, (error) => {
+          console.error("Erro ao buscar perfil no Firestore:", error);
+          setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
+        });
 
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (firebaseUser) => {
-        const isAdmin = !!(
-          firebaseUser?.email?.includes('admin') || 
-          firebaseUser?.email === 'marciobergamini@prof.educacao.sp.gov.br' ||
-          firebaseUser?.email?.startsWith('admin.')
-        );
-        setUserAuthState({ user: firebaseUser, isAdmin, isUserLoading: false, userError: null });
-      },
-      (error) => {
-        console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isAdmin: false, isUserLoading: false, userError: error });
+        return () => unsubscribeProfile();
+      } else {
+        setUserAuthState({
+          user: null,
+          profile: null,
+          isAdmin: false,
+          isUserLoading: false,
+          userError: null,
+        });
       }
-    );
-    return () => unsubscribe();
-  }, [auth]);
+    });
+
+    return () => unsubscribeAuth();
+  }, [auth, firestore]);
 
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);
@@ -95,10 +105,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       firebaseApp: servicesAvailable ? firebaseApp : null,
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
-      user: userAuthState.user,
-      isAdmin: userAuthState.isAdmin,
-      isUserLoading: userAuthState.isUserLoading,
-      userError: userAuthState.userError,
+      ...userAuthState
     };
   }, [firebaseApp, firestore, auth, userAuthState]);
 
@@ -112,36 +119,18 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-  if (context === undefined) {
-    throw new Error('useFirebase must be used within a FirebaseProvider.');
-  }
+  if (context === undefined) throw new Error('useFirebase must be used within a FirebaseProvider.');
   if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
     throw new Error('Firebase core services not available.');
   }
-  return {
-    firebaseApp: context.firebaseApp,
-    firestore: context.firestore,
-    auth: context.auth,
-    user: context.user,
-    isAdmin: context.isAdmin,
-    isUserLoading: context.isUserLoading,
-    userError: context.userError,
-  };
+  return context as FirebaseServicesAndUser;
 };
 
-export const useAuth = (): Auth => {
-  const { auth } = useFirebase();
-  return auth;
-};
-
-export const useFirestore = (): Firestore => {
-  const { firestore } = useFirebase();
-  return firestore;
-};
-
-export const useUser = (): UserHookResult => {
-  const { user, isAdmin, isUserLoading, userError } = useFirebase();
-  return { user, isAdmin, isUserLoading, userError };
+export const useAuth = () => useFirebase().auth;
+export const useFirestore = () => useFirebase().firestore;
+export const useUser = () => {
+  const { user, profile, isAdmin, isUserLoading, userError } = useFirebase();
+  return { user, profile, isAdmin, isUserLoading, userError };
 };
 
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {

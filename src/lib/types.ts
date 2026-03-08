@@ -1,8 +1,17 @@
+
 export type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Evaluate' | 'Create';
 
 export type Subject = 'Portuguese' | 'Math';
 
 export type UserRole = 'Admin' | 'Professor';
+
+export interface TeacherProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  subjects: string[];
+}
 
 export interface SystemUser {
   id: string;
@@ -30,7 +39,7 @@ export interface Student {
   raDigit: string;
   status: 'Ativo' | 'Inativo';
   photo: string | null;
-  enrollments: string[]; // IDs das disciplinas
+  enrollments: string[]; 
   history: {
     attendance: Array<{ date: string; status: 'present' | 'absent' }>;
     assessments: Array<{ 
