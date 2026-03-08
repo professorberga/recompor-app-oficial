@@ -31,9 +31,16 @@ interface TeacherProfile {
   assignments?: TeacherAssignment[];
 }
 
+interface SchoolConfig {
+  schoolName: string;
+  academicYear: string;
+  activeBimestre: string;
+}
+
 interface UserAuthState {
   user: User | null;
   profile: TeacherProfile | null;
+  schoolConfig: SchoolConfig | null;
   isAdmin: boolean;
   isUserLoading: boolean;
   userError: Error | null;
@@ -66,27 +73,45 @@ export const FirebaseProvider: React.FC<{
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
     profile: null,
+    schoolConfig: null,
     isAdmin: false,
     isUserLoading: true,
     userError: null,
   });
 
-  // Ref para gerenciar o unsubscribe do perfil de forma manual e segura
   const profileUnsubscribeRef = useRef<Unsubscribe | null>(null);
+  const schoolUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Limpa qualquer listener de perfil anterior imediatamente ao mudar o estado de auth
-      if (profileUnsubscribeRef.current) {
-        profileUnsubscribeRef.current();
-        profileUnsubscribeRef.current = null;
-      }
+      // Limpa listeners anteriores
+      if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
+      if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
 
       if (firebaseUser) {
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
+        const schoolRef = doc(firestore, 'settings', 'school');
         
         try {
-          // Verifica se o perfil existe. Se não, provisiona.
+          // 1. Escuta Global de Configurações da Escola (Independente do Professor)
+          schoolUnsubscribeRef.current = onSnapshot(schoolRef, (snapshot) => {
+            if (snapshot.exists()) {
+              setUserAuthState(prev => ({ 
+                ...prev, 
+                schoolConfig: snapshot.data() as SchoolConfig 
+              }));
+            } else {
+              // Provisiona config global inicial se não existir (apenas admin ou primeiro acesso)
+              const defaultConfig = {
+                schoolName: "E.E. Professor Milton Santos",
+                academicYear: new Date().getFullYear().toString(),
+                activeBimestre: "1"
+              };
+              setDoc(schoolRef, defaultConfig);
+            }
+          }, () => {});
+
+          // 2. Verifica/Provisiona perfil do professor
           const docSnap = await getDoc(teacherRef);
           if (!docSnap.exists()) {
             const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
@@ -96,49 +121,41 @@ export const FirebaseProvider: React.FC<{
               email: firebaseUser.email || "",
               role: isKnownAdmin ? 'Admin' : 'Professor',
               subjects: [],
-              schoolName: isKnownAdmin ? "Escola Central" : "E.E. Professor Milton Santos",
-              academicYear: new Date().getFullYear().toString(),
-              activeBimestre: "1",
               assignments: []
             };
             await setDoc(teacherRef, newProfile);
           }
 
-          // Estabelece a escuta em tempo real para mudanças no perfil
+          // 3. Estabelece a escuta em tempo real para o perfil
           profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
             if (snapshot.exists()) {
               const profileData = snapshot.data() as TeacherProfile;
-              setUserAuthState({
+              setUserAuthState(prev => ({
+                ...prev,
                 user: firebaseUser,
                 profile: { ...profileData, id: snapshot.id },
-                isAdmin: profileData.role === 'Admin',
+                isAdmin: profileData.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
                 isUserLoading: false,
                 userError: null,
-              });
-            } else {
-              setUserAuthState(prev => ({ ...prev, isUserLoading: false }));
+              }));
             }
           }, (error) => {
-            // Ignora erros de permissão silenciosamente durante logout
             if (error.code === 'permission-denied') return;
             setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
           });
 
         } catch (err: any) {
-          // Se falhar o getDoc inicial (comum em logout rápido), limpa o estado
-          setUserAuthState({
-            user: null,
-            profile: null,
-            isAdmin: false,
+          setUserAuthState(prev => ({
+            ...prev,
             isUserLoading: false,
             userError: err,
-          });
+          }));
         }
       } else {
-        // Usuário deslogado: Limpa estado e interrompe carregamento
         setUserAuthState({
           user: null,
           profile: null,
+          schoolConfig: null,
           isAdmin: false,
           isUserLoading: false,
           userError: null,
@@ -149,6 +166,7 @@ export const FirebaseProvider: React.FC<{
     return () => {
       unsubscribeAuth();
       if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
+      if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
     };
   }, [auth, firestore]);
 
@@ -183,8 +201,8 @@ export const useFirebase = (): FirebaseServicesAndUser => {
 export const useAuth = () => useFirebase().auth;
 export const useFirestore = () => useFirebase().firestore;
 export const useUser = () => {
-  const { user, profile, isAdmin, isUserLoading, userError } = useFirebase();
-  return { user, profile, isAdmin, isUserLoading, userError };
+  const { user, profile, schoolConfig, isAdmin, isUserLoading, userError } = useFirebase();
+  return { user, profile, schoolConfig, isAdmin, isUserLoading, userError };
 };
 
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {

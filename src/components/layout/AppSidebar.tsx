@@ -10,7 +10,6 @@ import {
   Brain,
   Settings,
   ShieldCheck,
-  UserCircle,
   LogOut,
   ChevronUp,
 } from "lucide-react"
@@ -94,7 +93,7 @@ export function AppSidebar() {
   const { setOpenMobile, isMobile } = useSidebar()
   const [mounted, setMounted] = useState(false)
   const auth = useAuth()
-  const { user, profile, isAdmin } = useUser()
+  const { user, profile, schoolConfig, isAdmin } = useUser()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -103,15 +102,11 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     try {
-      // O signOut do Firebase limpa o auth.currentUser
       await signOut(auth)
-      
       toast({
         title: "Sessão Encerrada",
         description: "Você saiu do sistema com segurança.",
       })
-      
-      // Força o redirecionamento imediato para limpar o estado do Next.js
       router.replace("/login")
     } catch (error) {
       toast({
@@ -128,7 +123,6 @@ export function AppSidebar() {
     }
   }
 
-  // Filtra itens com base no cargo real carregado do Firestore
   const filteredItems = useMemo(() => {
     return items.filter(item => !item.adminOnly || isAdmin);
   }, [isAdmin]);
@@ -147,7 +141,7 @@ export function AppSidebar() {
               Recompor+
             </span>
             <span className="text-[9px] font-bold text-muted-foreground uppercase truncate mt-0.5">
-              {profile?.schoolName || "Unidade Escolar"}
+              {schoolConfig?.schoolName || "Unidade Escolar"}
             </span>
           </div>
         </div>

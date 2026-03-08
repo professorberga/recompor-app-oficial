@@ -1,12 +1,11 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import { 
-  School, Settings as SettingsIcon, Bell, Plus, Search, BookOpen, Users, UserPlus, Mail, Trash2, Pencil, Clock, Info, ChevronRight, UserCheck, UserCircle, Loader2, ShieldAlert, Save, ShieldCheck, MoreHorizontal, PlusCircle, X, ClipboardList, AlertCircle, CheckCircle2, History
+  School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle
 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,15 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogPortal } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Checkbox } from "@/components/ui/checkbox"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { TeacherProfile, UserRole, TeacherAssignment } from "@/lib/types"
+import { TeacherProfile, TeacherAssignment } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { doc, setDoc, collection, query, deleteDoc, getDocs, where } from "firebase/firestore"
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns"
+import { doc, setDoc, collection, query, getDocs, where } from "firebase/firestore"
+import { format, startOfWeek, eachDayOfInterval } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
@@ -31,7 +28,7 @@ const LESSONS = ['1ª aula', '2ª aula', '3ª aula', '4ª aula', '5ª aula', '6�
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
-  const { user, profile, isAdmin, isUserLoading } = useUser()
+  const { user, profile, schoolConfig, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   
   const [isSaving, setIsSaving] = useState(false)
@@ -43,14 +40,15 @@ export default function SettingsPage() {
 
   const [profileData, setProfileData] = useState({
     name: "",
-    email: "",
-    subjects: [] as string[],
-    schoolName: "E.E. Professor Milton Santos",
-    academicYear: "2024",
-    activeBimestre: "4"
+    email: ""
   })
 
-  // CRITICAL: Prevent unauthorized global query to /teachers for non-admins to avoid 403
+  const [schoolData, setSchoolData] = useState({
+    schoolName: "",
+    academicYear: "",
+    activeBimestre: ""
+  })
+
   const teachersRef = useMemoFirebase(() => 
     isAdmin ? collection(firestore, "teachers") : null, 
     [isAdmin, firestore]
@@ -68,14 +66,17 @@ export default function SettingsPage() {
     if (profile) {
       setProfileData({
         name: profile.name || "",
-        email: profile.email || "",
-        subjects: profile.subjects || [],
-        schoolName: profile.schoolName || "E.E. Professor Milton Santos",
-        academicYear: profile.academicYear || "2024",
-        activeBimestre: profile.activeBimestre || "4"
+        email: profile.email || ""
       })
     }
-  }, [profile])
+    if (schoolConfig) {
+      setSchoolData({
+        schoolName: schoolConfig.schoolName || "",
+        academicYear: schoolConfig.academicYear || "",
+        activeBimestre: schoolConfig.activeBimestre || "1"
+      })
+    }
+  }, [profile, schoolConfig])
 
   const runAudit = async () => {
     if (!isAdmin) return;
@@ -134,14 +135,23 @@ export default function SettingsPage() {
     if (!user) return
     setIsSaving(true)
     try {
-      // Validação de Payload antes de salvar
-      if (!profileData.name || !profileData.schoolName) {
-        throw new Error("Dados obrigatórios faltando.");
-      }
       await setDoc(doc(firestore, "teachers", user.uid), profileData, { merge: true });
       toast({ title: "Perfil atualizado" });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSaveSchool = async () => {
+    if (!isAdmin) return
+    setIsSaving(true)
+    try {
+      await setDoc(doc(firestore, "settings", "school"), schoolData, { merge: true });
+      toast({ title: "Configurações da escola atualizadas" });
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
     } finally {
       setIsSaving(false)
     }
@@ -189,21 +199,30 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-primary uppercase">Gestão & Auditoria</h2>
-          <p className="text-muted-foreground mt-1">Identidade institucional e controle de conformidade pedagógica.</p>
+          <p className="text-muted-foreground mt-1">
+            {isAdmin ? "Identidade institucional e controle de conformidade pedagógica." : "Meus dados e histórico docente."}
+          </p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white border h-auto p-1 shadow-sm">
-          <TabsTrigger value="profile" className="font-bold py-2 uppercase text-[10px]">Perfil</TabsTrigger>
-          <TabsTrigger value="school" className="font-bold py-2 uppercase text-[10px]">Escola</TabsTrigger>
-          {isAdmin && <TabsTrigger value="users" className="font-bold py-2 uppercase text-[10px]">Docentes</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="audit" className="font-bold py-2 uppercase text-[10px]" onClick={runAudit}>Auditoria</TabsTrigger>}
+        <TabsList className={cn(
+          "grid w-full bg-white border h-auto p-1 shadow-sm",
+          isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1"
+        )}>
+          <TabsTrigger value="profile" className="font-bold py-2 uppercase text-[10px]">Meus Dados</TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger value="school" className="font-bold py-2 uppercase text-[10px]">Escola</TabsTrigger>
+              <TabsTrigger value="users" className="font-bold py-2 uppercase text-[10px]">Docentes</TabsTrigger>
+              <TabsTrigger value="audit" className="font-bold py-2 uppercase text-[10px]" onClick={runAudit}>Auditoria</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
           <Card className="border-none shadow-md bg-white">
-            <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Meus Dados</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Perfil Docente</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome Completo</Label><Input value={profileData.name} onChange={(e) => setProfileData({...profileData, name: e.target.value})} /></div>
@@ -213,6 +232,33 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="school" className="mt-6">
+            <Card className="border-none shadow-md bg-white">
+              <CardHeader><CardTitle className="text-xl font-black uppercase text-primary">Configurações Globais</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome da Escola</Label><Input value={schoolData.schoolName} onChange={(e) => setSchoolData({...schoolData, schoolName: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-xs font-bold uppercase">Ano Letivo</Label><Input value={schoolData.academicYear} onChange={(e) => setSchoolData({...schoolData, academicYear: e.target.value})} /></div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Bimestre Ativo</Label>
+                    <Select value={schoolData.activeBimestre} onValueChange={(v) => setSchoolData({...schoolData, activeBimestre: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1º Bimestre</SelectItem>
+                        <SelectItem value="2">2º Bimestre</SelectItem>
+                        <SelectItem value="3">3º Bimestre</SelectItem>
+                        <SelectItem value="4">4º Bimestre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button onClick={handleSaveSchool} disabled={isSaving} className="font-bold shadow-lg">Salvar Configurações da Escola</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="users" className="mt-6 space-y-6">
@@ -317,9 +363,6 @@ export default function SettingsPage() {
                       <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
                     </div>
                   ))}
-                  {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
-                    <div className="text-center py-16 border-2 border-dashed rounded-xl opacity-20 italic font-bold text-xs uppercase tracking-widest">Nenhuma aula atribuída na grade.</div>
-                  )}
                 </div>
               </div>
             </form>

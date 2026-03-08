@@ -26,8 +26,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingOwner(userId) {
-      return resource != null && (isOwner(userId) || isAdmin());
+    // --- CONFIGURAÇÕES GLOBAIS DA ESCOLA ---
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // --- COLEÇÃO DE PROFESSORES ---
@@ -40,13 +42,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       // --- SUBCOLEÇÕES (Classes, Students, Records, Lessons, Assessments) ---
-      // Todas seguem a lógica: o dono do nó raiz (teacherId) ou o Admin acessam tudo abaixo.
       match /{allSubcollections=**} {
         allow read, write: if isOwner(teacherId) || isAdmin();
       }
     }
 
-    // --- COLEÇÃO GLOBAL DE CLASSES (Opcional, se houver busca fora do nó teacher) ---
+    // --- COLEÇÃO GLOBAL DE CLASSES ---
     match /classes/{classId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
