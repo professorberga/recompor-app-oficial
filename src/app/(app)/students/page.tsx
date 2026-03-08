@@ -429,20 +429,25 @@ function StudentsContent() {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Últimos Registros</h4>
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Últimas Faltas Registradas</h4>
                   <div className="border rounded-xl divide-y">
-                    {attendanceHistory.slice(0, 5).map((record) => (
+                    {attendanceHistory
+                      .filter(record => record.status === 'Falta')
+                      .slice(0, 10)
+                      .map((record) => (
                       <div key={record.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                         <div className="flex items-center gap-3">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{new Date(record.date).toLocaleDateString('pt-BR')}</span>
                         </div>
-                        <Badge variant={record.status === 'Presente' ? 'default' : 'destructive'} className="font-bold px-3">
-                          {record.status === 'Presente' ? <><CheckCircle2 className="h-3 w-3 mr-1" /> PRESENTE</> : <><XCircle className="h-3 w-3 mr-1" /> FALTA</>}
+                        <Badge variant="destructive" className="font-bold px-3">
+                          <XCircle className="h-3 w-3 mr-1" /> FALTA
                         </Badge>
                       </div>
                     ))}
-                    {attendanceHistory.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhum registro de chamada encontrado no Firestore.</p>}
+                    {attendanceHistory.filter(record => record.status === 'Falta').length === 0 && (
+                      <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhuma falta registrada para este aluno.</p>
+                    )}
                   </div>
                 </div>
               </TabsContent>
