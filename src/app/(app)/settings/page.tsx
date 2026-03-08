@@ -98,14 +98,17 @@ export default function SettingsPage() {
         if (!teacher.assignments || teacher.assignments.length === 0) continue;
         
         for (const assignment of teacher.assignments) {
-          const matchingDays = days.filter(d => 
-            format(d, 'EEEE', { locale: ptBR }).toLowerCase().includes(assignment.dayOfWeek?.toLowerCase() || '')
-          );
+          // Normalização do dia da semana para comparação
+          const matchingDays = days.filter(d => {
+            const dayName = format(d, 'EEEE', { locale: ptBR }).toLowerCase();
+            return dayName.includes(assignment.dayOfWeek?.toLowerCase() || '');
+          });
           
           for (const day of matchingDays) {
             const dateStr = format(day, "yyyy-MM-dd");
             const lessonId = `${assignment.classId}_${dateStr}`;
             
+            // Verifica presença de registros de frequência
             const recordsQuery = query(
               collection(firestore, 'attendanceRecords'),
               where('classId', '==', assignment.classId),
@@ -114,27 +117,32 @@ export default function SettingsPage() {
             );
             const recordsSnap = await getDocs(recordsQuery);
             
+            // Verifica presença de registro de aula (conteúdo)
             const lessonRef = doc(firestore, 'lessons', lessonId);
             const lessonSnap = await getDoc(lessonRef);
             
             let status = 'pending'; 
             if (!recordsSnap.empty) {
               const lessonData = lessonSnap.exists() ? lessonSnap.data() : null;
-              status = lessonData && lessonData.content ? 'complete' : 'partial';
+              status = (lessonData && lessonData.content && lessonData.content.trim() !== "") ? 'complete' : 'partial';
             }
 
+            // Lookup seguro de nome de turma e disciplina
+            const classInfo = globalClasses.find(c => c.id === assignment.classId);
+            
             results.push({
-              teacherName: teacher.name,
-              className: assignment.className,
-              subject: assignment.subject,
-              date: dateStr,
-              lesson: assignment.lessonNumber,
+              teacherName: teacher.name || "Sem Nome",
+              className: assignment.className || classInfo?.name || "Turma s/ Nome",
+              subject: assignment.subject || classInfo?.subject || "Sem Disciplina",
+              date: format(day, "dd/MM (EEEE)", { locale: ptBR }),
+              lesson: assignment.lessonNumber || "Aula s/ Ref",
               status
             });
           }
         }
       }
-      setAuditData(results);
+      // Ordena por data (mais recentes primeiro)
+      setAuditData(results.reverse());
     } catch (err) {
       console.error(err);
       toast({ title: "Erro na auditoria", description: "Falha ao consultar coleções globais.", variant: "destructive" });
@@ -199,9 +207,17 @@ export default function SettingsPage() {
     if (!editingTeacher || !editingTeacher.assignments) return;
     const next = [...editingTeacher.assignments];
     const assignment = { ...next[index], [field]: value };
+    
+    // Sincroniza o nome da turma automaticamente ao selecionar o ID
     if (field === 'classId') {
-      assignment.className = globalClasses.find(c => c.id === value)?.name || "";
+      const classInfo = globalClasses.find(c => c.id === value);
+      assignment.className = classInfo?.name || "";
+      // Se a disciplina ainda for padrão, sugere a disciplina da turma
+      if (!assignment.subject) {
+        assignment.subject = classInfo?.subject === 'Portuguese' ? 'Português' : 'Matemática';
+      }
     }
+    
     next[index] = assignment;
     setEditingTeacher({ ...editingTeacher, assignments: next });
   }
@@ -321,22 +337,29 @@ export default function SettingsPage() {
             <Card className="border-none shadow-md bg-white">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div><CardTitle className="text-xl font-black uppercase text-primary">Auditoria de Lançamentos</CardTitle><CardDescription className="font-bold text-xs">Conferência reativa entre grade prevista e registros reais.</CardDescription></div>
-                <Button variant="outline" onClick={runAudit} disabled={isAuditing} className="font-bold shadow-sm">{isAuditing ? <Loader2 className="animate-spin h-4 w-4" /> : <History className="h-4 w-4" />}</Button>
+                <div className="flex gap-2">
+                   <Button variant="outline" onClick={runAudit} disabled={isAuditing} className="font-bold shadow-sm">
+                    {isAuditing ? <Loader2 className="animate-spin h-4 w-4" /> : <History className="h-4 w-4 mr-2" />}
+                    Atualizar Auditoria
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {auditData.length === 0 && !isAuditing && <div className="text-center py-24 opacity-30 italic font-bold">Nenhuma pendência detectada para esta semana.</div>}
+                  {auditData.length === 0 && !isAuditing && <div className="text-center py-24 opacity-30 italic font-bold uppercase tracking-widest text-xs">Nenhuma pendência detectada para esta semana.</div>}
                   {auditData.map((a, i) => (
                     <div key={i} className="flex items-center justify-between p-4 border rounded-xl bg-white shadow-sm hover:border-primary/50 transition-all">
                       <div className="flex items-center gap-4">
                         <div className={cn("w-3 h-3 rounded-full shadow-inner", a.status === 'complete' ? 'bg-green-500' : a.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500')} />
                         <div className="flex flex-col">
                           <span className="font-black text-xs uppercase text-primary">{a.teacherName} • {a.className}</span>
-                          <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">{a.subject} • {a.date} ({a.lesson})</span>
+                          <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">
+                            {a.subject} • {a.date} ({a.lesson.split(' ')[0]})
+                          </span>
                         </div>
                       </div>
                       <Badge variant={a.status === 'complete' ? 'outline' : 'destructive'} className={cn("font-black text-[9px] uppercase", a.status === 'complete' && 'border-green-500 text-green-600 bg-green-50')}>
-                        {a.status === 'complete' ? 'Ok' : a.status === 'partial' ? 'Sem Conteúdo' : 'Lançamento Pendente'}
+                        {a.status === 'complete' ? 'Ok' : a.status === 'partial' ? 'Sem Conteúdo' : 'Chamada Pendente'}
                       </Badge>
                     </div>
                   ))}
@@ -351,7 +374,7 @@ export default function SettingsPage() {
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Atribuição Docente</DialogTitle>
-            <DialogDescription className="text-white/70 font-bold text-xs">Vincule turmas e defina a grade horária oficial no Firestore.</DialogDescription>
+            <DialogDescription className="text-white/70 font-bold text-xs uppercase tracking-widest">Vincule turmas e defina a grade horária oficial no Firestore.</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden flex flex-col">
             <ScrollArea className="flex-1">
@@ -380,19 +403,45 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                     
-                    {/* Container com scroll interno para os horários de aula */}
-                    <div className="max-h-[300px] overflow-y-auto pr-2 space-y-3 border-2 border-dashed rounded-xl p-4 bg-slate-50/50">
+                    <div className="max-h-[350px] overflow-y-auto pr-2 space-y-3 border-2 border-dashed rounded-xl p-4 bg-slate-50/50">
                       {editingTeacher?.assignments?.map((a, idx) => (
                         <div key={idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group hover:border-primary/30 transition-all shadow-sm">
-                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label><Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label><Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Português">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent></Select></div>
-                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label><Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
-                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label>
+                            <Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
+                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
+                              <SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label>
+                            <Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}>
+                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Português">Português</SelectItem>
+                                <SelectItem value="Matemática">Matemática</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label>
+                            <Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}>
+                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
+                              <SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label>
+                            <Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}>
+                              <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
+                              <SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
                           <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
                         </div>
                       ))}
                       {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
-                        <div className="py-8 text-center text-xs text-muted-foreground font-bold uppercase opacity-30 italic">
+                        <div className="py-12 text-center text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-30 italic">
                           Nenhuma aula atribuída. Clique em "Nova Aula" para começar.
                         </div>
                       )}
