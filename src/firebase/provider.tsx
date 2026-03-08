@@ -103,15 +103,15 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. BUSCA HÍBRIDA E MIGRAÇÃO (PADRONIZAÇÃO UID)
-          // Priorizamos a busca por e-mail para resolver perfis legados (ID = e-mail ou RA)
-          const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+          // 2. PROTOCOLO BAVELLONI: Busca Híbrida e Migração por UID
+          const normalizedEmail = firebaseUser.email?.toLowerCase().trim();
+          const q = query(collection(firestore, 'teachers'), where('email', '==', normalizedEmail));
           const querySnap = await getDocs(q);
           
           let profileDocSnap = await getDoc(teacherRef);
           
+          // Se o UID doc não existe mas o e-mail existe, migra
           if (!profileDocSnap.exists() && !querySnap.empty) {
-            // ENCONTROU PERFIL LEGADO: Realiza a migração silenciosa
             const legacyDoc = querySnap.docs[0];
             const data = legacyDoc.data() as TeacherProfile;
             
@@ -121,12 +121,9 @@ export const FirebaseProvider: React.FC<{
               role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
             };
             
-            console.log(`[Provider] Sincronizando ID legado ${legacyDoc.id} para UID ${firebaseUser.uid}`);
-            
-            // Grava no novo endereço (UID)
+            console.log(`[Provider] Sincronizando ID legado ${legacyDoc.id} -> ${firebaseUser.uid}`);
             await setDoc(teacherRef, profileData, { merge: true });
             
-            // Remove o antigo se for diferente
             if (legacyDoc.id !== firebaseUser.uid) {
               await deleteDoc(legacyDoc.ref);
             }
@@ -147,12 +144,12 @@ export const FirebaseProvider: React.FC<{
               }
             });
           } else {
-            console.warn("[Auth] Usuário autenticado mas sem perfil institucional vinculado.");
+            console.warn("[Auth] Usuário sem perfil institucional. Redirecionando para login.");
             setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
           }
 
         } catch (err: any) {
-          console.error("Erro na sincronização de identidade:", err);
+          console.error("Erro na sincronização:", err);
           setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: err }));
         }
       } else {

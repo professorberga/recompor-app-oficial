@@ -35,7 +35,21 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.7.0"
+  const SYSTEM_VERSION = "v1.8.0"
+
+  // REGRA DE FERRO 1: Zero Cache de Sessão no Carregamento
+  useEffect(() => {
+    const clearSession = async () => {
+      try {
+        await signOut(auth);
+        window.localStorage.clear();
+        console.log("[Auth] Sessão e Cache purgados para novo acesso.");
+      } catch (err) {
+        console.error("Erro ao limpar sessão:", err);
+      }
+    };
+    clearSession();
+  }, [auth]);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -45,55 +59,62 @@ export default function LoginPage() {
 
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
-      // INSTRUÇÃO OBRIGATÓRIA: Prioridade de Busca por E-mail para Migração
-      // Buscamos primeiro via Query para localizar perfis legados (ID = e-mail ou RA)
-      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+      // REGRA DE FERRO 2: Busca Universal por E-mail Normalizado
+      const normalizedEmail = firebaseUser.email.toLowerCase().trim();
+      const teachersRef = collection(firestore, 'teachers');
+      const q = query(teachersRef, where('email', '==', normalizedEmail));
       const qSnap = await getDocs(q);
       
-      let profileData: any = null;
-      let legacyDocId: string | null = null;
-
-      if (!qSnap.empty) {
-        const foundDoc = qSnap.docs[0];
-        profileData = foundDoc.data();
-        legacyDocId = foundDoc.id;
-
-        // VERIFICAÇÃO DE SINCRONIZAÇÃO (Efeito Kauã/Milton)
-        // Se o ID do documento encontrado NÃO for o UID, realizamos a migração
-        if (legacyDocId !== firebaseUser.uid) {
-          console.log(`[Migration] Migrando perfil de ${legacyDocId} para ${firebaseUser.uid}`);
-          
-          // 1. Cria o novo documento com o UID oficial
-          const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
-          await setDoc(newDocRef, { 
-            ...profileData, 
-            id: firebaseUser.uid,
-            role: profileData.role || 'Professor'
-          }, { merge: true });
-
-          // 2. Deleta o documento antigo (legado)
-          await deleteDoc(doc(firestore, 'teachers', legacyDocId));
-          
-          toast({ title: "Sincronizado", description: "Seu perfil foi atualizado para o padrão de segurança UID." });
-        }
-      } else {
-        // Handshake falhou - Nenhum professor com este e-mail no Firestore
+      if (qSnap.empty) {
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
-          description: "E-mail autenticado, mas nenhum perfil docente vinculado. Contate o Berga.",
+          description: "E-mail autenticado, mas nenhum perfil docente vinculado ao sistema Recompor+.",
           variant: "destructive",
         });
         return;
       }
 
-      console.log('Cargo detectado:', profileData?.role || 'Não identificado');
+      // REGRA DE FERRO 3: Protocolo de Migração 'Bavelloni'
+      const foundDoc = qSnap.docs[0];
+      const legacyData = foundDoc.data();
+      const legacyId = foundDoc.id;
+
+      // Se o ID do documento encontrado NÃO for o UID, realizamos a migração ou pareamento
+      if (legacyId !== firebaseUser.uid) {
+        console.log(`[Migration] Sincronizando perfil ${legacyId} -> ${firebaseUser.uid}`);
+        
+        // 1. Cria ou Atualiza o novo documento com o UID oficial
+        const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
+        await setDoc(newDocRef, { 
+          ...legacyData, 
+          id: firebaseUser.uid,
+          role: legacyData.role || 'Professor'
+        }, { merge: true });
+
+        // 2. Se o ID antigo era o e-mail ou RA (diferente do UID), deleta o legado
+        if (legacyId === normalizedEmail || legacyId.length < 20) {
+          await deleteDoc(doc(firestore, 'teachers', legacyId));
+          console.log("[Migration] Documento legado removido com sucesso.");
+        }
+        
+        toast({ title: "Perfil Sincronizado", description: "Identidade institucional vinculada ao seu UID com sucesso." });
+      } else {
+        // Garante que o ID interno coincide mesmo se o doc ID já for o UID
+        await setDoc(doc(firestore, 'teachers', firebaseUser.uid), { id: firebaseUser.uid }, { merge: true });
+      }
+
+      // REGRA DE FERRO 4: Delay para Propagação do Firestore
+      console.log('Aguardando propagação de segurança...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       router.push("/dashboard");
     } catch (error: any) {
+      console.error("Handshake Error:", error);
       if (error.code === 'permission-denied') {
         toast({ 
           title: "Erro de Permissão", 
-          description: "Não foi possível ler seu perfil. Verifique se o e-mail no sistema está correto.", 
+          description: "Acesso autenticado, mas perfil em sincronização. Tente novamente em 5 segundos.", 
           variant: "destructive" 
         });
         await signOut(auth);
@@ -106,8 +127,6 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
-      // Logout preventivo para limpar sessões residuais
-      await signOut(auth);
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       await checkProfileAndRedirect(result.user);
@@ -126,16 +145,8 @@ export default function LoginPage() {
     const sanitizedEmail = email.trim();
 
     try {
-      // 1. LOGOUT PREVENTIVO: Limpa cache de outros usuários (evita invalid-credential)
-      await signOut(auth);
-      
-      // 2. PERSISTÊNCIA LOCAL
       await setPersistence(auth, browserLocalPersistence);
-      
-      // 3. AUTENTICAÇÃO
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
-      
-      // 4. VERIFICAÇÃO E MIGRAÇÃO
       await checkProfileAndRedirect(userCredential.user);
     } catch (error: any) {
       handleAuthError(error);
@@ -157,9 +168,8 @@ export default function LoginPage() {
     }
 
     let message = "Verifique suas credenciais ou tente novamente mais tarde.";
-
     if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
-      message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga.";
+      message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador.";
     }
 
     toast({ title: "Falha na Autenticação", description: message, variant: "destructive" });
