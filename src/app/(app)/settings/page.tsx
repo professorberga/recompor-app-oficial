@@ -68,6 +68,11 @@ export default function SettingsPage() {
   )
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
+  // Ordenação alfabética dos docentes para exibição na tabela
+  const sortedTeachers = useMemo(() => {
+    return [...allTeachers].sort((a, b) => (a.name || "").localeCompare(b.name || "", 'pt-BR'));
+  }, [allTeachers]);
+
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: globalClasses = [] } = useCollection(globalClassesRef)
 
@@ -195,7 +200,6 @@ export default function SettingsPage() {
     const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
     
     try {
-      // 1. Provisionamento no Firebase Auth (se houver senha informada)
       if (editingTeacher.password && editingTeacher.password.length >= 6) {
         try {
           const secondaryAppName = `provision-${Date.now()}`;
@@ -204,14 +208,12 @@ export default function SettingsPage() {
           await createUserWithEmailAndPassword(provisionAuth, editingTeacher.email, editingTeacher.password);
           await deleteApp(provisionApp);
         } catch (authErr: any) {
-          // Se o usuário já existe, apenas ignoramos para permitir atualização do perfil no Firestore
           if (authErr.code !== 'auth/email-already-in-use') {
             console.warn("Auth provision warning:", authErr.message);
           }
         }
       }
 
-      // 2. Gravação no Firestore
       const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
 
       await setDoc(doc(firestore, "teachers", teacherId), {
@@ -279,7 +281,6 @@ export default function SettingsPage() {
   }, []);
 
   const handleNewTeacher = useCallback(() => {
-    // Inicializa explicitamente com valores vazios para evitar preenchimento com dados do Admin
     setEditingTeacher({ 
       id: "",
       name: "", 
@@ -401,7 +402,7 @@ export default function SettingsPage() {
                           <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Perfil</th><th className="px-6 py-4">Grade</th><th className="px-6 py-4 text-right">Ações</th></tr>
                         </thead>
                         <tbody className="divide-y bg-white">
-                          {allTeachers.map((t) => (
+                          {sortedTeachers.map((t) => (
                             <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-6 py-4">
                                 <span className="font-black block uppercase text-xs text-primary">{t.name}</span>
@@ -473,7 +474,6 @@ export default function SettingsPage() {
         open={isTeacherDialogOpen} 
         onOpenChange={(open) => {
           setIsTeacherDialogOpen(open);
-          // Limpa o estado ao fechar o modal para garantir que a próxima abertura (Novo Docente) venha limpa
           if (!open) setEditingTeacher(null);
         }} 
         modal={true}
