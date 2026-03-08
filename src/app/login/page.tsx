@@ -3,9 +3,16 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth"
-import { useAuth, useUser } from "@/firebase/provider"
-import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
+import { 
+  signInWithEmailAndPassword, 
+  setPersistence, 
+  browserLocalPersistence,
+  sendPasswordResetEmail,
+  signOut
+} from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
+import { useAuth, useUser, useFirestore } from "@/firebase/provider"
+import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, KeyRound } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,13 +24,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  
   const auth = useAuth()
+  const firestore = useFirestore()
   const { user, isUserLoading, schoolConfig } = useUser()
   const router = useRouter()
   const { toast } = useToast()
 
   // Versão do sistema
-  const SYSTEM_VERSION = "v1.2.4"
+  const SYSTEM_VERSION = "v1.2.5"
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -33,14 +43,33 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!email || !password) return
+    
     setIsLoading(true)
+    const sanitizedEmail = email.trim()
 
     try {
       // Garante que a sessão persista mesmo após fechar o navegador
       await setPersistence(auth, browserLocalPersistence)
       
-      await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
       
+      // Verificação Imediata de Perfil no Firestore
+      const teacherRef = doc(firestore, 'teachers', userCredential.user.uid)
+      const profileSnap = await getDoc(teacherRef)
+      
+      if (!profileSnap.exists()) {
+        // Logout imediato se o perfil não existir (Prevenção de acessos não provisionados)
+        await signOut(auth)
+        toast({
+          title: "Acesso Negado",
+          description: "Usuário autenticado, mas perfil não encontrado no sistema escolar. Fale com o Coordenador Berga.",
+          variant: "destructive",
+        })
+        setIsLoading(false)
+        return
+      }
+
       toast({
         title: "Bem-vindo de volta!",
         description: "Acesso autorizado com sucesso.",
@@ -55,7 +84,7 @@ export default function LoginPage() {
         case "auth/invalid-credential":
         case "auth/user-not-found":
         case "auth/wrong-password":
-          message = "E-mail ou senha incorretos. Verifique suas credenciais."
+          message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga."
           break
         case "auth/invalid-email":
           message = "O formato do e-mail é inválido. Use um e-mail institucional."
@@ -75,6 +104,34 @@ export default function LoginPage() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        title: "Campo Vazio",
+        description: "Digite seu e-mail institucional para receber o link de recuperação.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsResetting(true)
+    try {
+      await sendPasswordResetEmail(auth, email.trim())
+      toast({
+        title: "E-mail Enviado",
+        description: "Verifique sua caixa de entrada (e spam) para redefinir sua senha.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Erro ao Recuperar",
+        description: "Não foi possível enviar o e-mail de recuperação. Verifique o endereço digitado.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -128,8 +185,14 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-bold uppercase text-muted-foreground">Senha</Label>
-                  <Button variant="link" className="px-0 font-normal text-xs" type="button">
-                    Recuperar acesso
+                  <Button 
+                    variant="link" 
+                    className="px-0 font-bold text-xs text-primary hover:text-primary/80" 
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isResetting}
+                  >
+                    {isResetting ? "Enviando..." : "Esqueci minha senha"}
                   </Button>
                 </div>
                 <div className="relative">
