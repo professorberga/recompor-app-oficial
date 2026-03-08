@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { signOut } from "firebase/auth"
 import { useAuth, useUser } from "@/firebase/provider"
 
@@ -102,6 +102,14 @@ export function AppSidebar() {
     setMounted(true)
   }, [])
 
+  // Lógica de Admin centralizada
+  const isAdmin = useMemo(() => {
+    if (!user?.email) return false;
+    const email = user.email.toLowerCase();
+    // Verifica se é o admin principal ou se o email contém a string de administração de forma explícita
+    return email.includes('admin@') || email === 'marciobergamini@prof.educacao.sp.gov.br' || email.startsWith('admin.');
+  }, [user]);
+
   const handleSignOut = async () => {
     try {
       await signOut(auth)
@@ -119,18 +127,15 @@ export function AppSidebar() {
     }
   }
 
-  // No protótipo real, o papel viria de um documento de Teacher no Firestore
-  // Aqui usaremos o e-mail ou uma flag mockada para distinguir o Admin enquanto não temos o documento
-  const isAdmin = user?.email?.includes('admin') || user?.email?.includes('marciobergamini')
-  const schoolName = "E.E. Professor Milton Santos"
-
   const handleLinkClick = () => {
     if (isMobile) {
       setOpenMobile(false)
     }
   }
 
-  const filteredItems = items.filter(item => !item.adminOnly || isAdmin)
+  const filteredItems = useMemo(() => {
+    return items.filter(item => !item.adminOnly || isAdmin);
+  }, [isAdmin]);
 
   if (!mounted) return null
 
@@ -146,7 +151,7 @@ export function AppSidebar() {
               Recompor+
             </span>
             <span className="text-[9px] font-bold text-muted-foreground uppercase truncate mt-0.5">
-              {schoolName}
+              E.E. Prof. Milton Santos
             </span>
           </div>
         </div>
@@ -209,12 +214,14 @@ export function AppSidebar() {
               <DropdownMenuContent align="start" side="top" className="w-56 mb-2">
                 <DropdownMenuLabel>Sua Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="flex items-center w-full">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Configurações
-                  </Link>
-                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="flex items-center w-full">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Configurações
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { 
   School, 
@@ -20,7 +20,8 @@ import {
   ChevronRight,
   UserCheck,
   UserCircle,
-  Loader2
+  Loader2,
+  ShieldAlert
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -121,23 +122,26 @@ export default function SettingsPage() {
     schedules: {} as Record<string, string>
   })
 
+  const isAdmin = useMemo(() => {
+    if (!user?.email) return false;
+    const email = user.email.toLowerCase();
+    return email.includes('admin@') || email === 'marciobergamini@prof.educacao.sp.gov.br' || email.startsWith('admin.');
+  }, [user]);
+
   useEffect(() => {
     setMounted(true)
   }, [])
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-      const isAdmin = user.email?.includes('admin') || user.email?.includes('marciobergamini')
-      if (!isAdmin) {
-        toast({
-          title: "Acesso Negado",
-          description: "Somente administradores podem acessar as configurações.",
-          variant: "destructive"
-        })
-        router.push('/dashboard')
-      }
+    if (mounted && !isUserLoading && user && !isAdmin) {
+      toast({
+        title: "Acesso Restrito",
+        description: "Você não tem permissão para acessar esta área.",
+        variant: "destructive"
+      })
+      router.push('/dashboard')
     }
-  }, [user, isUserLoading, router, toast])
+  }, [user, isUserLoading, router, toast, isAdmin, mounted])
 
   const handleSave = () => {
     setIsSaving(true)
@@ -250,14 +254,26 @@ export default function SettingsPage() {
     ? MOCK_STUDENTS.filter(s => s.enrollments.includes(selectedDisciplineForStudents.id))
     : [];
 
+  // Proteção de renderização
   if (!mounted || isUserLoading) return (
     <div className="flex items-center justify-center p-20">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   )
 
+  if (!isAdmin) return (
+    <div className="flex flex-col items-center justify-center p-20 text-center gap-4 bg-white rounded-xl border shadow-sm max-w-2xl mx-auto mt-10">
+      <div className="h-16 w-16 bg-destructive/10 text-destructive flex items-center justify-center rounded-full">
+        <ShieldAlert className="h-8 w-8" />
+      </div>
+      <h2 className="text-2xl font-black text-primary uppercase tracking-tighter">Acesso Não Autorizado</h2>
+      <p className="text-muted-foreground text-sm max-w-sm">Esta página contém configurações críticas do sistema e é restrita aos administradores da unidade escolar.</p>
+      <Button onClick={() => router.push('/dashboard')}>Voltar para o Início</Button>
+    </div>
+  )
+
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 animate-in fade-in duration-500">
       <div>
         <h2 className="text-3xl font-bold tracking-tight text-primary">Configurações</h2>
         <p className="text-muted-foreground mt-1">Gerencie disciplinas, usuários e parâmetros da instituição.</p>
