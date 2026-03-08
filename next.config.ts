@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    /**
+     * Permite conexões HMR do ambiente de desenvolvimento do Firebase Studio (Cloud Workstations).
+     * Isso evita que o Next.js recuse a conexão por diferença de origem e cause reinícios do servidor.
+     */
+    allowedDevOrigins: ['*.cloudworkstations.dev', '*.googleusercontent.com'],
+  },
   images: {
     /* Mantido como não otimizado para evitar dependência de bibliotecas de imagem no servidor standalone */
     unoptimized: true,
