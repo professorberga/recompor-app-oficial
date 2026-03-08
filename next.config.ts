@@ -1,23 +1,27 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* Configuração obrigatória para o Firebase App Hosting (SSR/Standalone) */
+  /**
+   * Configuração obrigatória para o Firebase App Hosting (SSR/Standalone).
+   * Isso gera o bundle otimizado para produção no diretório .next/standalone.
+   */
   output: 'standalone',
+  
   typescript: {
+    /** Ignoramos erros de tipo no build para acelerar o deploy no Firebase Studio */
     ignoreBuildErrors: true,
   },
+  
   eslint: {
+    /** Ignoramos o lint no build para evitar falhas por avisos de estilo */
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    /**
-     * Permite conexões HMR do ambiente de desenvolvimento do Firebase Studio (Cloud Workstations).
-     * Isso evita que o Next.js recuse a conexão por diferença de origem e cause reinícios do servidor.
-     */
-    allowedDevOrigins: ['*.cloudworkstations.dev', '*.googleusercontent.com'],
-  },
+  
   images: {
-    /* Mantido como não otimizado para evitar dependência de bibliotecas de imagem no servidor standalone */
+    /** 
+     * Mantido como unoptimized para evitar dependências de bibliotecas nativas de imagem 
+     * no ambiente de runtime do App Hosting.
+     */
     unoptimized: true,
     remotePatterns: [
       {
