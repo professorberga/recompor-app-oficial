@@ -102,14 +102,29 @@ function StudentsContent() {
 
   const { data: attendanceHistory = [] } = useCollection(attendanceHistoryRef)
 
-  // Cálculos de Frequência
+  // Cálculos de Frequência e Definição de Cores Dinâmicas
   const attendanceStats = useMemo(() => {
-    if (attendanceHistory.length === 0) return { total: 0, present: 0, absent: 0, rate: 0 };
+    if (attendanceHistory.length === 0) return { total: 0, present: 0, absent: 0, rate: 0, color: "text-primary", bg: "bg-primary/5", border: "border-primary" };
     const total = attendanceHistory.length;
     const present = attendanceHistory.filter(h => h.status === 'Presente').length;
     const absent = total - present;
     const rate = Math.round((present / total) * 100);
-    return { total, present, absent, rate };
+
+    let color = "text-green-600";
+    let bg = "bg-green-50";
+    let border = "border-green-500";
+
+    if (rate <= 50) {
+      color = "text-red-600";
+      bg = "bg-red-50";
+      border = "border-red-500";
+    } else if (rate <= 75) {
+      color = "text-yellow-600";
+      bg = "bg-yellow-50";
+      border = "border-yellow-500";
+    }
+
+    return { total, present, absent, rate, color, bg, border };
   }, [attendanceHistory]);
 
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
@@ -414,16 +429,26 @@ function StudentsContent() {
                     <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-red-600">Faltas</CardTitle></CardHeader>
                     <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-red-700">{attendanceStats.absent}</p></CardContent>
                   </Card>
-                  <Card className="bg-primary/5 border-none">
-                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-primary">Frequência</CardTitle></CardHeader>
-                    <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-primary">{attendanceStats.rate}%</p></CardContent>
+                  <Card className={cn("border-none transition-colors", attendanceStats.bg)}>
+                    <CardHeader className="p-4 pb-1">
+                      <CardTitle className={cn("text-xs uppercase font-black", attendanceStats.color)}>
+                        Frequência
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <p className={cn("text-3xl font-black", attendanceStats.color)}>
+                        {attendanceStats.rate}%
+                      </p>
+                    </CardContent>
                   </Card>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução de Frequência</h4>
-                    <Badge variant="outline" className="font-bold">{attendanceStats.rate >= 75 ? 'Dentro da Meta' : 'Abaixo da Meta'}</Badge>
+                    <Badge variant="outline" className={cn("font-bold border-2 px-4 py-1", attendanceStats.border, attendanceStats.color, attendanceStats.bg)}>
+                      {attendanceStats.rate >= 75 ? 'Dentro da Meta' : 'Abaixo da Meta'}
+                    </Badge>
                   </div>
                   <Progress value={attendanceStats.rate} className="h-3" />
                 </div>
