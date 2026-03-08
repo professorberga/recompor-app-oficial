@@ -9,6 +9,9 @@ export interface TeacherAssignment {
   classId: string;
   className: string;
   subject: string;
+  dayOfWeek?: string; // Segunda, Terça, etc.
+  lessonNumber?: string; // 1ª aula, 2ª aula...
+  timeSlot?: string; // 07:30-08:20
 }
 
 export interface TeacherProfile {
@@ -16,7 +19,7 @@ export interface TeacherProfile {
   name: string;
   email: string;
   role: UserRole;
-  subjects: string[]; // Legado, mantido para compatibilidade
+  subjects: string[]; 
   assignments?: TeacherAssignment[];
   schoolName?: string;
   academicYear?: string;
@@ -29,14 +32,6 @@ export interface SystemUser extends TeacherProfile {
   status: 'Ativo' | 'Inativo';
 }
 
-export interface Discipline {
-  id: string;
-  name: string;
-  classId: string;
-  teacherId: string;
-  schedule: string;
-}
-
 export interface Student {
   id: string;
   name: string;
@@ -47,31 +42,27 @@ export interface Student {
   raDigit: string;
   status: 'Ativo' | 'Inativo';
   photo: string | null;
-  enrollments: string[]; 
-  history: {
-    attendance: Array<{ date: string; status: 'present' | 'absent'; bimestre?: string }>;
-    assessments: Array<{ 
-      subject: string; 
-      competency: string; 
-      level: BloomLevel; 
-      score: number; 
-      date: string;
-      bimestre?: string;
-    }>;
-    occurrences: Array<{ 
-      id: string; 
-      date: string; 
-      type: string; 
-      description: string 
-    }>;
-    observations: string[];
-  };
+  teacherId: string;
 }
 
-export interface Class {
+export interface AttendanceRecord {
   id: string;
-  name: string;
+  studentId: string;
+  classId: string;
+  date: string;
+  bimestre: string;
+  status: 'Presente' | 'Falta';
+  recordedByTeacherId: string;
+  contentSummary?: string;
+}
+
+export interface LessonRecord {
+  id: string;
+  classId: string;
+  date: string;
   teacherId: string;
+  content: string;
+  bimestre: string;
   subject: string;
 }
 
