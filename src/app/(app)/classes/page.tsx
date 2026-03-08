@@ -13,7 +13,7 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
+import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
 
 export default function ClassesPage() {
   const { user, profile } = useUser()
@@ -22,23 +22,36 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Referência real para as turmas do professor logado (SlbAX6v... ou U3vapjp...)
+  // Referência real para as turmas do professor logado
   const classesRef = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return collection(firestore, 'teachers', user.uid, 'classes');
   }, [user, firestore]);
   
-  const { data: classes = [], isLoading } = useCollection(classesRef)
+  const { data: classes = [], isLoading: isClassesLoading } = useCollection(classesRef)
+
+  // Referência para TODOS os alunos do professor para calcular contagem dinâmica
+  const allStudentsRef = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return collection(firestore, 'teachers', user.uid, 'students');
+  }, [user, firestore]);
+  
+  const { data: allStudents = [], isLoading: isStudentsLoading } = useCollection(allStudentsRef)
 
   const [newClass, setNewClass] = useState({
     name: "",
     subject: "Portuguese" as "Portuguese" | "Math",
   })
 
+  // Calcula a quantidade real de alunos por turma baseada no campo classId
+  const getStudentCount = (classId: string) => {
+    return allStudents.filter(s => s.classId === classId).length;
+  }
+
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.uid || !classesRef) {
-      toast({ title: "Erro de Autenticação", description: "UID do professor não encontrado.", variant: "destructive" });
+      toast({ title: "Erro de Autenticação", description: "Sessão expirada.", variant: "destructive" });
       return;
     }
     
@@ -56,7 +69,7 @@ export default function ClassesPage() {
       gradeLevel: newClass.name.split(' ')[0] || "N/A",
       teacherId: user.uid,
       teacherName: profile?.name || user.email?.split('@')[0],
-      studentsCount: 0
+      createdAt: new Date().toISOString()
     }
 
     try {
@@ -66,12 +79,14 @@ export default function ClassesPage() {
       toast({ title: "Turma Criada", description: `${classData.name} foi registrada no Firestore.` })
     } catch (err: any) {
       console.error("Erro ao criar turma:", err);
-      toast({ title: "Erro de Permissão (400)", description: "Verifique se o UID está correto nas subcoleções.", variant: "destructive" })
+      toast({ title: "Falha na Gravação", description: "Verifique suas permissões no Firestore.", variant: "destructive" })
     }
   }
 
   const handleDeleteClass = async (id: string) => {
     if (!user?.uid || !classesRef) return
+    if (!confirm("Excluir esta turma? Isso não removerá os alunos, apenas o vínculo da classe.")) return;
+
     try {
       await deleteDoc(doc(classesRef, id))
       toast({ title: "Removido", description: "Turma excluída com sucesso." })
@@ -83,6 +98,8 @@ export default function ClassesPage() {
   const filteredClasses = useMemo(() => {
     return classes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [classes, searchTerm]);
+
+  const isLoading = isClassesLoading || isStudentsLoading;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -101,7 +118,7 @@ export default function ClassesPage() {
           <DialogContent className="sm:max-w-[425px] bg-white">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
-              <DialogDescription>A nova turma será vinculada exclusivamente ao seu UID: {user?.uid}</DialogDescription>
+              <DialogDescription>A nova turma será vinculada ao seu UID: {user?.uid}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateClass} className="space-y-5 py-4">
               <div className="space-y-2">
@@ -154,7 +171,7 @@ export default function ClassesPage() {
               <CardContent className="pb-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <GraduationCap className="h-4 w-4 text-primary" />
-                  <span>{cls.studentsCount || 0} Alunos vinculados</span>
+                  <span className="font-bold">{getStudentCount(cls.id)} Alunos vinculados</span>
                 </div>
               </CardContent>
               <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
@@ -172,7 +189,7 @@ export default function ClassesPage() {
             <div className="col-span-full py-32 text-center opacity-40 border-4 border-dashed rounded-3xl bg-muted/10 flex flex-col items-center">
               <BookOpen className="h-20 w-20 mb-6 text-primary/40" />
               <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">Nenhuma turma encontrada</p>
-              <p className="text-sm font-medium mt-2">Clique no botão "Nova Turma" para registrar sua primeira classe no Firestore.</p>
+              <p className="text-sm font-medium mt-2">Clique no botão "Nova Turma" para registrar sua primeira classe.</p>
             </div>
           )}
         </div>

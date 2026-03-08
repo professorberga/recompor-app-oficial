@@ -20,13 +20,15 @@ export default function Dashboard() {
     setIsClient(true)
   }, [])
 
-  // Real data for counts
+  // Referência real para as turmas do professor
   const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
   const { data: classes = [] } = useCollection(classesRef)
 
-  // Note: Since students are nested under classes, a flat count would require a collectionGroup query 
-  // or a denormalized counter. For this prototype, we'll sum the studentsCount field from classes.
-  const totalStudents = classes.reduce((acc, curr) => acc + (curr.studentsCount || 0), 0)
+  // Referência real para TODOS os alunos do professor para contagem total
+  const studentsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'students') : null, [user, firestore])
+  const { data: students = [] } = useCollection(studentsRef)
+
+  const totalStudents = students.length
   const totalClasses = classes.length
 
   const userName = profile?.name || user?.displayName || user?.email?.split('@')[0] || "Professor"
@@ -80,10 +82,10 @@ export default function Dashboard() {
                 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Relatório Pedagógico</span>
-                    <Badge variant="secondary">Firestore</Badge>
+                    <span className="font-semibold text-sm">Dados Sincronizados</span>
+                    <Badge variant="secondary">Tempo Real</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Dados sincronizados em tempo real com seu perfil docente.</p>
+                  <p className="text-xs text-muted-foreground">As contagens de alunos são atualizadas instantaneamente via Firestore.</p>
                 </div>
 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
