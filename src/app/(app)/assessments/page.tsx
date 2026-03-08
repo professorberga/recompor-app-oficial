@@ -82,7 +82,7 @@ function ClassMultiSelect({ classes, value, onChange }: ClassMultiSelectProps) {
 
 export default function AssessmentPage() {
   const [mounted, setMounted] = useState(false)
-  const { user, profile, isUserLoading } = useUser()
+  const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
   
@@ -92,12 +92,25 @@ export default function AssessmentPage() {
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   const [gradingClassId, setGradingClassId] = useState<string>("")
 
-  // Real Data
-  const assessmentsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'assessments') : null, [user, firestore])
-  const { data: assessments = [], isLoading: isAssessmentsLoading } = useCollection(assessmentsRef)
+  // Coleção GLOBAL de Avaliações
+  const assessmentsRef = useMemoFirebase(() => collection(firestore, 'assessments'), [firestore])
+  const assessmentsQuery = useMemoFirebase(() => {
+    if (!user || !assessmentsRef) return null;
+    if (isAdmin) return assessmentsRef;
+    return query(assessmentsRef, where('teacherId', '==', user.uid));
+  }, [user, assessmentsRef, isAdmin])
+  
+  const { data: assessments = [], isLoading: isAssessmentsLoading } = useCollection(assessmentsQuery)
 
-  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
-  const { data: classes = [] } = useCollection(classesRef)
+  // Coleção GLOBAL de Turmas filtrada por atribuição (ou visão total se Admin)
+  const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
+  const { data: rawClasses = [] } = useCollection(classesRef)
+
+  const classes = useMemo(() => {
+    if (isAdmin) return rawClasses;
+    const assignedIds = profile?.assignments?.map(a => a.classId) || [];
+    return rawClasses.filter(c => assignedIds.includes(c.id));
+  }, [rawClasses, profile, isAdmin]);
 
   const [classStudents, setClassStudents] = useState<any[]>([])
   const [isStudentsLoading, setIsStudentsLoading] = useState(false)
@@ -123,7 +136,7 @@ export default function AssessmentPage() {
       if (!user || !gradingClassId) return;
       setIsStudentsLoading(true);
       const q = query(
-        collection(firestore, 'teachers', user.uid, 'students'), 
+        collection(firestore, 'students'), 
         where('classId', '==', gradingClassId)
       );
       const snap = await getDocs(q);
@@ -294,7 +307,7 @@ export default function AssessmentPage() {
             <Label>Turma:</Label>
             <Select value={gradingClassId} onValueChange={setGradingClassId}>
               <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-              <SelectContent>{selectedAssessment?.classIds.map(id => <SelectItem key={id} value={id}>{classes.find(c => c.id === id)?.name || id}</SelectItem>)}</SelectContent>
+              <SelectContent>{selectedAssessment?.classIds.map(id => <SelectItem key={id} value={id}>{rawClasses.find(c => c.id === id)?.name || id}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <ScrollArea className="flex-1 p-6">

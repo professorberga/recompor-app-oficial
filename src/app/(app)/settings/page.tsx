@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { TeacherProfile, TeacherAssignment } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { doc, setDoc, collection, query, getDocs, where } from "firebase/firestore"
+import { doc, setDoc, collection, query, getDocs, where, getDoc } from "firebase/firestore"
 import { format, startOfWeek, eachDayOfInterval } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -55,7 +55,6 @@ export default function SettingsPage() {
   )
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  // Busca turmas Globais para atribuição
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: globalClasses = [] } = useCollection(globalClassesRef)
 
@@ -86,28 +85,34 @@ export default function SettingsPage() {
 
     try {
       for (const teacher of allTeachers) {
-        if (!teacher.assignments) continue;
+        if (!teacher.assignments || teacher.assignments.length === 0) continue;
+        
         for (const assignment of teacher.assignments) {
-          const matchingDays = days.filter(d => format(d, 'EEEE', { locale: ptBR }).toLowerCase().includes(assignment.dayOfWeek?.toLowerCase() || ''));
+          const matchingDays = days.filter(d => 
+            format(d, 'EEEE', { locale: ptBR }).toLowerCase().includes(assignment.dayOfWeek?.toLowerCase() || '')
+          );
           
           for (const day of matchingDays) {
             const dateStr = format(day, "yyyy-MM-dd");
             const lessonId = `${assignment.classId}_${dateStr}`;
             
-            const recordsSnap = await getDocs(query(
-              collection(firestore, 'teachers', teacher.id, 'attendanceRecords'),
+            // Consulta na coleção GLOBAL de frequências
+            const recordsQuery = query(
+              collection(firestore, 'attendanceRecords'),
               where('classId', '==', assignment.classId),
-              where('date', '==', dateStr)
-            ));
+              where('date', '==', dateStr),
+              where('teacherId', '==', teacher.id)
+            );
+            const recordsSnap = await getDocs(recordsQuery);
             
-            const lessonSnap = await getDocs(query(
-              collection(firestore, 'teachers', teacher.id, 'lessons'),
-              where('id', '==', lessonId)
-            ));
+            // Consulta na coleção GLOBAL de registros de aula
+            const lessonRef = doc(firestore, 'lessons', lessonId);
+            const lessonSnap = await getDoc(lessonRef);
             
             let status = 'pending'; 
             if (!recordsSnap.empty) {
-              status = !lessonSnap.empty && lessonSnap.docs[0].data().content ? 'complete' : 'partial';
+              const lessonData = lessonSnap.exists() ? lessonSnap.data() : null;
+              status = lessonData && lessonData.content ? 'complete' : 'partial';
             }
 
             results.push({
@@ -123,7 +128,8 @@ export default function SettingsPage() {
       }
       setAuditData(results);
     } catch (err) {
-      toast({ title: "Erro na auditoria", variant: "destructive" });
+      console.error(err);
+      toast({ title: "Erro na auditoria", description: "Falha ao consultar coleções globais.", variant: "destructive" });
     } finally {
       setIsAuditing(false);
     }
@@ -163,7 +169,6 @@ export default function SettingsPage() {
     }
     setIsSaving(true)
     
-    // Se for novo, gera um ID baseado no e-mail para evitar duplicatas antes do login do professor
     const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
     
     try {

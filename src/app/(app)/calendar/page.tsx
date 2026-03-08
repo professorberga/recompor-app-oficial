@@ -16,7 +16,7 @@ import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc } from "firebase/firestore"
+import { collection, doc, setDoc, query, where } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 const CLASS_SCHEDULES = [
@@ -35,7 +35,7 @@ const dayMap: Record<string, string> = {
 
 export default function CalendarPage() {
   const [mounted, setMounted] = useState(false)
-  const { user, profile, isUserLoading } = useUser()
+  const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
 
@@ -44,23 +44,26 @@ export default function CalendarPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  // Busca turmas Globais para filtro
+  // Coleção GLOBAL de Turmas filtrada por atribuição
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição
   const classes = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'Admin') return rawClasses;
-    if (profile.assignments && profile.assignments.length > 0) {
-      const assignedIds = profile.assignments.map(a => a.classId);
-      return rawClasses.filter(c => assignedIds.includes(c.id));
-    }
-    return [];
-  }, [rawClasses, profile]);
+    if (isAdmin) return rawClasses;
+    const assignedIds = profile.assignments?.map(a => a.classId) || [];
+    return rawClasses.filter(c => assignedIds.includes(c.id));
+  }, [rawClasses, profile, isAdmin]);
 
-  const lessonsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'lessons') : null, [user, firestore])
-  const { data: recordedLessons = [], isLoading: isLessonsLoading } = useCollection(lessonsRef)
+  // Coleção GLOBAL de Registros de Aula
+  const lessonsRef = useMemoFirebase(() => collection(firestore, 'lessons'), [firestore])
+  const lessonsQuery = useMemoFirebase(() => {
+    if (!user || !lessonsRef) return null;
+    if (isAdmin) return lessonsRef;
+    return query(lessonsRef, where('teacherId', '==', user.uid));
+  }, [user, lessonsRef, isAdmin])
+  
+  const { data: recordedLessons = [], isLoading: isLessonsLoading } = useCollection(lessonsQuery)
 
   const [newEvent, setNewEvent] = useState({
     title: "",

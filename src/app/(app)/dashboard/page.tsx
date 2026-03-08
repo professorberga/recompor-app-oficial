@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { OverviewCards } from "@/components/dashboard/OverviewCards"
 import { EvolutionChart } from "@/components/dashboard/EvolutionChart"
 import { AbsenteeCard } from "@/components/dashboard/AbsenteeCard"
@@ -13,23 +13,41 @@ import { Loader2 } from "lucide-react"
 
 export default function Dashboard() {
   const [isClient, setIsClient] = useState(false)
-  const { user, profile, isUserLoading } = useUser()
+  const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
 
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // Referência real para as turmas do professor
-  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
-  const { data: classes = [] } = useCollection(classesRef)
+  // Coleção GLOBAL de Turmas
+  const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
+  const { data: rawClasses = [] } = useCollection(classesRef)
 
-  // Referência real para TODOS os alunos do professor para contagem total
-  const studentsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'students') : null, [user, firestore])
-  const { data: students = [] } = useCollection(studentsRef)
+  // Coleção GLOBAL de Alunos
+  const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore])
+  const { data: rawStudents = [] } = useCollection(studentsRef)
 
-  const totalStudents = students.length
-  const totalClasses = classes.length
+  // Cálculos dinâmicos baseados no perfil
+  const stats = useMemo(() => {
+    if (!profile) return { totalClasses: 0, totalStudents: 0 };
+    
+    if (isAdmin) {
+      return {
+        totalClasses: rawClasses.length,
+        totalStudents: rawStudents.length
+      };
+    }
+
+    const assignedClassIds = profile.assignments?.map(a => a.classId) || [];
+    const myClasses = rawClasses.filter(c => assignedClassIds.includes(c.id));
+    const myStudents = rawStudents.filter(s => assignedClassIds.includes(s.classId));
+
+    return {
+      totalClasses: myClasses.length,
+      totalStudents: myStudents.length
+    };
+  }, [profile, isAdmin, rawClasses, rawStudents]);
 
   const userName = profile?.name || user?.displayName || user?.email?.split('@')[0] || "Professor"
 
@@ -41,12 +59,12 @@ export default function Dashboard() {
         <h2 className="text-3xl font-bold tracking-tight text-primary">
           Bem-vindo, {userName}
         </h2>
-        <p className="text-muted-foreground mt-1">Aqui está o resumo das suas {totalClasses} turmas e {totalStudents} alunos.</p>
+        <p className="text-muted-foreground mt-1">Aqui está o resumo das suas {stats.totalClasses} turmas e {stats.totalStudents} alunos.</p>
       </div>
 
       <OverviewCards 
-        totalClasses={totalClasses} 
-        totalStudents={totalStudents} 
+        totalClasses={stats.totalClasses} 
+        totalStudents={stats.totalStudents} 
       />
 
       <div className="grid gap-6 md:grid-cols-6">
