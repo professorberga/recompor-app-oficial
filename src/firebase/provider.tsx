@@ -4,7 +4,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 // Re-exportando hooks de documentos e coleções para acesso centralizado
@@ -84,7 +84,7 @@ export const FirebaseProvider: React.FC<{
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Limpa inscrições anteriores para evitar vazamento de memória e concorrência
+      // Limpa inscrições anteriores
       if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
       if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
 
@@ -93,7 +93,7 @@ export const FirebaseProvider: React.FC<{
         const schoolRef = doc(firestore, 'settings', 'school');
         
         try {
-          // 1. Escuta Global de Configurações da Escola
+          // 1. Escuta Global de Configurações
           schoolUnsubscribeRef.current = onSnapshot(schoolRef, (snapshot) => {
             if (snapshot.exists()) {
               setUserAuthState(prev => ({ 
@@ -103,11 +103,11 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. Busca Perfil por UID ou E-mail com Migração Automática
+          // 2. Busca Perfil com Handshake de Migração
           let docSnap = await getDoc(teacherRef);
           
           if (!docSnap.exists()) {
-            console.log("Handshake: UID não encontrado. Buscando por e-mail para migração...");
+            // Se não encontrar pelo UID, busca pelo e-mail
             const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
             const querySnap = await getDocs(q);
             
@@ -115,62 +115,44 @@ export const FirebaseProvider: React.FC<{
               const legacyDoc = querySnap.docs[0];
               const data = legacyDoc.data() as TeacherProfile;
               
-              console.log(`Migrando perfil legado (${legacyDoc.id}) para UID (${firebaseUser.uid})`);
-              
               const profileData = { 
                 ...data, 
                 id: firebaseUser.uid,
                 role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
               };
               
+              // Migração Forçada
               await setDoc(teacherRef, profileData, { merge: true });
-              
               if (legacyDoc.id !== firebaseUser.uid) {
                 await deleteDoc(legacyDoc.ref);
               }
-            } else {
-              // Handshake de primeiro acesso se não houver perfil prévio
-              const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
-              const defaultProfile = {
-                id: firebaseUser.uid,
-                name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
-                email: firebaseUser.email || "",
-                role: isKnownAdmin ? 'Admin' : 'Professor',
-                subjects: [],
-                assignments: []
-              };
-              await setDoc(teacherRef, defaultProfile);
+              docSnap = await getDoc(teacherRef);
             }
           }
 
-          // 3. Estabelece a escuta em tempo real para o perfil padronizado
-          profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.data() as TeacherProfile;
-              setUserAuthState(prev => ({
-                ...prev,
-                user: firebaseUser,
-                profile: { ...data, id: snapshot.id },
-                isAdmin: data.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
-                isUserLoading: false,
-                userError: null,
-              }));
-            }
-          }, (error) => {
-            if (error.code === 'permission-denied') return;
-            setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
-          });
+          if (docSnap.exists()) {
+            profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
+              if (snapshot.exists()) {
+                const data = snapshot.data() as TeacherProfile;
+                setUserAuthState(prev => ({
+                  ...prev,
+                  user: firebaseUser,
+                  profile: { ...data, id: snapshot.id },
+                  isAdmin: data.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
+                  isUserLoading: false,
+                }));
+              }
+            });
+          } else {
+            // Caso raro onde o login foi feito mas não há perfil
+            setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
+          }
 
         } catch (err: any) {
-          console.error("Erro no fluxo de sincronização de identidade:", err);
-          setUserAuthState(prev => ({
-            ...prev,
-            isUserLoading: false,
-            userError: err,
-          }));
+          console.error("Erro na sincronização de identidade:", err);
+          setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: err }));
         }
       } else {
-        // Estado Deslogado
         setUserAuthState({
           user: null,
           profile: null,
@@ -211,9 +193,6 @@ export const FirebaseProvider: React.FC<{
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
   if (context === undefined) throw new Error('useFirebase deve ser usado dentro de um FirebaseProvider.');
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Serviços core do Firebase não disponíveis.');
-  }
   return context as FirebaseServicesAndUser;
 };
 

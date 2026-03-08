@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.4.1"
+  const SYSTEM_VERSION = "v1.5.0"
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -44,57 +44,64 @@ export default function LoginPage() {
   }, [user, isUserLoading, router])
 
   const checkProfileAndRedirect = async (firebaseUser: any) => {
-    // 1. Tenta buscar o documento do professor pelo UID (Padrão de Segurança)
-    const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
-    let profileSnap = await getDoc(teacherRef)
-    
-    // 2. Se não existir, realiza uma busca flexível pelo campo 'email'
-    if (!profileSnap.exists()) {
-      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
-      const qSnap = await getDocs(q);
+    try {
+      // 1. Tenta buscar o documento do professor pelo UID (Padrão de Segurança)
+      const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
+      let profileSnap = await getDoc(teacherRef)
       
-      if (!qSnap.empty) {
-        // MIGRAÇÃO DE SEGURANÇA: Encontrou perfil legado (ID era e-mail ou RA)
-        const legacyDoc = qSnap.docs[0];
-        const data = legacyDoc.data();
+      // 2. Se não existir, realiza uma busca flexível pelo campo 'email'
+      if (!profileSnap.exists()) {
+        const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+        const qSnap = await getDocs(q);
         
-        // Cria o novo documento usando o UID como ID oficial
-        await setDoc(teacherRef, { 
-          ...data, 
-          id: firebaseUser.uid 
-        }, { merge: true });
-        
-        // Apaga o documento antigo se o ID for diferente do UID
-        if (legacyDoc.id !== firebaseUser.uid) {
-          await deleteDoc(legacyDoc.ref);
+        if (!qSnap.empty) {
+          // MIGRAÇÃO DE SEGURANÇA: Encontrou perfil legado (ID era e-mail ou RA)
+          const legacyDoc = qSnap.docs[0];
+          const data = legacyDoc.data();
+          
+          // Cria o novo documento usando o UID como ID oficial
+          await setDoc(teacherRef, { 
+            ...data, 
+            id: firebaseUser.uid 
+          }, { merge: true });
+          
+          // Apaga o documento antigo se o ID for diferente do UID
+          if (legacyDoc.id !== firebaseUser.uid) {
+            await deleteDoc(legacyDoc.ref);
+          }
+          
+          toast({ title: "Sincronizado", description: "Perfil institucional vinculado com sucesso." })
+        } else {
+          // Handshake de primeiro acesso (se permitido) ou erro
+          await signOut(auth)
+          toast({
+            title: "Acesso Não Autorizado",
+            description: "Seu e-mail está autenticado, mas não possui um perfil docente vinculado. Contate a coordenação.",
+            variant: "destructive",
+          })
+          return
         }
-        
-        // Re-valida o snapshot
-        profileSnap = await getDoc(teacherRef);
+      }
+      
+      router.push("/dashboard")
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        toast({ 
+          title: "Sincronizando...", 
+          description: "Acesso autenticado, mas perfil em sincronização. Tente novamente em 5 segundos.", 
+          variant: "destructive" 
+        })
+        await signOut(auth)
+      } else {
+        handleAuthError(error)
       }
     }
-    
-    // 3. Verificação final de autorização
-    if (!profileSnap.exists()) {
-      await signOut(auth)
-      toast({
-        title: "Acesso Não Autorizado",
-        description: "Seu e-mail está autenticado, mas não possui um perfil docente vinculado no Recompor+. Contate o Coordenador Berga.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    toast({ title: "Sincronizado", description: "Perfil institucional vinculado com sucesso." })
-    router.push("/dashboard")
   }
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true)
     try {
-      // Logout Preventivo para limpar estados residuais
-      await signOut(auth);
-      
+      await signOut(auth)
       const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
       await checkProfileAndRedirect(result.user)
@@ -113,16 +120,10 @@ export default function LoginPage() {
     const sanitizedEmail = email.trim()
 
     try {
-      // 1. Logout Preventivo (Garante limpeza de cache de sessões anteriores)
-      await signOut(auth);
-      
-      // 2. Define Persistência Local
+      // Logout Preventivo
+      await signOut(auth)
       await setPersistence(auth, browserLocalPersistence)
-      
-      // 3. Autenticação com e-mail limpo
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
-      
-      // 4. Busca Flexível e Migração de UID
       await checkProfileAndRedirect(userCredential.user)
     } catch (error: any) {
       handleAuthError(error)
@@ -134,11 +135,10 @@ export default function LoginPage() {
   const handleAuthError = (error: any) => {
     console.error("Auth Error:", error.code, error.message)
     
-    // Tratamento específico para erro 400 ou falhas de comunicação
-    if (error.message?.includes("400") || error.code === "auth/network-request-failed" || error.code === "auth/invalid-argument") {
+    if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
       toast({ 
         title: "Erro de Comunicação", 
-        description: "Falha na comunicação com o Google. Tente limpar o cache do navegador ou usar aba anônima.", 
+        description: "Falha na comunicação. Tente limpar o cache do navegador ou usar aba anônima.", 
         variant: "destructive" 
       })
       return
@@ -146,12 +146,8 @@ export default function LoginPage() {
 
     let message = "Verifique suas credenciais ou tente novamente mais tarde."
 
-    if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+    if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
       message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga."
-    } else if (error.code === "auth/popup-blocked") {
-      message = "O navegador bloqueou a janela de login. Por favor, autorize pop-ups."
-    } else if (error.code === "auth/admin-restricted-operation") {
-      message = "Sua conta possui restrições de segurança do TI institucional."
     }
 
     toast({ title: "Falha na Autenticação", description: message, variant: "destructive" })
@@ -165,7 +161,7 @@ export default function LoginPage() {
     setIsResetting(true)
     try {
       await sendPasswordResetEmail(auth, email.trim())
-      toast({ title: "Recuperação Enviada", description: "Um link para criar uma nova senha foi enviado para seu e-mail." })
+      toast({ title: "Recuperação Enviada", description: "Link enviado para seu e-mail." })
     } catch (error: any) {
       toast({ title: "Erro no Envio", description: "Não foi possível enviar o e-mail de recuperação.", variant: "destructive" })
     } finally {
@@ -175,8 +171,6 @@ export default function LoginPage() {
 
   if (isUserLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
-  const schoolName = schoolConfig?.schoolName || "Recompor+"
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md space-y-8">
@@ -185,7 +179,7 @@ export default function LoginPage() {
             <Brain className="h-8 w-8" />
           </div>
           <h1 className="text-3xl font-black text-primary tracking-tighter uppercase">Recompor+</h1>
-          <p className="text-muted-foreground text-sm font-bold uppercase tracking-wide">{schoolName}</p>
+          <p className="text-muted-foreground text-sm font-bold uppercase tracking-wide">{schoolConfig?.schoolName || "Escola"}</p>
         </div>
         <Card className="border-none shadow-xl bg-white overflow-hidden">
           <CardHeader className="space-y-1 text-center">
@@ -233,7 +227,7 @@ export default function LoginPage() {
                     onClick={handleForgotPassword} 
                     disabled={isResetting}
                   >
-                    {isResetting ? "Processando..." : "Esqueci a senha"}
+                    Esqueci a senha
                   </Button>
                 </div>
                 <div className="relative">
