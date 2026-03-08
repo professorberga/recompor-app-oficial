@@ -11,13 +11,14 @@ export interface TeacherProfile {
   email: string;
   role: UserRole;
   subjects: string[];
+  schoolName?: string;
+  academicYear?: string;
+  activeBimestre?: string;
+  assignedClasses?: string[];
+  scheduleInfo?: string;
 }
 
-export interface SystemUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
+export interface SystemUser extends TeacherProfile {
   status: 'Ativo' | 'Inativo';
 }
 
@@ -62,6 +63,8 @@ export interface Student {
 export interface Class {
   id: string;
   name: string;
+  teacherId: string;
+  subject: string;
 }
 
 export interface AssessmentRecord {
