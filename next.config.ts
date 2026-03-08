@@ -1,7 +1,8 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Habilita a exportação estática para o Firebase Hosting */
+  output: 'export',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,6 +10,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    /* Otimização de imagem desabilitada para exportação estática */
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',

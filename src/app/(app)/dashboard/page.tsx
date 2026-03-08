@@ -31,7 +31,7 @@ export default function Dashboard() {
             <Card className="border-none shadow-md bg-white h-[450px] flex items-center justify-center">
               <div className="flex flex-col items-center gap-2">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                <p className="text-sm font-medium text-muted-foreground">Carregando indicadores...</p>
+                <p className="text-sm font-medium text-muted-foreground">Preparando indicadores...</p>
               </div>
             </Card>
           )}

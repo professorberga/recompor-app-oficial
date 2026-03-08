@@ -1,2 +1,2 @@
-// IA Removida para estabilidade do build de produção e remoção de dependências externas.
+// IA Desativada para Build Estático
 export const ai = null;

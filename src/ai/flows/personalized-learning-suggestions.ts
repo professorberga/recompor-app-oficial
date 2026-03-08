@@ -1,2 +1,2 @@
-// IA Removida: Este arquivo está vazio para evitar erros de compilação.
+// Fluxo de IA desativado para build estático
 export {};
