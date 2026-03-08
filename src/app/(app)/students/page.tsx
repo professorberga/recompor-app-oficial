@@ -28,7 +28,7 @@ import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/fires
 import { Progress } from "@/components/ui/progress"
 import { BIMESTRE_LABELS } from "@/lib/date-utils"
 
-const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Promise<string> => {
+const compressImage = (base64Str: string, maxWidth = 150, maxHeight = 150): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.src = base64Str;
@@ -51,8 +51,9 @@ const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Prom
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
+      resolve(canvas.toDataURL('image/jpeg', 0.5)); // Qualidade 0.5 para garantir payload pequeno
     };
+    img.onerror = () => resolve("");
   });
 };
 
@@ -164,7 +165,7 @@ function StudentsContent() {
         setIsCameraActive(true)
       }
     } catch (err) {
-      toast({ title: "Erro na Câmera", description: "Verifique as permissões do seu navegador.", variant: "destructive" })
+      toast({ title: "Câmera indisponível", variant: "destructive" })
     }
   }
 
@@ -180,12 +181,12 @@ function StudentsContent() {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext('2d')
       if (context) {
-        const targetWidth = 200;
+        const targetWidth = 150;
         const targetHeight = (videoRef.current.videoHeight / videoRef.current.videoWidth) * targetWidth;
         canvasRef.current.width = targetWidth
         canvasRef.current.height = targetHeight
         context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight)
-        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.6)
+        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.5)
         setCapturedPhoto(rawBase64)
         stopCamera()
       }
@@ -221,42 +222,47 @@ function StudentsContent() {
     e.preventDefault()
     if (!user?.uid) return
     if (!formData.name || !formData.ra || !formData.classId) {
-      toast({ title: "Campos Obrigatórios", description: "Nome, RA e Turma são essenciais.", variant: "destructive" })
+      toast({ title: "Campos obrigatórios", variant: "destructive" })
       return
     }
     setIsSubmitting(true);
     try {
       const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
       const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
+      
       let finalPhoto = capturedPhoto;
-      if (capturedPhoto && capturedPhoto.length > 50000) finalPhoto = await compressImage(capturedPhoto);
+      // Validação rigorosa de tamanho de imagem para evitar Erro 400
+      if (capturedPhoto && capturedPhoto.length > 30000) {
+        finalPhoto = await compressImage(capturedPhoto);
+      }
+
       const studentData = {
         ...formData,
         id: studentId,
-        photo: finalPhoto,
+        photo: finalPhoto || null,
         teacherId: user.uid,
         class: classes.find(c => c.id === formData.classId)?.name || "Turma",
         enrollmentDate: new Date().toISOString()
       }
+      
       await setDoc(targetRef, studentData, { merge: true })
-      toast({ title: "Sucesso!", description: isEditing ? "Cadastro atualizado." : "Aluno registrado." })
+      toast({ title: isEditing ? "Cadastro atualizado" : "Aluno registrado" })
       resetForm()
       setIsRegisterOpen(false)
-      stopCamera()
     } catch (err: any) {
-      toast({ title: "Falha na Gravação", description: "Erro ao conectar com o Firestore.", variant: "destructive" })
+      toast({ title: "Falha ao salvar", variant: "destructive" })
     } finally {
       setIsSubmitting(false);
     }
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!user?.uid || !window.confirm("Confirmar exclusão permanente deste aluno?")) return
+    if (!user?.uid || !window.confirm("Confirmar exclusão?")) return
     try {
       await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
-      toast({ title: "Aluno Removido", description: "O registro foi excluído." })
+      toast({ title: "Removido" })
     } catch (err) {
-      toast({ title: "Erro na Exclusão", variant: "destructive" })
+      toast({ title: "Erro na exclusão", variant: "destructive" })
     }
   }
 
@@ -264,10 +270,10 @@ function StudentsContent() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-          <p className="text-sm text-muted-foreground">Sincronizado com seu perfil docente no Firestore.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Alunos</h2>
+          <p className="text-sm text-muted-foreground">Gestão de matrículas sincronizada no Firestore.</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsRegisterOpen(true); }}>
+        <Button onClick={() => { resetForm(); setIsRegisterOpen(true); }} className="font-bold">
           <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
         </Button>
       </div>
@@ -289,7 +295,7 @@ function StudentsContent() {
                     {student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <span className="font-bold text-primary">{student.name.charAt(0)}</span>}
                   </div>
                   <div className="flex flex-col">
-                    <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm text-left hover:text-primary transition-colors">{student.name}</button>
+                    <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm text-left hover:text-primary transition-colors uppercase">{student.name}</button>
                     <span className="text-[10px] text-muted-foreground font-bold tracking-tight">RA: {student.ra}-{student.raDigit} • {student.class}</span>
                   </div>
                 </div>
@@ -300,13 +306,17 @@ function StudentsContent() {
               </CardContent>
             </Card>
           ))}
+          {filteredStudents.length === 0 && <div className="text-center py-20 opacity-30 italic">Nenhum aluno encontrado.</div>}
         </div>
       )}
 
       {/* DIALOG DE CADASTRO */}
-      <Dialog open={isRegisterOpen} onOpenChange={(open) => { if (!open) { stopCamera(); setIsRegisterOpen(open); } else { setIsRegisterOpen(open); } }}>
-        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
-          <DialogHeader className="p-6 border-b shrink-0"><DialogTitle className="text-primary font-black">{isEditing ? 'Atualizar' : 'Novo'} Registro de Aluno</DialogTitle></DialogHeader>
+      <Dialog open={isRegisterOpen} onOpenChange={(o) => { if(!o) stopCamera(); setIsRegisterOpen(o); }}>
+        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl">
+          <DialogHeader className="p-6 border-b shrink-0 bg-primary text-white">
+            <DialogTitle className="text-xl font-black uppercase">{isEditing ? 'Atualizar' : 'Novo'} Registro</DialogTitle>
+            <DialogDescription className="text-white/70">Preencha os dados oficiais do aluno para o diário de classe.</DialogDescription>
+          </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
               <div className="flex flex-col md:flex-row gap-8">
@@ -319,15 +329,15 @@ function StudentsContent() {
                   </div>
                   <div className="flex gap-2">
                     {isCameraActive ? (
-                      <Button size="sm" onClick={capturePhoto} className="bg-green-600 hover:bg-green-700">
+                      <Button size="sm" onClick={capturePhoto} className="bg-green-600 hover:bg-green-700 font-bold">
                         <Check className="h-4 w-4 mr-2" /> Capturar
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm" onClick={startCamera}>
+                      <Button variant="outline" size="sm" onClick={startCamera} className="font-bold">
                         <Camera className="h-4 w-4 mr-2" /> Câmera
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="font-bold">
                       <Upload className="h-4 w-4 mr-2" /> Foto
                     </Button>
                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
@@ -335,28 +345,28 @@ function StudentsContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-4 flex-1">
                   <div className="col-span-2 space-y-1.5">
-                    <Label>Nome Completo</Label>
-                    <Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ex: João da Silva" />
+                    <Label className="font-bold text-xs uppercase">Nome Completo</Label>
+                    <Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="h-11" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>RA</Label>
-                    <Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} placeholder="000.000.000" />
+                    <Label className="font-bold text-xs uppercase">RA</Label>
+                    <Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Dígito</Label>
-                    <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} placeholder="X" />
+                    <Label className="font-bold text-xs uppercase">Dígito</Label>
+                    <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Turma</Label>
+                    <Label className="font-bold text-xs uppercase">Turma</Label>
                     <Select value={formData.classId} onValueChange={(v) => setFormData({...formData, classId: v})}>
-                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Nº Chamada</Label>
+                    <Label className="font-bold text-xs uppercase">Nº Chamada</Label>
                     <Input type="number" value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} />
                   </div>
                 </div>
@@ -365,8 +375,9 @@ function StudentsContent() {
           </ScrollArea>
           <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
             <Button variant="ghost" onClick={() => { stopCamera(); setIsRegisterOpen(false); }} disabled={isSubmitting}>Cancelar</Button>
-            <Button onClick={handleRegisterSubmit} disabled={isSubmitting} className="shadow-lg min-w-[150px]">
-              {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Gravando...</> : <><Save className="h-4 w-4 mr-2" /> {isEditing ? 'Atualizar' : 'Salvar'}</>}
+            <Button onClick={handleRegisterSubmit} disabled={isSubmitting} className="shadow-lg min-w-[150px] font-black uppercase tracking-widest text-xs">
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              {isSubmitting ? 'Gravando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -377,20 +388,20 @@ function StudentsContent() {
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
             <div className="flex items-center gap-6">
-              <div className="h-20 w-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/50">
-                {selectedStudent?.photo ? <img src={selectedStudent.photo} className="h-full w-full object-cover" /> : <span className="text-3xl font-bold">{selectedStudent?.name.charAt(0)}</span>}
+              <div className="h-20 w-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/50 shadow-lg">
+                {selectedStudent?.photo ? <img src={selectedStudent.photo} className="h-full w-full object-cover" /> : <span className="text-3xl font-black">{selectedStudent?.name.charAt(0)}</span>}
               </div>
               <div>
-                <DialogTitle className="text-3xl font-black">{selectedStudent?.name}</DialogTitle>
-                <DialogDescription className="text-white/80 font-medium">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</DialogDescription>
+                <DialogTitle className="text-3xl font-black tracking-tighter uppercase">{selectedStudent?.name}</DialogTitle>
+                <DialogDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest">RA: {selectedStudent?.ra}-{selectedStudent?.raDigit} • {selectedStudent?.class}</DialogDescription>
               </div>
             </div>
           </DialogHeader>
-          <div className="bg-slate-50 border-b px-8 py-3 flex items-center justify-between shrink-0">
-            <div className="flex gap-4">
-              <Badge variant="outline" className="font-black">Bimestre:</Badge>
+          <div className="bg-slate-100 border-b px-8 py-3 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Bimestre:</span>
               <Select value={selectedBimestre} onValueChange={setSelectedBimestre}>
-                <SelectTrigger className="h-8 w-44 bg-white border-primary/20"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-44 bg-white border-none shadow-sm font-bold text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Períodos</SelectItem>
                   <SelectItem value="1">1º Bimestre</SelectItem>
@@ -401,34 +412,34 @@ function StudentsContent() {
               </Select>
             </div>
             {selectedBimestre !== "all" && (
-              <Badge variant="secondary" className="bg-blue-50 text-blue-700 font-bold">
-                Exibindo dados do {BIMESTRE_LABELS[selectedBimestre]}
+              <Badge variant="secondary" className="bg-blue-600 text-white font-black uppercase text-[9px] tracking-tighter">
+                Filtro Ativo: {BIMESTRE_LABELS[selectedBimestre]}
               </Badge>
             )}
           </div>
           <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="bg-white border-b px-8 h-12 justify-start gap-8 rounded-none">
-              <TabsTrigger value="history" className="font-bold">Frequência & Analítico</TabsTrigger>
-              <TabsTrigger value="info" className="font-bold">Informações</TabsTrigger>
+            <TabsList className="bg-white border-b px-8 h-12 justify-start gap-8 rounded-none border-t">
+              <TabsTrigger value="history" className="font-black uppercase text-[10px] tracking-widest data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none">Analítico de Frequência</TabsTrigger>
+              <TabsTrigger value="info" className="font-black uppercase text-[10px] tracking-widest data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none">Dados de Matrícula</TabsTrigger>
             </TabsList>
             <ScrollArea className="flex-1 p-8">
               <TabsContent value="history" className="m-0 space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card className="bg-slate-50 border-none">
-                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Total de Aulas</CardTitle></CardHeader>
+                  <Card className="bg-white border shadow-sm">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Aulas Previstas</CardTitle></CardHeader>
                     <CardContent className="p-4 pt-0"><p className="text-3xl font-black">{attendanceStats.total}</p></CardContent>
                   </Card>
-                  <Card className="bg-green-50 border-none">
-                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-green-600">Presenças</CardTitle></CardHeader>
+                  <Card className="bg-green-50 border-green-200">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-[10px] uppercase font-black text-green-700 tracking-widest">Presenças</CardTitle></CardHeader>
                     <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-green-700">{attendanceStats.present}</p></CardContent>
                   </Card>
-                  <Card className="bg-red-50 border-none">
-                    <CardHeader className="p-4 pb-1"><CardTitle className="text-xs uppercase text-red-600">Faltas</CardTitle></CardHeader>
+                  <Card className="bg-red-50 border-red-200">
+                    <CardHeader className="p-4 pb-1"><CardTitle className="text-[10px] uppercase font-black text-red-700 tracking-widest">Ausências</CardTitle></CardHeader>
                     <CardContent className="p-4 pt-0"><p className="text-3xl font-black text-red-700">{attendanceStats.absent}</p></CardContent>
                   </Card>
-                  <Card className={cn("border-none transition-colors", attendanceStats.bg)}>
+                  <Card className={cn("border-2 shadow-inner transition-colors", attendanceStats.border, attendanceStats.bg)}>
                     <CardHeader className="p-4 pb-1">
-                      <CardTitle className={cn("text-xs uppercase font-black", attendanceStats.color)}>Frequência</CardTitle>
+                      <CardTitle className={cn("text-[10px] uppercase font-black tracking-widest", attendanceStats.color)}>Freq. Global</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <p className={cn("text-3xl font-black", attendanceStats.color)}>{attendanceStats.rate}%</p>
@@ -438,17 +449,17 @@ function StudentsContent() {
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução Pedagógica</h4>
-                    <Badge variant="outline" className={cn("font-bold border-2 px-4 py-1", attendanceStats.border, attendanceStats.color, attendanceStats.bg)}>
-                      {attendanceStats.rate >= 75 ? 'Dentro da Meta' : 'Abaixo da Meta'}
+                    <h4 className="font-black uppercase text-xs tracking-widest flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução Pedagógica</h4>
+                    <Badge className={cn("font-black uppercase text-[9px] px-4 py-1", attendanceStats.bg, attendanceStats.color, "border-none")}>
+                      {attendanceStats.rate >= 75 ? 'Dentro da Meta SP' : 'Risco de Abandono'}
                     </Badge>
                   </div>
-                  <Progress value={attendanceStats.rate} className="h-3" />
+                  <Progress value={attendanceStats.rate} className="h-3 bg-slate-100" />
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Ocorrências de Faltas {selectedBimestre !== "all" ? `no ${BIMESTRE_LABELS[selectedBimestre]}` : "no Ano"}</h4>
-                  <div className="border rounded-xl divide-y bg-white">
+                  <h4 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Log de Ausências {selectedBimestre !== "all" ? `no ${BIMESTRE_LABELS[selectedBimestre]}` : "no Ano Letivo"}</h4>
+                  <div className="border rounded-xl divide-y bg-white overflow-hidden shadow-sm">
                     {filteredAttendance
                       .filter(record => record.status === 'Falta')
                       .sort((a, b) => b.date.localeCompare(a.date))
@@ -456,33 +467,33 @@ function StudentsContent() {
                       <div key={record.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                         <div className="flex items-center gap-3">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{new Date(record.date).toLocaleDateString('pt-BR')}</span>
-                          <Badge variant="outline" className="text-[9px] uppercase">{BIMESTRE_LABELS[record.bimestre || "1"]}</Badge>
+                          <span className="font-black text-xs uppercase">{new Date(record.date).toLocaleDateString('pt-BR')}</span>
+                          <Badge variant="outline" className="text-[9px] uppercase font-bold">{BIMESTRE_LABELS[record.bimestre || "1"]}</Badge>
                         </div>
-                        <Badge variant="destructive" className="font-bold px-3">
-                          <XCircle className="h-3 w-3 mr-1" /> AUSÊNCIA
+                        <Badge variant="destructive" className="font-black text-[9px] px-3 uppercase tracking-widest">
+                          <XCircle className="h-3 w-3 mr-1" /> Falta Registrada
                         </Badge>
                       </div>
                     ))}
                     {filteredAttendance.filter(record => record.status === 'Falta').length === 0 && (
-                      <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhuma falta registrada para este filtro.</p>
+                      <div className="p-16 text-center text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-20">Nenhuma ausência registrada neste período.</div>
                     )}
                   </div>
                 </div>
               </TabsContent>
               <TabsContent value="info" className="m-0 space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Status</Label>
-                    <p className="font-bold text-green-600">{selectedStudent?.status}</p>
+                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
+                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Situação</Label>
+                    <Badge className="bg-green-600 font-black uppercase text-[10px]">{selectedStudent?.status}</Badge>
                   </div>
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Turma</Label>
-                    <p className="font-bold">{selectedStudent?.class}</p>
+                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
+                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Turma Vinculada</Label>
+                    <p className="font-black text-primary uppercase text-sm">{selectedStudent?.class}</p>
                   </div>
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Chamada</Label>
-                    <p className="font-bold">#{selectedStudent?.callNumber}</p>
+                  <div className="p-6 rounded-xl border-2 border-slate-100 bg-white text-center shadow-sm">
+                    <Label className="text-[9px] uppercase font-black text-muted-foreground block mb-2 tracking-widest">Ordem na Chamada</Label>
+                    <p className="font-black text-2xl">#{selectedStudent?.callNumber}</p>
                   </div>
                 </div>
               </TabsContent>

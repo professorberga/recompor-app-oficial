@@ -4,26 +4,26 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * MONITOR DO BEEM - SECURITY RULES (V2)
+     * RECOMPOR+ SECURITY RULES
      * 
-     * Estrutura Hierárquica: /teachers/{teacherId}/...
-     * Enforce: isOwner(teacherId) para professores e bypass para Admin.
+     * Estrutura: /teachers/{teacherId}/...
+     * Enforce: isOwner(teacherId) para professores e bypass total para Admin.
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // UID do Administrador Master
+    // UID do Administrador Master (Berga)
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1" || 
         get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.role == "Admin"
       );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isExistingOwner(userId) {
@@ -32,58 +32,24 @@ service cloud.firestore {
 
     // --- COLEÇÃO DE PROFESSORES ---
     match /teachers/{teacherId} {
-      // get: Dono ou Admin. list: Somente Admin (listagem global).
+      // get: O próprio ou Admin. list: Somente Admin.
       allow get: if isOwner(teacherId) || isAdmin();
       allow list: if isAdmin(); 
       allow create: if isOwner(teacherId) || isAdmin();
-      allow update: if isExistingOwner(teacherId);
+      allow update: if isOwner(teacherId) || isAdmin();
       allow delete: if isAdmin();
 
-      // --- SUBCOLEÇÃO DE TURMAS ---
-      match /classes/{classId} {
-        allow get, list: if isOwner(teacherId) || isAdmin();
-        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
-        allow update: if isOwner(teacherId) || isAdmin();
-        allow delete: if isOwner(teacherId) || isAdmin();
-      }
-
-      // --- SUBCOLEÇÃO DE ESTUDANTES ---
-      match /students/{studentId} {
-        allow get, list: if isOwner(teacherId) || isAdmin();
-        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
-        allow update: if isOwner(teacherId) || isAdmin();
-        allow delete: if isOwner(teacherId) || isAdmin();
-      }
-
-      // --- SUBCOLEÇÃO DE AVALIAÇÕES ---
-      match /assessments/{assessmentId} {
-        allow get, list: if isOwner(teacherId) || isAdmin();
-        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
-        allow update: if isOwner(teacherId) || isAdmin();
-        allow delete: if isOwner(teacherId) || isAdmin();
-      }
-
-      // --- SUBCOLEÇÃO DE REGISTROS DE CHAMADA ---
-      match /attendanceRecords/{attendanceRecordId} {
-        allow get, list: if isOwner(teacherId) || isAdmin();
-        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.recordedByTeacherId == teacherId || isAdmin());
-        allow update: if isOwner(teacherId) || isAdmin();
-        allow delete: if isOwner(teacherId) || isAdmin();
-      }
-      
-      // --- SUBCOLEÇÃO DE CONTEÚDOS ---
-      match /lessons/{lessonId} {
-        allow get, list: if isOwner(teacherId) || isAdmin();
-        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
-        allow update: if isOwner(teacherId) || isAdmin();
-        allow delete: if isOwner(teacherId) || isAdmin();
+      // --- SUBCOLEÇÕES (Classes, Students, Records, Lessons, Assessments) ---
+      // Todas seguem a lógica: o dono do nó raiz (teacherId) ou o Admin acessam tudo abaixo.
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(teacherId) || isAdmin();
       }
     }
 
-    // --- COLEÇÃO GLOBAL DE COMPETÊNCIAS ---
-    match /competencies/{competencyId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+    // --- COLEÇÃO GLOBAL DE CLASSES (Opcional, se houver busca fora do nó teacher) ---
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }
