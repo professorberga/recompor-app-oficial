@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.6.0"
+  const SYSTEM_VERSION = "v1.7.0"
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -45,139 +45,139 @@ export default function LoginPage() {
 
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
-      // 1. Tenta buscar o documento do professor pelo UID (Padrão de Segurança)
-      const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
-      let profileSnap = await getDoc(teacherRef)
+      // INSTRUÇÃO OBRIGATÓRIA: Prioridade de Busca por E-mail para Migração
+      // Buscamos primeiro via Query para localizar perfis legados (ID = e-mail ou RA)
+      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+      const qSnap = await getDocs(q);
       
-      let userData: any = null;
+      let profileData: any = null;
+      let legacyDocId: string | null = null;
 
-      // 2. Se não existir, realiza uma busca flexível pelo campo 'email'
-      if (!profileSnap.exists()) {
-        const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
-        const qSnap = await getDocs(q);
-        
-        if (!qSnap.empty) {
-          // MIGRAÇÃO DE SEGURANÇA: Encontrou perfil legado (ID era e-mail ou RA)
-          const legacyDoc = qSnap.docs[0];
-          userData = legacyDoc.data();
+      if (!qSnap.empty) {
+        const foundDoc = qSnap.docs[0];
+        profileData = foundDoc.data();
+        legacyDocId = foundDoc.id;
+
+        // VERIFICAÇÃO DE SINCRONIZAÇÃO (Efeito Kauã/Milton)
+        // Se o ID do documento encontrado NÃO for o UID, realizamos a migração
+        if (legacyDocId !== firebaseUser.uid) {
+          console.log(`[Migration] Migrando perfil de ${legacyDocId} para ${firebaseUser.uid}`);
           
-          // Cria o novo documento usando o UID como ID oficial
-          await setDoc(teacherRef, { 
-            ...userData, 
+          // 1. Cria o novo documento com o UID oficial
+          const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
+          await setDoc(newDocRef, { 
+            ...profileData, 
             id: firebaseUser.uid,
-            role: userData.role || 'Professor'
+            role: profileData.role || 'Professor'
           }, { merge: true });
+
+          // 2. Deleta o documento antigo (legado)
+          await deleteDoc(doc(firestore, 'teachers', legacyDocId));
           
-          // Apaga o documento antigo se o ID for diferente do UID
-          if (legacyDoc.id !== firebaseUser.uid) {
-            await deleteDoc(legacyDoc.ref);
-          }
-          
-          toast({ title: "Sincronizado", description: "Perfil institucional vinculado com sucesso." })
-        } else {
-          // Handshake de primeiro acesso falhou - Usuário não autorizado
-          await signOut(auth)
-          toast({
-            title: "Acesso Não Autorizado",
-            description: "Seu e-mail está autenticado, mas não possui um perfil docente vinculado. Contate a coordenação.",
-            variant: "destructive",
-          })
-          return
+          toast({ title: "Sincronizado", description: "Seu perfil foi atualizado para o padrão de segurança UID." });
         }
       } else {
-        userData = profileSnap.data();
+        // Handshake falhou - Nenhum professor com este e-mail no Firestore
+        await signOut(auth);
+        toast({
+          title: "Acesso Não Autorizado",
+          description: "E-mail autenticado, mas nenhum perfil docente vinculado. Contate o Berga.",
+          variant: "destructive",
+        });
+        return;
       }
-      
-      console.log('Cargo detectado:', userData?.role || 'Não identificado');
-      router.push("/dashboard")
+
+      console.log('Cargo detectado:', profileData?.role || 'Não identificado');
+      router.push("/dashboard");
     } catch (error: any) {
       if (error.code === 'permission-denied') {
         toast({ 
-          title: "Sincronizando...", 
-          description: "Acesso autenticado, mas perfil em sincronização. Tente novamente em 5 segundos.", 
+          title: "Erro de Permissão", 
+          description: "Não foi possível ler seu perfil. Verifique se o e-mail no sistema está correto.", 
           variant: "destructive" 
-        })
-        await signOut(auth)
+        });
+        await signOut(auth);
       } else {
-        handleAuthError(error)
+        handleAuthError(error);
       }
     }
   }
 
   const handleGoogleLogin = async () => {
-    setIsGoogleLoading(true)
+    setIsGoogleLoading(true);
     try {
-      await signOut(auth)
-      const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      await checkProfileAndRedirect(result.user)
+      // Logout preventivo para limpar sessões residuais
+      await signOut(auth);
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await checkProfileAndRedirect(result.user);
     } catch (error: any) {
-      handleAuthError(error)
+      handleAuthError(error);
     } finally {
-      setIsGoogleLoading(false)
+      setIsGoogleLoading(false);
     }
   }
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email || !password) return
+    e.preventDefault();
+    if (!email || !password) return;
     
-    setIsLoading(true)
-    const sanitizedEmail = email.trim()
+    setIsLoading(true);
+    const sanitizedEmail = email.trim();
 
     try {
-      // 1. Logout Preventivo para limpar sessões residuais
-      await signOut(auth)
+      // 1. LOGOUT PREVENTIVO: Limpa cache de outros usuários (evita invalid-credential)
+      await signOut(auth);
       
-      // 2. Configura Persistência
-      await setPersistence(auth, browserLocalPersistence)
+      // 2. PERSISTÊNCIA LOCAL
+      await setPersistence(auth, browserLocalPersistence);
       
-      // 3. Autenticação
-      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
+      // 3. AUTENTICAÇÃO
+      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       
-      // 4. Verificação e Migração de Perfil
-      await checkProfileAndRedirect(userCredential.user)
+      // 4. VERIFICAÇÃO E MIGRAÇÃO
+      await checkProfileAndRedirect(userCredential.user);
     } catch (error: any) {
-      handleAuthError(error)
+      handleAuthError(error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   const handleAuthError = (error: any) => {
-    console.error("Auth Error:", error.code, error.message)
+    console.error("Auth Error:", error.code, error.message);
     
     if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
       toast({ 
-        title: "Erro de Comunicação", 
+        title: "Falha na Comunicação", 
         description: "Falha na comunicação com o Google. Tente limpar o cache do navegador ou usar aba anônima.", 
         variant: "destructive" 
-      })
-      return
+      });
+      return;
     }
 
-    let message = "Verifique suas credenciais ou tente novamente mais tarde."
+    let message = "Verifique suas credenciais ou tente novamente mais tarde.";
 
     if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
-      message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga."
+      message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga.";
     }
 
-    toast({ title: "Falha na Autenticação", description: message, variant: "destructive" })
+    toast({ title: "Falha na Autenticação", description: message, variant: "destructive" });
   }
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "E-mail Necessário", description: "Digite seu e-mail institucional para receber o link de recuperação.", variant: "destructive" })
-      return
+      toast({ title: "E-mail Necessário", description: "Digite seu e-mail institucional para receber o link de recuperação.", variant: "destructive" });
+      return;
     }
-    setIsResetting(true)
+    setIsResetting(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim())
-      toast({ title: "Recuperação Enviada", description: "Link enviado para seu e-mail." })
+      await sendPasswordResetEmail(auth, email.trim());
+      toast({ title: "Recuperação Enviada", description: "Link enviado para seu e-mail." });
     } catch (error: any) {
-      toast({ title: "Erro no Envio", description: "Não foi possível enviar o e-mail de recuperação.", variant: "destructive" })
+      toast({ title: "Erro no Envio", description: "Não foi possível enviar o e-mail de recuperação.", variant: "destructive" });
     } finally {
-      setIsResetting(false)
+      setIsResetting(false);
     }
   }
 

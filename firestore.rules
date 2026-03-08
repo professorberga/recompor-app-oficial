@@ -23,7 +23,7 @@ service cloud.firestore {
     // --- PROFESSORES (IDENTIDADE E MIGRAÇÃO) ---
     match /teachers/{teacherId} {
       // Permite leitura se o ID for o UID OU se o e-mail no documento for o e-mail do token
-      // Isso é vital para o código de migração conseguir ler o perfil antigo
+      // Isso é vital para o código de migração conseguir ler o perfil antigo (ID=e-mail/RA)
       allow get: if isSignedIn() && (
         request.auth.uid == teacherId || 
         resource.data.email == request.auth.token.email
@@ -31,11 +31,15 @@ service cloud.firestore {
       // Permite listagem via query de e-mail para o próprio usuário ou Admin
       allow list: if isSignedIn() && (
         isAdmin() || 
-        (request.auth.token.email != null && resource.data.email == request.auth.token.email) ||
-        request.query.limit <= 5
+        (request.auth.token.email != null && resource.data.email == request.auth.token.email)
       );
-      // Permite escrita se for Admin ou o próprio usuário (via UID)
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == teacherId);
+      // Permite escrita se for Admin ou se o e-mail do documento corresponder ao token
+      // O campo email deve ser soberano para permitir a migração (criação do novo e delete do antigo)
+      allow write: if isAdmin() || (isSignedIn() && (
+        request.auth.uid == teacherId || 
+        (resource != null && resource.data.email == request.auth.token.email) ||
+        (request.resource != null && request.resource.data.email == request.auth.token.email)
+      ));
     }
 
     // --- TURMAS (GLOBAL) ---

@@ -103,40 +103,40 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. Busca Perfil com Handshake de Migração Híbrida
-          let docSnap = await getDoc(teacherRef);
+          // 2. BUSCA HÍBRIDA E MIGRAÇÃO (PADRONIZAÇÃO UID)
+          // Priorizamos a busca por e-mail para resolver perfis legados (ID = e-mail ou RA)
+          const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+          const querySnap = await getDocs(q);
           
-          if (!docSnap.exists()) {
-            // Se não encontrar pelo UID, tenta buscar pela query de e-mail (flexibilidade para migração)
-            const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
-            const querySnap = await getDocs(q);
+          let profileDocSnap = await getDoc(teacherRef);
+          
+          if (!profileDocSnap.exists() && !querySnap.empty) {
+            // ENCONTROU PERFIL LEGADO: Realiza a migração silenciosa
+            const legacyDoc = querySnap.docs[0];
+            const data = legacyDoc.data() as TeacherProfile;
             
-            if (!querySnap.empty) {
-              const legacyDoc = querySnap.docs[0];
-              const data = legacyDoc.data() as TeacherProfile;
-              
-              const profileData = { 
-                ...data, 
-                id: firebaseUser.uid,
-                role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
-              };
-              
-              // Migração Forçada: Padroniza o ID como UID
-              await setDoc(teacherRef, profileData, { merge: true });
-              
-              // Se o documento antigo tinha um ID diferente do UID (e-mail ou RA), apaga ele
-              if (legacyDoc.id !== firebaseUser.uid) {
-                await deleteDoc(legacyDoc.ref);
-              }
-              docSnap = await getDoc(teacherRef);
+            const profileData = { 
+              ...data, 
+              id: firebaseUser.uid,
+              role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
+            };
+            
+            console.log(`[Provider] Sincronizando ID legado ${legacyDoc.id} para UID ${firebaseUser.uid}`);
+            
+            // Grava no novo endereço (UID)
+            await setDoc(teacherRef, profileData, { merge: true });
+            
+            // Remove o antigo se for diferente
+            if (legacyDoc.id !== firebaseUser.uid) {
+              await deleteDoc(legacyDoc.ref);
             }
+            profileDocSnap = await getDoc(teacherRef);
           }
 
-          if (docSnap.exists()) {
+          if (profileDocSnap.exists()) {
             profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
               if (snapshot.exists()) {
                 const data = snapshot.data() as TeacherProfile;
-                console.log(`[Auth] Perfil Carregado: ${data.name} (${data.role})`);
                 setUserAuthState(prev => ({
                   ...prev,
                   user: firebaseUser,
@@ -147,8 +147,7 @@ export const FirebaseProvider: React.FC<{
               }
             });
           } else {
-            // Se autenticou mas não tem perfil nem via query, encerra sessão
-            console.warn("[Auth] Usuário autenticado mas sem perfil institucional.");
+            console.warn("[Auth] Usuário autenticado mas sem perfil institucional vinculado.");
             setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
           }
 
