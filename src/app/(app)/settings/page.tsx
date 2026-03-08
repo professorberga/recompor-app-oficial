@@ -279,7 +279,15 @@ export default function SettingsPage() {
   }, []);
 
   const handleNewTeacher = useCallback(() => {
-    setEditingTeacher({ assignments: [], role: 'Professor', password: "" });
+    // Inicializa explicitamente com valores vazios para evitar preenchimento com dados do Admin
+    setEditingTeacher({ 
+      id: "",
+      name: "", 
+      email: "", 
+      assignments: [], 
+      role: 'Professor', 
+      password: "" 
+    });
     setIsTeacherDialogOpen(true);
   }, []);
 
@@ -461,7 +469,15 @@ export default function SettingsPage() {
         )}
       </Tabs>
 
-      <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen} modal={true}>
+      <Dialog 
+        open={isTeacherDialogOpen} 
+        onOpenChange={(open) => {
+          setIsTeacherDialogOpen(open);
+          // Limpa o estado ao fechar o modal para garantir que a próxima abertura (Novo Docente) venha limpa
+          if (!open) setEditingTeacher(null);
+        }} 
+        modal={true}
+      >
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Atribuição Docente</DialogTitle>
@@ -474,11 +490,11 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-xs font-black uppercase">Nome do Docente</Label>
-                      <Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, name: e.target.value}))} placeholder="Ex: Marcio Bergamini" className="h-11" />
+                      <Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, name: e.target.value}))} placeholder="Nome do Professor" className="h-11" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-black uppercase">E-mail Institucional</Label>
-                      <Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, email: e.target.value}))} placeholder="escola@educacao.sp.gov.br" className="h-11" />
+                      <Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, email: e.target.value}))} placeholder="exemplo@educacao.sp.gov.br" className="h-11" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
