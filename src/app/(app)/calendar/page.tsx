@@ -17,7 +17,7 @@ import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, query, where } from "firebase/firestore"
-import { cn } from "@/utils"
+import { cn } from "@/lib/utils"
 
 // Grade Horária Atualizada conforme solicitação
 const CLASS_SCHEDULES = [
