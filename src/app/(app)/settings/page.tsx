@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { 
   School, 
@@ -51,7 +51,10 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
-    subjects: [] as string[]
+    subjects: [] as string[],
+    schoolName: "E.E. Professor Milton Santos",
+    academicYear: "2024",
+    activeBimestre: "4"
   })
 
   useEffect(() => {
@@ -60,7 +63,10 @@ export default function SettingsPage() {
       setProfileData({
         name: profile.name || "",
         email: profile.email || "",
-        subjects: profile.subjects || []
+        subjects: profile.subjects || [],
+        schoolName: (profile as any).schoolName || "E.E. Professor Milton Santos",
+        academicYear: (profile as any).academicYear || "2024",
+        activeBimestre: (profile as any).activeBimestre || "4"
       })
     }
   }, [profile])
@@ -76,17 +82,18 @@ export default function SettingsPage() {
         name: profileData.name,
         email: user.email,
         subjects: profileData.subjects,
-        // Role é mantido se já existir ou definido como Professor por padrão se não for admin
+        schoolName: profileData.schoolName,
+        academicYear: profileData.academicYear,
+        activeBimestre: profileData.activeBimestre,
         role: profile?.role || 'Professor' 
       }, { merge: true })
       
-      console.log("Firestore: Perfil atualizado com sucesso para UID", user.uid)
-      toast({ title: "Perfil Salvo", description: "Suas informações foram atualizadas no banco de dados." })
+      toast({ title: "Configurações Salvas", description: "As informações da escola e perfil foram atualizadas no Firestore." })
     } catch (error: any) {
-      console.error("Firestore Error (Permissão negada ou falha de rede):", error)
+      console.error("Firestore Error:", error)
       toast({ 
         title: "Erro ao Salvar", 
-        description: "Você não tem permissão para editar este perfil ou houve uma falha na conexão.", 
+        description: "Falha na conexão com o banco de dados.", 
         variant: "destructive" 
       })
     } finally {
@@ -105,7 +112,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Configurações</h2>
-          <p className="text-muted-foreground mt-1">Gerencie seu perfil e as disciplinas da escola.</p>
+          <p className="text-muted-foreground mt-1">Gerencie seu perfil e os dados da unidade escolar.</p>
         </div>
         <Button onClick={handleSaveProfile} disabled={isSaving} className="gap-2 shadow-lg">
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -115,17 +122,17 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto bg-white border shadow-sm p-1">
-          <TabsTrigger value="profile" className="gap-2 font-bold py-2"><UserCircle className="h-4 w-4" /> Meu Perfil</TabsTrigger>
-          {isAdmin && <TabsTrigger value="users" className="gap-2 font-bold py-2"><Users className="h-4 w-4" /> Usuários</TabsTrigger>}
+          <TabsTrigger value="profile" className="gap-2 font-bold py-2"><UserCircle className="h-4 w-4" /> Perfil Docente</TabsTrigger>
           <TabsTrigger value="school" className="gap-2 font-bold py-2"><School className="h-4 w-4" /> Escola</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2 font-bold py-2"><Bell className="h-4 w-4" /> Alertas</TabsTrigger>
+          {isAdmin && <TabsTrigger value="users" className="gap-2 font-bold py-2"><ShieldAlert className="h-4 w-4" /> Gestão</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6 space-y-6">
           <Card className="border-none shadow-md bg-white">
             <CardHeader>
-              <CardTitle>Informações Pessoais</CardTitle>
-              <CardDescription>Estes dados são sincronizados com o seu diário de classe.</CardDescription>
+              <CardTitle>Dados Pessoais</CardTitle>
+              <CardDescription>Sincronizado com seu UID no Firestore.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -134,19 +141,19 @@ export default function SettingsPage() {
                   <Input 
                     value={profileData.name} 
                     onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                    placeholder="Seu nome"
+                    placeholder="Seu nome completo"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>E-mail Institucional</Label>
-                  <Input value={user?.email || ""} disabled className="bg-muted" />
+                  <Input value={user?.email || ""} disabled className="bg-muted cursor-not-allowed" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Disciplinas Atuantes</Label>
-                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-slate-50/50">
-                  {['Português', 'Matemática', 'Ciências', 'História'].map(subj => (
-                    <label key={subj} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border cursor-pointer hover:border-primary transition-colors">
+                <Label>Minhas Disciplinas</Label>
+                <div className="flex flex-wrap gap-2 p-4 border rounded-lg bg-slate-50/50">
+                  {['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Inglês'].map(subj => (
+                    <label key={subj} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border cursor-pointer hover:border-primary transition-colors">
                       <Checkbox 
                         checked={profileData.subjects.includes(subj)}
                         onCheckedChange={(checked) => {
@@ -156,7 +163,7 @@ export default function SettingsPage() {
                           setProfileData({...profileData, subjects: newSubjects});
                         }}
                       />
-                      <span className="text-sm font-medium">{subj}</span>
+                      <span className="text-sm font-semibold">{subj}</span>
                     </label>
                   ))}
                 </div>
@@ -167,36 +174,34 @@ export default function SettingsPage() {
 
         <TabsContent value="school" className="mt-6">
            <Card className="border-none shadow-md bg-white">
-            <CardHeader><CardTitle>Dados da Escola</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Informações da Unidade</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Unidade Escolar</Label>
-                <Input defaultValue="E.E. Professor Milton Santos" />
+                <Label>Nome da Escola</Label>
+                <Input value={profileData.schoolName} onChange={(e) => setProfileData({...profileData, schoolName: e.target.value})} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ano Letivo</Label>
-                  <Input defaultValue="2024" />
+                  <Input value={profileData.academicYear} onChange={(e) => setProfileData({...profileData, academicYear: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bimestre Ativo</Label>
-                  <Select defaultValue="4"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="4">4º Bimestre</SelectItem></SelectContent></Select>
+                  <Label>Bimestre de Avaliação</Label>
+                  <Select value={profileData.activeBimestre} onValueChange={(v) => setProfileData({...profileData, activeBimestre: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1º Bimestre</SelectItem>
+                      <SelectItem value="2">2º Bimestre</SelectItem>
+                      <SelectItem value="3">3º Bimestre</SelectItem>
+                      <SelectItem value="4">4º Bimestre</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      {!isAdmin && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 mt-6">
-          <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-800">
-            <p className="font-bold">Acesso de Professor</p>
-            <p>Algumas configurações avançadas estão disponíveis apenas para a equipe gestora.</p>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
