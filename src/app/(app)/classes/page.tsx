@@ -22,11 +22,11 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Referência real para as turmas do professor logado
-  const classesRef = useMemoFirebase(() => 
-    user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
-    [user, firestore]
-  )
+  // Referência real para as turmas do professor logado (SlbAX6v... ou U3vapjp...)
+  const classesRef = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return collection(firestore, 'teachers', user.uid, 'classes');
+  }, [user, firestore]);
   
   const { data: classes = [], isLoading } = useCollection(classesRef)
 
@@ -37,7 +37,10 @@ export default function ClassesPage() {
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || !classesRef) return
+    if (!user?.uid || !classesRef) {
+      toast({ title: "Erro de Autenticação", description: "UID do professor não encontrado.", variant: "destructive" });
+      return;
+    }
     
     if (!newClass.name) {
       toast({ title: "Campo Vazio", description: "O nome da turma é obrigatório.", variant: "destructive" })
@@ -61,13 +64,14 @@ export default function ClassesPage() {
       setIsDialogOpen(false)
       setNewClass({ name: "", subject: "Portuguese" })
       toast({ title: "Turma Criada", description: `${classData.name} foi registrada no Firestore.` })
-    } catch (err) {
-      toast({ title: "Erro de Permissão", description: "Verifique as Security Rules no console.", variant: "destructive" })
+    } catch (err: any) {
+      console.error("Erro ao criar turma:", err);
+      toast({ title: "Erro de Permissão (400)", description: "Verifique se o UID está correto nas subcoleções.", variant: "destructive" })
     }
   }
 
   const handleDeleteClass = async (id: string) => {
-    if (!classesRef) return
+    if (!user?.uid || !classesRef) return
     try {
       await deleteDoc(doc(classesRef, id))
       toast({ title: "Removido", description: "Turma excluída com sucesso." })
@@ -85,7 +89,7 @@ export default function ClassesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Diário de Turmas</h2>
-          <p className="text-muted-foreground mt-1">Dados reais carregados do seu repositório docente no Firebase.</p>
+          <p className="text-muted-foreground mt-1">Gerencie suas classes vinculadas ao seu perfil docente.</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -96,8 +100,8 @@ export default function ClassesPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] bg-white">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-black">Adicionar Turma</DialogTitle>
-              <DialogDescription>A nova turma será vinculada exclusivamente ao seu UID.</DialogDescription>
+              <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
+              <DialogDescription>A nova turma será vinculada exclusivamente ao seu UID: {user?.uid}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateClass} className="space-y-5 py-4">
               <div className="space-y-2">

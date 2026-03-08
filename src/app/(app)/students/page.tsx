@@ -40,14 +40,14 @@ function StudentsContent() {
   
   // Turmas do professor para o Select
   const classesRef = useMemoFirebase(() => 
-    user ? collection(firestore, 'teachers', user.uid, 'classes') : null,
+    user?.uid ? collection(firestore, 'teachers', user.uid, 'classes') : null,
     [user, firestore]
   )
   const { data: classes = [] } = useCollection(classesRef)
 
   // Estudantes na subcoleção direta do professor, filtrados por turma se houver filtro
   const studentsRef = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user?.uid) return null;
     const baseCol = collection(firestore, 'teachers', user.uid, 'students');
     if (classFilter) {
       return query(baseCol, where('classId', '==', classFilter));
@@ -79,7 +79,7 @@ function StudentsContent() {
   const filteredStudents = useMemo(() => {
     return students.filter(student => {
       const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           student.ra.includes(searchTerm)
+                           (student.ra && student.ra.includes(searchTerm))
       return matchesSearch
     })
   }, [students, searchTerm])
@@ -128,7 +128,10 @@ function StudentsContent() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || !formData.classId) return
+    if (!user?.uid || !formData.classId) {
+       toast({ title: "Erro", description: "UID do professor ou Turma ausente.", variant: "destructive" });
+       return;
+    }
     
     if (!formData.name || !formData.ra) {
       toast({ title: "Campos Obrigatórios", description: "Nome e RA devem ser preenchidos.", variant: "destructive" })
@@ -153,13 +156,14 @@ function StudentsContent() {
       setIsRegisterOpen(false)
       stopCamera()
       toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado com sucesso no Firestore." })
-    } catch (err) {
-      toast({ title: "Falha ao Salvar", description: "Verifique as regras de segurança do Firestore.", variant: "destructive" })
+    } catch (err: any) {
+      console.error("Erro ao cadastrar aluno:", err);
+      toast({ title: "Falha ao Salvar (400)", description: "Verifique as regras de segurança ou o UID.", variant: "destructive" })
     }
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!user) return
+    if (!user?.uid) return
     try {
       await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
       toast({ title: "Removido", description: "Aluno excluído do banco de dados." })
@@ -173,17 +177,11 @@ function StudentsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-          <p className="text-sm text-muted-foreground">Listagem real filtrada por professor e turma.</p>
+          <p className="text-sm text-muted-foreground">Listagem real filtrada por professor (UID: {user?.uid?.substring(0,8)}...)</p>
         </div>
-        {classFilter ? (
-          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter, status: "Ativo" }); setIsRegisterOpen(true); }}>
-            <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
-          </Button>
-        ) : (
-          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: "", status: "Ativo" }); setIsRegisterOpen(true); }}>
-            <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
-          </Button>
-        )}
+        <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter || "", status: "Ativo" }); setIsRegisterOpen(true); }}>
+          <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
+        </Button>
       </div>
 
       <div className="relative">
@@ -217,8 +215,8 @@ function StudentsContent() {
           {filteredStudents.length === 0 && (
             <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
               <GraduationCap className="h-16 w-16 mx-auto mb-4" />
-              <p className="text-xl font-bold">Nenhum aluno encontrado</p>
-              <p className="text-sm">Cadastre alunos para começar o acompanhamento no diário.</p>
+              <p className="text-xl font-bold text-primary">Nenhum aluno encontrado</p>
+              <p className="text-sm">Cadastre alunos para começar o acompanhamento no diário vinculado ao seu perfil.</p>
             </div>
           )}
         </div>
@@ -226,7 +224,7 @@ function StudentsContent() {
 
       <Dialog open={isRegisterOpen} onOpenChange={(open) => { if (!open) stopCamera(); setIsRegisterOpen(open); }}>
         <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
-          <DialogHeader className="p-6 border-b shrink-0"><DialogTitle>{isEditing ? 'Atualizar' : 'Novo'} Registro de Aluno</DialogTitle></DialogHeader>
+          <DialogHeader className="p-6 border-b shrink-0"><DialogTitle className="text-primary font-black">{isEditing ? 'Atualizar' : 'Novo'} Registro de Aluno</DialogTitle></DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
               <div className="flex flex-col md:flex-row gap-8">

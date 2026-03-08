@@ -45,6 +45,9 @@ export interface FirebaseServicesAndUser extends FirebaseContextState {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
+// UID do Administrador conhecido
+const ADMIN_UID = "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1";
+
 export const FirebaseProvider: React.FC<{
   children: ReactNode;
   firebaseApp: FirebaseApp;
@@ -69,13 +72,14 @@ export const FirebaseProvider: React.FC<{
         
         if (!docSnap.exists()) {
           // Provisionamento automático se o documento não existir
+          const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
           const newProfile: TeacherProfile = {
             id: firebaseUser.uid,
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Professor",
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
             email: firebaseUser.email || "",
-            role: 'Professor', // Padrão seguro para novos usuários
+            role: isKnownAdmin ? 'Admin' : 'Professor',
             subjects: [],
-            schoolName: "E.E. Professor Milton Santos",
+            schoolName: isKnownAdmin ? "Castello Branco" : "E.E. Professor Milton Santos",
             academicYear: new Date().getFullYear().toString(),
             activeBimestre: "1"
           };
