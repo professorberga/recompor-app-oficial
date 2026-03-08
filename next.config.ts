@@ -1,8 +1,8 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* Habilita a exportação estática para o Firebase Hosting */
-  output: 'export',
+  /* Configuração obrigatória para o Firebase App Hosting (SSR/Standalone) */
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    /* Otimização de imagem desabilitada para exportação estática */
+    /* Mantido como não otimizado para evitar dependência de bibliotecas de imagem no servidor standalone */
     unoptimized: true,
     remotePatterns: [
       {
