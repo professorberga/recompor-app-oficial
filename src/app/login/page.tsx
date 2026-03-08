@@ -12,7 +12,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "firebase/auth"
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from "firebase/firestore"
 import { useAuth, useUser, useFirestore } from "@/firebase/provider"
 import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Globe } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.4.0"
+  const SYSTEM_VERSION = "v1.4.1"
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -43,17 +43,59 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, router])
 
+  const checkProfileAndRedirect = async (firebaseUser: any) => {
+    // 1. Tenta buscar o documento do professor pelo UID (Padrão de Segurança)
+    const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
+    let profileSnap = await getDoc(teacherRef)
+    
+    // 2. Se não existir, realiza uma busca flexível pelo campo 'email'
+    if (!profileSnap.exists()) {
+      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
+      const qSnap = await getDocs(q);
+      
+      if (!qSnap.empty) {
+        // MIGRAÇÃO DE SEGURANÇA: Encontrou perfil legado (ID era e-mail ou RA)
+        const legacyDoc = qSnap.docs[0];
+        const data = legacyDoc.data();
+        
+        // Cria o novo documento usando o UID como ID oficial
+        await setDoc(teacherRef, { 
+          ...data, 
+          id: firebaseUser.uid 
+        }, { merge: true });
+        
+        // Apaga o documento antigo se o ID for diferente do UID
+        if (legacyDoc.id !== firebaseUser.uid) {
+          await deleteDoc(legacyDoc.ref);
+        }
+        
+        // Re-valida o snapshot
+        profileSnap = await getDoc(teacherRef);
+      }
+    }
+    
+    // 3. Verificação final de autorização
+    if (!profileSnap.exists()) {
+      await signOut(auth)
+      toast({
+        title: "Acesso Não Autorizado",
+        description: "Seu e-mail está autenticado, mas não possui um perfil docente vinculado no Recompor+. Contate o Coordenador Berga.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({ title: "Sincronizado", description: "Perfil institucional vinculado com sucesso." })
+    router.push("/dashboard")
+  }
+
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true)
-    
     try {
-      // Limpeza de sessão antes de novo login para evitar conflitos de cache
+      // Logout Preventivo para limpar estados residuais
       await signOut(auth);
       
       const provider = new GoogleAuthProvider()
-      // Opcional: Forçar domínio institucional se necessário
-      // provider.setCustomParameters({ hd: 'prof.educacao.sp.gov.br' });
-
       const result = await signInWithPopup(auth, provider)
       await checkProfileAndRedirect(result.user)
     } catch (error: any) {
@@ -71,11 +113,16 @@ export default function LoginPage() {
     const sanitizedEmail = email.trim()
 
     try {
-      // Limpeza de sessão antes de novo login
+      // 1. Logout Preventivo (Garante limpeza de cache de sessões anteriores)
       await signOut(auth);
       
+      // 2. Define Persistência Local
       await setPersistence(auth, browserLocalPersistence)
+      
+      // 3. Autenticação com e-mail limpo
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
+      
+      // 4. Busca Flexível e Migração de UID
       await checkProfileAndRedirect(userCredential.user)
     } catch (error: any) {
       handleAuthError(error)
@@ -84,50 +131,30 @@ export default function LoginPage() {
     }
   }
 
-  const checkProfileAndRedirect = async (firebaseUser: any) => {
-    // Verificação robusta de perfil: busca por UID e fallback por e-mail para validar acesso imediato
-    const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
-    const profileSnap = await getDoc(teacherRef)
+  const handleAuthError = (error: any) => {
+    console.error("Auth Error:", error.code, error.message)
     
-    let accessAllowed = profileSnap.exists();
-    
-    if (!accessAllowed) {
-      // Fallback: Verifica se existe algum documento com este e-mail (mesmo que o ID seja RA ou o próprio e-mail)
-      const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
-      const qSnap = await getDocs(q);
-      accessAllowed = !qSnap.empty;
-    }
-    
-    if (!accessAllowed) {
-      await signOut(auth)
-      toast({
-        title: "Acesso Não Autorizado",
-        description: "Seu e-mail está autenticado, mas não possui um perfil docente vinculado no Recompor+. Contate o Coordenador Berga para provisionamento.",
-        variant: "destructive",
+    // Tratamento específico para erro 400 ou falhas de comunicação
+    if (error.message?.includes("400") || error.code === "auth/network-request-failed" || error.code === "auth/invalid-argument") {
+      toast({ 
+        title: "Erro de Comunicação", 
+        description: "Falha na comunicação com o Google. Tente limpar o cache do navegador ou usar aba anônima.", 
+        variant: "destructive" 
       })
       return
     }
 
-    toast({ title: "Acesso Autorizado", description: `Sincronizando perfil de ${firebaseUser.displayName || 'Docente'}...` })
-    router.push("/dashboard")
-  }
-
-  const handleAuthError = (error: any) => {
-    console.error("Auth Error:", error.code, error.message)
-    let title = "Falha na Autenticação"
     let message = "Verifique suas credenciais ou tente novamente mais tarde."
 
     if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
       message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador Berga."
-    } else if (error.code === "auth/unauthorized-domain") {
-      message = "Este domínio não está autorizado no Firebase Console."
     } else if (error.code === "auth/popup-blocked") {
       message = "O navegador bloqueou a janela de login. Por favor, autorize pop-ups."
-    } else if (error.code === "auth/admin-restricted-operation" || error.message.includes("restricted")) {
-      message = "Sua conta possui restrições de segurança do Google Admin. Contate o TI da Unidade Escolar."
+    } else if (error.code === "auth/admin-restricted-operation") {
+      message = "Sua conta possui restrições de segurança do TI institucional."
     }
 
-    toast({ title, description: message, variant: "destructive" })
+    toast({ title: "Falha na Autenticação", description: message, variant: "destructive" })
   }
 
   const handleForgotPassword = async () => {

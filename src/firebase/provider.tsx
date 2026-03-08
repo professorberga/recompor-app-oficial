@@ -84,7 +84,7 @@ export const FirebaseProvider: React.FC<{
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Limpa inscrições anteriores
+      // Limpa inscrições anteriores para evitar vazamento de memória e concorrência
       if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
       if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
 
@@ -103,36 +103,33 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. Busca Perfil por UID (Prioridade) ou E-mail (Migração Automática)
-          const docSnap = await getDoc(teacherRef);
+          // 2. Busca Perfil por UID ou E-mail com Migração Automática
+          let docSnap = await getDoc(teacherRef);
           
           if (!docSnap.exists()) {
-            console.log("Perfil não encontrado por UID. Iniciando busca por e-mail para migração...");
+            console.log("Handshake: UID não encontrado. Buscando por e-mail para migração...");
             const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
             const querySnap = await getDocs(q);
             
             if (!querySnap.empty) {
-              // MIGRAÇÃO AUTOMÁTICA: Encontrou pelo campo de e-mail
               const legacyDoc = querySnap.docs[0];
               const data = legacyDoc.data() as TeacherProfile;
               
               console.log(`Migrando perfil legado (${legacyDoc.id}) para UID (${firebaseUser.uid})`);
               
-              // Cria novo documento usando o UID como ID
               const profileData = { 
                 ...data, 
                 id: firebaseUser.uid,
                 role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
               };
               
-              await setDoc(teacherRef, profileData);
+              await setDoc(teacherRef, profileData, { merge: true });
               
-              // Deleta o registro legado se ele for diferente do UID (ex: ID era o e-mail ou RA)
               if (legacyDoc.id !== firebaseUser.uid) {
                 await deleteDoc(legacyDoc.ref);
               }
             } else {
-              // Se não existe documento algum, cria um perfil básico (Handshake de primeiro acesso)
+              // Handshake de primeiro acesso se não houver perfil prévio
               const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
               const defaultProfile = {
                 id: firebaseUser.uid,
@@ -146,7 +143,7 @@ export const FirebaseProvider: React.FC<{
             }
           }
 
-          // 3. Estabelece a escuta em tempo real para o perfil (agora garantido sob o UID)
+          // 3. Estabelece a escuta em tempo real para o perfil padronizado
           profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
             if (snapshot.exists()) {
               const data = snapshot.data() as TeacherProfile;
@@ -165,7 +162,7 @@ export const FirebaseProvider: React.FC<{
           });
 
         } catch (err: any) {
-          console.error("Erro no fluxo de autenticação/migração:", err);
+          console.error("Erro no fluxo de sincronização de identidade:", err);
           setUserAuthState(prev => ({
             ...prev,
             isUserLoading: false,
@@ -173,7 +170,7 @@ export const FirebaseProvider: React.FC<{
           }));
         }
       } else {
-        // Usuário deslogado
+        // Estado Deslogado
         setUserAuthState({
           user: null,
           profile: null,
