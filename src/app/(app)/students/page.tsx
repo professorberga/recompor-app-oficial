@@ -26,10 +26,10 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebas
 import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
 
 /**
- * Utilitário para comprimir e redimensionar imagens Base64.
- * Isso evita o erro de limite de 1MB do Firestore ao salvar fotos de perfil.
+ * Utilitário para comprimir e redimensionar imagens para Thumbnail (200x200px).
+ * Essencial para evitar o erro de limite de 1MB do Firestore.
  */
-const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Promise<string> => {
+const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.src = base64Str;
@@ -38,6 +38,7 @@ const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Prom
       let width = img.width;
       let height = img.height;
 
+      // Cálculo de redimensionamento proporcional
       if (width > height) {
         if (width > maxWidth) {
           height *= maxWidth / width;
@@ -53,8 +54,8 @@ const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Prom
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      // Retorna JPEG com 70% de qualidade para reduzir drasticamente o tamanho em bytes
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      // Retorna JPEG com qualidade otimizada
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
   });
 };
@@ -141,15 +142,15 @@ function StudentsContent() {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext('2d')
       if (context) {
-        // Redimensionamento imediato na captura
-        const targetWidth = 400;
+        // Redimensionamento imediato para Thumbnail 200x200
+        const targetWidth = 200;
         const targetHeight = (videoRef.current.videoHeight / videoRef.current.videoWidth) * targetWidth;
         
         canvasRef.current.width = targetWidth
         canvasRef.current.height = targetHeight
         context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight)
         
-        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.8)
+        const rawBase64 = canvasRef.current.toDataURL('image/jpeg', 0.6)
         setCapturedPhoto(rawBase64)
         stopCamera()
       }
@@ -168,6 +169,19 @@ function StudentsContent() {
     }
   }
 
+  const resetForm = () => {
+    setFormData({ 
+      callNumber: "", 
+      name: "", 
+      ra: "", 
+      raDigit: "", 
+      classId: classFilter || "", 
+      status: "Ativo" 
+    })
+    setCapturedPhoto(null)
+    setIsEditing(false)
+  }
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.uid) {
@@ -176,7 +190,7 @@ function StudentsContent() {
     }
     
     if (!formData.name || !formData.ra || !formData.classId) {
-      toast({ title: "Campos Obrigatórios", description: "Nome, RA e Turma devem ser preenchidos.", variant: "destructive" })
+      toast({ title: "Campos Obrigatórios", description: "Nome, RA e Turma são essenciais.", variant: "destructive" })
       return
     }
 
@@ -186,9 +200,9 @@ function StudentsContent() {
       const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
       const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
 
-      // Se houver uma foto, garantimos que ela esteja comprimida antes de enviar ao Firestore
+      // Garante compressão final da foto
       let finalPhoto = capturedPhoto;
-      if (capturedPhoto && capturedPhoto.length > 200000) { // Se maior que ~200KB, comprime mais
+      if (capturedPhoto) {
         finalPhoto = await compressImage(capturedPhoto);
       }
 
@@ -203,28 +217,34 @@ function StudentsContent() {
 
       await setDoc(targetRef, studentData, { merge: true })
       
+      toast({ 
+        title: "Sucesso!", 
+        description: isEditing ? "Cadastro do aluno atualizado." : "Aluno registrado no diário com sucesso." 
+      })
+      
+      // Limpeza e fechamento automático
+      resetForm()
       setIsRegisterOpen(false)
       stopCamera()
-      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno registrado com sucesso." })
     } catch (err: any) {
       console.error("Erro ao salvar aluno:", err);
       const errorMessage = err.message?.includes('longer than 1048487 bytes') 
-        ? "A foto é muito grande. Tente usar uma foto menor ou capturar novamente."
+        ? "A foto excedeu o limite do banco. Tente capturar novamente em baixa resolução."
         : "Erro ao conectar com o banco de dados. Tente novamente.";
       
-      toast({ title: "Falha ao Salvar", description: errorMessage, variant: "destructive" })
+      toast({ title: "Falha na Gravação", description: errorMessage, variant: "destructive" })
     } finally {
       setIsSubmitting(false);
     }
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!user?.uid || !window.confirm("Tem certeza que deseja excluir este aluno?")) return
+    if (!user?.uid || !window.confirm("Confirmar exclusão permanente deste aluno?")) return
     try {
       await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
-      toast({ title: "Removido", description: "O aluno foi excluído permanentemente." })
+      toast({ title: "Aluno Removido", description: "O registro foi excluído do seu diário." })
     } catch (err) {
-      toast({ title: "Erro ao excluir", description: "Não foi possível remover o registro.", variant: "destructive" })
+      toast({ title: "Erro na Exclusão", description: "Não foi possível remover o registro.", variant: "destructive" })
     }
   }
 
@@ -233,9 +253,9 @@ function StudentsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-          <p className="text-sm text-muted-foreground">Listagem de estudantes vinculados ao seu perfil docente.</p>
+          <p className="text-sm text-muted-foreground">Sincronizado com seu perfil docente no Firestore.</p>
         </div>
-        <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter || "", status: "Ativo" }); setIsRegisterOpen(true); }}>
+        <Button onClick={() => { resetForm(); setIsRegisterOpen(true); }}>
           <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
         </Button>
       </div>
@@ -271,8 +291,8 @@ function StudentsContent() {
           {filteredStudents.length === 0 && (
             <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
               <GraduationCap className="h-16 w-16 mx-auto mb-4" />
-              <p className="text-xl font-bold text-primary">Nenhum aluno encontrado</p>
-              <p className="text-sm">Cadastre alunos para começar o acompanhamento no diário vinculado ao seu perfil.</p>
+              <p className="text-xl font-bold text-primary">Nenhum aluno cadastrado</p>
+              <p className="text-sm px-10">Cadastre seus alunos para iniciar o acompanhamento de frequência e avaliações.</p>
             </div>
           )}
         </div>
@@ -306,7 +326,7 @@ function StudentsContent() {
                     </Button>
                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center max-w-[150px]">As imagens são comprimidas automaticamente para otimizar o banco de dados.</p>
+                  <p className="text-[10px] text-muted-foreground text-center max-w-[150px]">As fotos são redimensionadas para 200x200px para otimizar o diário.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 flex-1">
                   <div className="col-span-2 space-y-1.5">
@@ -339,10 +359,19 @@ function StudentsContent() {
             </div>
           </ScrollArea>
           <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
-            <Button variant="ghost" onClick={() => { stopCamera(); setIsRegisterOpen(false); }}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => { stopCamera(); setIsRegisterOpen(false); }} disabled={isSubmitting}>Cancelar</Button>
             <Button onClick={handleRegisterSubmit} disabled={isSubmitting} className="shadow-lg min-w-[150px]">
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {isEditing ? 'Atualizar Aluno' : 'Gravar no Firestore'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Gravando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {isEditing ? 'Atualizar Aluno' : 'Gravar no Firestore'}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -383,7 +412,7 @@ function StudentsContent() {
                   </div>
                 </div>
               </TabsContent>
-              <TabsContent value="history" className="m-0 py-20 text-center opacity-30 italic">Nenhum histórico disponível para este aluno no momento.</TabsContent>
+              <TabsContent value="history" className="m-0 py-20 text-center opacity-30 italic">O histórico de recomposição será gerado a partir das avaliações lançadas.</TabsContent>
             </ScrollArea>
           </Tabs>
         </DialogContent>
