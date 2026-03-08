@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.5.0"
+  const SYSTEM_VERSION = "v1.6.0"
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -49,6 +49,8 @@ export default function LoginPage() {
       const teacherRef = doc(firestore, 'teachers', firebaseUser.uid)
       let profileSnap = await getDoc(teacherRef)
       
+      let userData: any = null;
+
       // 2. Se não existir, realiza uma busca flexível pelo campo 'email'
       if (!profileSnap.exists()) {
         const q = query(collection(firestore, 'teachers'), where('email', '==', firebaseUser.email));
@@ -57,12 +59,13 @@ export default function LoginPage() {
         if (!qSnap.empty) {
           // MIGRAÇÃO DE SEGURANÇA: Encontrou perfil legado (ID era e-mail ou RA)
           const legacyDoc = qSnap.docs[0];
-          const data = legacyDoc.data();
+          userData = legacyDoc.data();
           
           // Cria o novo documento usando o UID como ID oficial
           await setDoc(teacherRef, { 
-            ...data, 
-            id: firebaseUser.uid 
+            ...userData, 
+            id: firebaseUser.uid,
+            role: userData.role || 'Professor'
           }, { merge: true });
           
           // Apaga o documento antigo se o ID for diferente do UID
@@ -72,7 +75,7 @@ export default function LoginPage() {
           
           toast({ title: "Sincronizado", description: "Perfil institucional vinculado com sucesso." })
         } else {
-          // Handshake de primeiro acesso (se permitido) ou erro
+          // Handshake de primeiro acesso falhou - Usuário não autorizado
           await signOut(auth)
           toast({
             title: "Acesso Não Autorizado",
@@ -81,8 +84,11 @@ export default function LoginPage() {
           })
           return
         }
+      } else {
+        userData = profileSnap.data();
       }
       
+      console.log('Cargo detectado:', userData?.role || 'Não identificado');
       router.push("/dashboard")
     } catch (error: any) {
       if (error.code === 'permission-denied') {
@@ -120,10 +126,16 @@ export default function LoginPage() {
     const sanitizedEmail = email.trim()
 
     try {
-      // Logout Preventivo
+      // 1. Logout Preventivo para limpar sessões residuais
       await signOut(auth)
+      
+      // 2. Configura Persistência
       await setPersistence(auth, browserLocalPersistence)
+      
+      // 3. Autenticação
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
+      
+      // 4. Verificação e Migração de Perfil
       await checkProfileAndRedirect(userCredential.user)
     } catch (error: any) {
       handleAuthError(error)
@@ -138,7 +150,7 @@ export default function LoginPage() {
     if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
       toast({ 
         title: "Erro de Comunicação", 
-        description: "Falha na comunicação. Tente limpar o cache do navegador ou usar aba anônima.", 
+        description: "Falha na comunicação com o Google. Tente limpar o cache do navegador ou usar aba anônima.", 
         variant: "destructive" 
       })
       return

@@ -23,6 +23,7 @@ service cloud.firestore {
     // --- PROFESSORES (IDENTIDADE E MIGRAÇÃO) ---
     match /teachers/{teacherId} {
       // Permite leitura se o ID for o UID OU se o e-mail no documento for o e-mail do token
+      // Isso é vital para o código de migração conseguir ler o perfil antigo
       allow get: if isSignedIn() && (
         request.auth.uid == teacherId || 
         resource.data.email == request.auth.token.email
@@ -47,8 +48,8 @@ service cloud.firestore {
     match /students/{studentId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
-      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
+      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.teacherId || request.auth.uid == resource.data.teacherUid));
+      allow delete: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.teacherId || request.auth.uid == resource.data.teacherUid));
     }
 
     // --- FREQUÊNCIA (GLOBAL) ---
