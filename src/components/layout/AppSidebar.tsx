@@ -1,3 +1,4 @@
+
 "use client"
 
 import {
@@ -83,7 +84,7 @@ const items = [
     title: "Configurações",
     url: "/settings",
     icon: Settings,
-    adminOnly: true // Restrito a administradores
+    adminOnly: false // Permitir que todos vejam seu próprio perfil/escola
   },
 ]
 
@@ -107,7 +108,7 @@ export function AppSidebar() {
         title: "Sessão Encerrada",
         description: "Você saiu do sistema com segurança.",
       })
-      // O layout cuidará do redirecionamento após a mudança de estado
+      router.push("/login")
     } catch (error) {
       toast({
         title: "Erro ao sair",
@@ -142,7 +143,7 @@ export function AppSidebar() {
               Recompor+
             </span>
             <span className="text-[9px] font-bold text-muted-foreground uppercase truncate mt-0.5">
-              E.E. Prof. Milton Santos
+              {profile?.schoolName || "Unidade Escolar"}
             </span>
           </div>
         </div>
@@ -205,14 +206,12 @@ export function AppSidebar() {
               <DropdownMenuContent align="start" side="top" className="w-56 mb-2">
                 <DropdownMenuLabel>Sua Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings" className="flex items-center w-full">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Configurações
-                    </Link>
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center w-full">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Configurações
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
