@@ -201,7 +201,7 @@ export default function SettingsPage() {
     try {
       let finalTeacherId = editingTeacher.id;
 
-      // Se for um novo professor ou forçado re-provisionamento
+      // Se for um novo professor ou forçado re-provisionamento de senha
       if (!finalTeacherId || editingTeacher.password) {
         try {
           const secondaryAppName = `provision-${Date.now()}`;
@@ -230,6 +230,7 @@ export default function SettingsPage() {
         }
       }
 
+      // Limpa os IDs temporários usados na interface antes de salvar no Firestore
       const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
 
       await setDoc(doc(firestore, "teachers", finalTeacherId!), {

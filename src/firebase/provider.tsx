@@ -124,7 +124,7 @@ export const FirebaseProvider: React.FC<{
                 await deleteDoc(legacyDoc.ref);
               }
             } else {
-              // Provedor de fallback: Cria perfil básico se nada for encontrado
+              // Provedor de fallback: Cria perfil básico se nada for encontrado (handshake de primeiro acesso)
               const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
               const defaultProfile = {
                 id: firebaseUser.uid,
