@@ -7,6 +7,7 @@ import { Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
@@ -59,8 +60,9 @@ function AttendanceContent() {
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
-      const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || (s.ra && s.ra.includes(searchTerm));
-      return matchesSearch;
+      const nameMatch = s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+      const raMatch = s.ra?.includes(searchTerm) ?? false;
+      return nameMatch || raMatch;
     });
   }, [students, searchTerm]);
 
