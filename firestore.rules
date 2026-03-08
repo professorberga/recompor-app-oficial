@@ -4,10 +4,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * MONITOR DO BEEM - SECURITY RULES
+     * MONITOR DO BEEM - SECURITY RULES (V2)
      * 
      * Estrutura Hierárquica: /teachers/{teacherId}/...
-     * Enforce: isOwner(teacherId) para todas as subcoleções.
+     * Enforce: isOwner(teacherId) para professores e bypass para Admin.
      */
 
     function isSignedIn() {
@@ -18,63 +18,62 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // UID do Administrador Master (Conforme solicitado)
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1";
+    }
+
     function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+      return resource != null && (isOwner(userId) || isAdmin());
     }
 
     // --- COLEÇÃO DE PROFESSORES ---
     match /teachers/{teacherId} {
-      allow get, list: if isOwner(teacherId);
-      allow create: if isOwner(teacherId);
+      // get: Dono ou Admin. list: Somente Admin (listagem global).
+      allow get: if isOwner(teacherId) || isAdmin();
+      allow list: if isAdmin(); 
+      allow create: if isOwner(teacherId) || isAdmin();
       allow update: if isExistingOwner(teacherId);
-      allow delete: if isExistingOwner(teacherId);
+      allow delete: if isAdmin();
 
       // --- SUBCOLEÇÃO DE TURMAS ---
       match /classes/{classId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
-        allow delete: if isExistingOwner(teacherId);
+        allow get, list: if isOwner(teacherId) || isAdmin();
+        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
+        allow update: if isOwner(teacherId) || isAdmin();
+        allow delete: if isOwner(teacherId) || isAdmin();
       }
 
-      // --- SUBCOLEÇÃO DE ESTUDANTES (FLAT HIERARCHY) ---
+      // --- SUBCOLEÇÃO DE ESTUDANTES ---
       match /students/{studentId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
-        allow delete: if isExistingOwner(teacherId);
+        allow get, list: if isOwner(teacherId) || isAdmin();
+        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
+        allow update: if isOwner(teacherId) || isAdmin();
+        allow delete: if isOwner(teacherId) || isAdmin();
       }
 
       // --- SUBCOLEÇÃO DE AVALIAÇÕES ---
       match /assessments/{assessmentId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
-        allow delete: if isExistingOwner(teacherId);
+        allow get, list: if isOwner(teacherId) || isAdmin();
+        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
+        allow update: if isOwner(teacherId) || isAdmin();
+        allow delete: if isOwner(teacherId) || isAdmin();
       }
 
       // --- SUBCOLEÇÃO DE REGISTROS DE CHAMADA ---
       match /attendanceRecords/{attendanceRecordId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.recordedByTeacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.recordedByTeacherId == resource.data.recordedByTeacherId;
-        allow delete: if isExistingOwner(teacherId);
+        allow get, list: if isOwner(teacherId) || isAdmin();
+        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.recordedByTeacherId == teacherId || isAdmin());
+        allow update: if isOwner(teacherId) || isAdmin();
+        allow delete: if isOwner(teacherId) || isAdmin();
       }
-
-      // --- SUBCOLEÇÃO DE OBSERVAÇÕES ---
-      match /studentObservations/{studentObservationId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
-        allow delete: if isExistingOwner(teacherId);
-      }
-
-      // --- SUBCOLEÇÃO DE LIÇÕES/CONTEÚDOS ---
+      
+      // --- SUBCOLEÇÃO DE CONTEÚDOS ---
       match /lessons/{lessonId} {
-        allow get, list: if isOwner(teacherId);
-        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
-        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
-        allow delete: if isExistingOwner(teacherId);
+        allow get, list: if isOwner(teacherId) || isAdmin();
+        allow create: if (isOwner(teacherId) || isAdmin()) && (request.resource.data.teacherId == teacherId || isAdmin());
+        allow update: if isOwner(teacherId) || isAdmin();
+        allow delete: if isOwner(teacherId) || isAdmin();
       }
     }
 
