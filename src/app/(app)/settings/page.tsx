@@ -77,23 +77,23 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (!isUserLoading && profile) {
+    if (!isUserLoading && profile && !isSaving) {
       setProfileData({
         name: profile.name || "",
         email: profile.email || ""
       })
     }
-  }, [profile, isUserLoading])
+  }, [profile, isUserLoading, isSaving])
 
   useEffect(() => {
-    if (!isUserLoading && schoolConfig) {
+    if (!isUserLoading && schoolConfig && !isSaving) {
       setSchoolData({
         schoolName: schoolConfig.schoolName || "",
         academicYear: schoolConfig.academicYear || "",
         activeBimestre: schoolConfig.activeBimestre || "1"
       })
     }
-  }, [schoolConfig, isUserLoading])
+  }, [schoolConfig, isUserLoading, isSaving])
 
   const runAudit = useCallback(async () => {
     if (!isAdmin || !firestore) return;
@@ -192,11 +192,16 @@ export default function SettingsPage() {
     const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
     
     try {
+      // Limpar IDs temporários usados para chaves de renderização antes de salvar
+      const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
+
       await setDoc(doc(firestore, "teachers", teacherId), {
         ...editingTeacher,
+        assignments: assignmentsToSave,
         id: teacherId,
         role: editingTeacher.role || 'Professor'
       }, { merge: true })
+      
       setIsTeacherDialogOpen(false)
       setEditingTeacher(null)
       toast({ title: "Docente atualizado institucionalmente" })
@@ -208,21 +213,51 @@ export default function SettingsPage() {
   }, [isAdmin, firestore, editingTeacher, toast]);
 
   const updateAssignment = useCallback((index: number, field: keyof TeacherAssignment, value: string) => {
-    if (!editingTeacher || !editingTeacher.assignments) return;
-    const next = [...editingTeacher.assignments];
-    const assignment = { ...next[index], [field]: value };
-    
-    if (field === 'classId') {
-      const classInfo = globalClasses.find(c => c.id === value);
-      assignment.className = classInfo?.name || "";
-      if (!assignment.subject) {
-        assignment.subject = classInfo?.subject === 'Portuguese' ? 'Português' : 'Matemática';
+    setEditingTeacher(prev => {
+      if (!prev || !prev.assignments) return prev;
+      const next = [...prev.assignments];
+      const assignment = { ...next[index], [field]: value };
+      
+      if (field === 'classId') {
+        const classInfo = globalClasses.find(c => c.id === value);
+        assignment.className = classInfo?.name || "";
+        if (!assignment.subject) {
+          assignment.subject = classInfo?.subject === 'Portuguese' ? 'Português' : 'Matemática';
+        }
       }
-    }
-    
-    next[index] = assignment;
-    setEditingTeacher({ ...editingTeacher, assignments: next });
-  }, [editingTeacher, globalClasses]);
+      
+      next[index] = assignment;
+      return { ...prev, assignments: next };
+    });
+  }, [globalClasses]);
+
+  const removeAssignment = useCallback((e: React.MouseEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingTeacher(prev => {
+      if (!prev || !prev.assignments) return prev;
+      const next = [...prev.assignments];
+      next.splice(index, 1);
+      return { ...prev, assignments: next };
+    });
+  }, []);
+
+  const addAssignment = useCallback(() => {
+    setEditingTeacher(prev => ({
+      ...prev, 
+      assignments: [
+        ...(prev?.assignments || []), 
+        { 
+          tempId: Math.random().toString(36).substr(2, 9),
+          classId: "", 
+          className: "", 
+          subject: "Português", 
+          dayOfWeek: "Segunda", 
+          lessonNumber: LESSONS_LIST[0] 
+        }
+      ]
+    }));
+  }, []);
 
   const handleNewTeacher = useCallback(() => {
     setEditingTeacher({ assignments: [], role: 'Professor' });
@@ -237,8 +272,6 @@ export default function SettingsPage() {
     );
   }
 
-  const gridCols = isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1";
-
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
       <div className="flex items-center justify-between">
@@ -251,19 +284,13 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={cn("grid w-full bg-white border h-auto p-1 shadow-sm", gridCols)}>
+        <TabsList className={cn("grid w-full bg-white border h-auto p-1 shadow-sm", isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1")}>
           <TabsTrigger value="profile" className="font-bold py-2 uppercase text-[10px]">Meus Dados</TabsTrigger>
           {isAdmin && (
             <>
               <TabsTrigger value="school" className="font-bold py-2 uppercase text-[10px]">Escola</TabsTrigger>
               <TabsTrigger value="users" className="font-bold py-2 uppercase text-[10px]">Docentes</TabsTrigger>
-              <TabsTrigger 
-                value="audit" 
-                className="font-bold py-2 uppercase text-[10px]" 
-                onClick={() => !isAuditing && runAudit()}
-              >
-                Auditoria
-              </TabsTrigger>
+              <TabsTrigger value="audit" className="font-bold py-2 uppercase text-[10px]" onClick={() => !isAuditing && runAudit()}>Auditoria</TabsTrigger>
             </>
           )}
         </TabsList>
@@ -415,7 +442,7 @@ export default function SettingsPage() {
         )}
       </Tabs>
 
-      <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+      <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen} modal={true}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Atribuição Docente</DialogTitle>
@@ -454,7 +481,7 @@ export default function SettingsPage() {
                         variant="outline" 
                         size="sm" 
                         className="font-bold border-2" 
-                        onClick={() => setEditingTeacher(prev => ({...prev, assignments: [...(prev?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]}))}
+                        onClick={addAssignment}
                       >
                         <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
                       </Button>
@@ -462,7 +489,7 @@ export default function SettingsPage() {
                     
                     <div className="max-h-[350px] overflow-y-auto pr-2 space-y-3 border-2 border-dashed rounded-xl p-4 bg-slate-50/50">
                       {editingTeacher?.assignments?.map((a, idx) => (
-                        <div key={idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group hover:border-primary/30 transition-all shadow-sm">
+                        <div key={(a as any).tempId || idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group hover:border-primary/30 transition-all shadow-sm">
                           <div className="space-y-1">
                             <Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label>
                             <Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
@@ -500,11 +527,7 @@ export default function SettingsPage() {
                               variant="ghost" 
                               size="icon" 
                               className="text-destructive hover:bg-destructive/10" 
-                              onClick={() => setEditingTeacher(prev => {
-                                const next = [...(prev?.assignments || [])];
-                                next.splice(idx, 1);
-                                return {...prev, assignments: next};
-                              })}
+                              onClick={(e) => removeAssignment(e, idx)}
                             >
                               <X className="h-4 w-4" />
                             </Button>
