@@ -1,6 +1,7 @@
+
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, UserCircle, X } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, UserCircle } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,9 +9,10 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@/firebase/provider"
 
 const INITIAL_CLASSES = [
   { id: '1', name: '9º Ano A', subject: 'Portuguese', students: 32, iconColor: 'bg-primary', teacher: 'Prof. Ricardo Silva', teacherId: 'prof-1' },
@@ -20,25 +22,21 @@ const INITIAL_CLASSES = [
 ]
 
 export default function ClassesPage() {
+  const { user } = useUser()
   const [searchTerm, setSearchTerm] = useState("")
   const [classes, setClasses] = useState(INITIAL_CLASSES)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [userRole, setUserRole] = useState<'Admin' | 'Professor'>('Admin')
   const { toast } = useToast()
 
   const [newClass, setNewClass] = useState({
     name: "",
     subject: "Portuguese" as "Portuguese" | "Math",
-    teacher: "Prof. Ricardo Silva",
+    teacher: user?.displayName || user?.email?.split('@')[0] || "Professor",
     students: "0"
   })
 
-  useEffect(() => {
-    const role = localStorage.getItem('proto_user_role') as any
-    if (role) setUserRole(role)
-  }, [])
-
-  const isAdmin = userRole === 'Admin'
+  // Perfil administrativo baseado no e-mail real do usuário logado
+  const isAdmin = user?.email?.includes('admin') || user?.email?.includes('marciobergamini')
 
   const handleCreateClass = (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,13 +56,13 @@ export default function ClassesPage() {
       subject: newClass.subject,
       students: parseInt(newClass.students) || 0,
       teacher: newClass.teacher,
-      teacherId: 'current-user',
+      teacherId: user?.uid || 'unknown',
       iconColor: newClass.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'
     }
 
     setClasses([createdClass, ...classes])
     setIsDialogOpen(false)
-    setNewClass({ name: "", subject: "Portuguese", teacher: "Prof. Ricardo Silva", students: "0" })
+    setNewClass({ name: "", subject: "Portuguese", teacher: user?.displayName || "Professor", students: "0" })
     
     toast({
       title: "Turma criada!",
@@ -72,15 +70,15 @@ export default function ClassesPage() {
     })
   }
 
-  // Filtra turmas se for professor
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
       const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             c.teacher.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesTeacher = isAdmin || c.teacherId === 'prof-1'; // Ricardo Silva no mock
+      // Administradores veem tudo, professores veem apenas suas turmas ou turmas teste
+      const matchesTeacher = isAdmin || c.teacherId === 'prof-1' || c.teacherId === user?.uid;
       return matchesSearch && matchesTeacher;
     });
-  }, [classes, searchTerm, isAdmin]);
+  }, [classes, searchTerm, isAdmin, user]);
 
   return (
     <div className="flex flex-col gap-6">

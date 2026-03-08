@@ -9,25 +9,36 @@ import { Toaster } from "@/components/ui/toaster"
 import { useUser } from "@/firebase/provider"
 import { Loader2 } from "lucide-react"
 
+/**
+ * AppLayout: Layout protegido para as rotas da aplicação.
+ * Garante que apenas usuários autenticados acessem o conteúdo.
+ */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser()
   const router = useRouter()
 
   useEffect(() => {
+    // Redireciona para o login se o carregamento terminar e não houver usuário
     if (!isUserLoading && !user) {
       router.push("/login")
     }
   }, [user, isUserLoading, router])
 
-  if (isUserLoading || !user) {
+  // Enquanto verifica o estado, mostra um loader centralizado
+  if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground animate-pulse">Verificando credenciais...</p>
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">Autenticando sessão...</p>
         </div>
       </div>
     )
+  }
+
+  // Se não houver usuário, não renderiza nada (o useEffect cuidará do redirect)
+  if (!user) {
+    return null
   }
 
   return (
