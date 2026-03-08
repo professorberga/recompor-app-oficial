@@ -50,12 +50,18 @@ export default function SettingsPage() {
     activeBimestre: "4"
   })
 
-  // Lista de professores: SOMENTE para ADM. Se não for ADM, a query será nula para evitar erro de permissão.
-  const teachersRef = useMemoFirebase(() => isAdmin ? collection(firestore, "teachers") : null, [isAdmin, firestore])
+  // CRITICAL: Prevent unauthorized query to /teachers for non-admins
+  const teachersRef = useMemoFirebase(() => 
+    isAdmin ? collection(firestore, "teachers") : null, 
+    [isAdmin, firestore]
+  )
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  // Classes para atribuição: buscaremos na coleção de classes do ADM logado
-  const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
+  // Classes para atribuição: buscaremos na coleção de classes do professor logado (ou do Admin)
+  const classesRef = useMemoFirebase(() => 
+    user ? collection(firestore, 'teachers', user.uid, 'classes') : null, 
+    [user, firestore]
+  )
   const { data: globalClasses = [] } = useCollection(classesRef)
 
   useEffect(() => {
@@ -78,27 +84,24 @@ export default function SettingsPage() {
     const results: any[] = [];
     const today = new Date();
     const start = startOfWeek(today, { weekStartsOn: 1 });
-    const end = today; // Audit up to today
+    const end = today;
     const days = eachDayOfInterval({ start, end });
 
     for (const teacher of allTeachers) {
       if (!teacher.assignments) continue;
       for (const assignment of teacher.assignments) {
-        // Find matching days in current week
         const matchingDays = days.filter(d => format(d, 'EEEE', { locale: ptBR }).toLowerCase().includes(assignment.dayOfWeek?.toLowerCase() || ''));
         
         for (const day of matchingDays) {
           const dateStr = format(day, "yyyy-MM-dd");
           const lessonId = `${assignment.classId}_${dateStr}`;
           
-          // Auditoria de Chamada
           const recordsSnap = await getDocs(query(
             collection(firestore, 'teachers', teacher.id, 'attendanceRecords'),
             where('classId', '==', assignment.classId),
             where('date', '==', dateStr)
           ));
           
-          // Auditoria de Conteúdo
           const lessonSnap = await getDocs(query(
             collection(firestore, 'teachers', teacher.id, 'lessons'),
             where('id', '==', lessonId)

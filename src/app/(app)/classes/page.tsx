@@ -22,8 +22,8 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Referência para as turmas.
-  // IMPORTANTE: Buscamos em teachers/{uid}/classes pois a regra isOwner protege essa coleção.
+  // Referência para as turmas vinculadas ao PRÓPRIO UID do usuário logado.
+  // IMPORTANTE: Isso respeita a regra isOwner(teacherId) e evita Missing Permissions.
   const classesRef = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return collection(firestore, 'teachers', user.uid, 'classes');
@@ -54,7 +54,7 @@ export default function ClassesPage() {
     }
     
     // Se não tiver atribuições, não vê nada (regra de segurança pedagógica)
-    return isAdmin ? rawClasses : [];
+    return [];
   }, [rawClasses, profile, isAdmin]);
 
   const getStudentCount = (classId: string) => {
@@ -86,9 +86,9 @@ export default function ClassesPage() {
       await setDoc(doc(classesRef, classId), classData)
       setIsDialogOpen(false)
       setNewClass({ name: "", subject: "Portuguese" })
-      toast({ title: "Turma Criada", description: `${classData.name} foi registrada no Firestore.` })
+      toast({ title: "Turma Criada", description: `${classData.name} foi registrada no seu diário.` })
     } catch (err: any) {
-      toast({ title: "Falha na Gravação", description: "Verifique suas permissões no Firestore.", variant: "destructive" })
+      toast({ title: "Falha na Gravação", description: "Erro ao acessar seu diário no Firestore.", variant: "destructive" })
     }
   }
 
@@ -118,44 +118,42 @@ export default function ClassesPage() {
           <p className="text-muted-foreground mt-1">
             {isAdmin 
               ? "Gerenciamento global de turmas da unidade escolar." 
-              : "Exibindo turmas atribuídas pela coordenação."}
+              : "Exibindo turmas atribuídas e registradas no seu perfil."}
           </p>
         </div>
 
-        {isAdmin && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
-                <Plus className="h-5 w-5" /> Nova Turma
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-white">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
-                <DialogDescription>A nova turma será registrada na base escolar.</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateClass} className="space-y-5 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="font-bold">Nome da Turma</Label>
-                  <Input id="name" placeholder="Ex: 9º Ano B - Vespertino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required className="h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subject" className="font-bold">Disciplina Base</Label>
-                  <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Portuguese">Português</SelectItem>
-                      <SelectItem value="Math">Matemática</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full h-12 font-black shadow-xl">GRAVAR NO BANCO</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg h-11 px-6 font-bold">
+              <Plus className="h-5 w-5" /> Nova Turma
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black text-primary">Adicionar Turma</DialogTitle>
+              <DialogDescription>A nova turma será registrada exclusivamente no seu perfil.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateClass} className="space-y-5 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="font-bold">Nome da Turma</Label>
+                <Input id="name" placeholder="Ex: 9º Ano B - Vespertino" value={newClass.name} onChange={(e) => setNewClass({...newClass, name: e.target.value})} required className="h-11" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="subject" className="font-bold">Disciplina Base</Label>
+                <Select value={newClass.subject} onValueChange={(v: any) => setNewClass({...newClass, subject: v})}>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Portuguese">Português</SelectItem>
+                    <SelectItem value="Math">Matemática</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter className="pt-4">
+                <Button type="submit" className="w-full h-12 font-black shadow-xl">GRAVAR NO BANCO</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="relative">
@@ -179,11 +177,9 @@ export default function ClassesPage() {
                     {cls.subject === 'Portuguese' ? 'Língua Portuguesa' : 'Matemática'}
                   </Badge>
                 </div>
-                {isAdmin && (
-                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -206,12 +202,12 @@ export default function ClassesPage() {
             <div className="col-span-full py-32 text-center opacity-40 border-4 border-dashed rounded-3xl bg-muted/10 flex flex-col items-center">
               <BookOpen className="h-20 w-20 mb-6 text-primary/40" />
               <p className="text-2xl font-black text-primary/60 uppercase tracking-tighter">
-                {profile?.assignments?.length ? "Nenhuma turma encontrada" : "Nenhuma turma atribuída"}
+                Nenhuma turma encontrada
               </p>
               <p className="text-sm font-medium mt-2 px-10 text-center">
-                {isAdmin 
-                  ? "Crie uma nova turma clicando no botão acima." 
-                  : "Contate o Coordenador Berga para verificar sua atribuição de turmas."}
+                {profile?.assignments?.length 
+                  ? "As turmas atribuídas pelo Admin ainda não possuem registros no seu diário." 
+                  : "Crie uma nova turma clicando no botão acima ou aguarde atribuição da coordenação."}
               </p>
             </div>
           )}
