@@ -14,7 +14,7 @@ import { collection } from "firebase/firestore"
 
 export function AbsenteeCard() {
   const [isOpen, setIsOpen] = useState(false)
-  const { profile, isAdmin } = useUser()
+  const { user, profile, isAdmin } = useUser()
   const firestore = useFirestore()
 
   const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
@@ -24,10 +24,12 @@ export function AbsenteeCard() {
   const { data: students = [] } = useCollection(studentsRef)
 
   const alerts = useMemo(() => {
-    if (!profile) return [];
+    if (!profile || !user) return [];
 
-    // Filtra faltas
-    const absences = attendance.filter(r => r.status === 'Falta');
+    // Filtra faltas correspondentes ao professor logado (ou todas se Admin)
+    const absences = attendance.filter(r => 
+      r.status === 'Falta' && (isAdmin || r.teacherId === user.uid)
+    );
     
     // Agrupa faltas por aluno
     const studentAbsenceCount: Record<string, number> = {};
@@ -35,25 +37,26 @@ export function AbsenteeCard() {
       studentAbsenceCount[r.studentId] = (studentAbsenceCount[r.studentId] || 0) + 1;
     });
 
-    // Filtra alunos com > 3 faltas e que pertencem às turmas do professor (ou todos se admin)
-    const assignedClassIds = profile.assignments?.map(a => a.classId) || [];
-    
     return Object.entries(studentAbsenceCount)
       .map(([studentId, count]) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return null;
-        if (!isAdmin && !assignedClassIds.includes(student.classId)) return null;
+        
+        // Verifica se o aluno ainda está matriculado com este professor
+        const isMatriculado = isAdmin || student.enrollments?.some(e => e.teacherId === user.uid);
+        if (!isMatriculado) return null;
         
         return {
           id: student.id,
           name: student.name,
           class: student.class,
+          classId: student.classId,
           absences: count
         };
       })
       .filter(a => a !== null && a.absences >= 3)
       .sort((a, b) => b!.absences - a!.absences);
-  }, [attendance, students, profile, isAdmin]);
+  }, [attendance, students, profile, user, isAdmin]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -67,7 +70,7 @@ export function AbsenteeCard() {
               </CardTitle>
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </div>
-            <CardDescription>Estudantes com faltas acumuladas</CardDescription>
+            <CardDescription>Estudantes com faltas acumuladas em suas aulas</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -104,7 +107,7 @@ export function AbsenteeCard() {
             Ausências Críticas
           </DialogTitle>
           <DialogDescription className="font-bold text-xs uppercase">
-            Alunos com 3 ou mais faltas registradas no sistema.
+            Alunos com 3 ou mais faltas registradas na sua disciplina.
           </DialogDescription>
         </DialogHeader>
 

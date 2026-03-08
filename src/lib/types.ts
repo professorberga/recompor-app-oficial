@@ -33,6 +33,14 @@ export interface SystemUser extends TeacherProfile {
   status: 'Ativo' | 'Inativo';
 }
 
+export interface StudentEnrollment {
+  classId: string;
+  className: string;
+  subject: string;
+  teacherId: string;
+  teacherName: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -44,6 +52,7 @@ export interface Student {
   status: 'Ativo' | 'Inativo';
   photo: string | null;
   teacherId: string;
+  enrollments?: StudentEnrollment[];
 }
 
 export interface AttendanceRecord {
@@ -53,8 +62,8 @@ export interface AttendanceRecord {
   date: string;
   bimestre: string;
   status: 'Presente' | 'Falta';
-  recordedByTeacherId: string;
-  contentSummary?: string;
+  teacherId: string;
+  subject?: string;
 }
 
 export interface LessonRecord {

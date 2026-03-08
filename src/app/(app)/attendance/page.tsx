@@ -49,11 +49,18 @@ function AttendanceContent() {
   const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
+  // Turma selecionada atualmente (objeto completo)
+  const currentClass = useMemo(() => {
+    if (!profile || !selectedClassId) return null;
+    // Tenta encontrar nas atribuições do professor para saber qual disciplina ele leciona para esta turma
+    return profile.assignments?.find(a => a.classId === selectedClassId);
+  }, [profile, selectedClassId]);
+
   // Busca turmas Globais
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição no perfil e ordena alfabeticamente
+  // Filtra turmas conforme atribuição no perfil
   const classes = useMemo(() => {
     let list = [];
     if (isAdmin) {
@@ -65,7 +72,7 @@ function AttendanceContent() {
     return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
-  // Alunos agora buscados na coleção GLOBAL para restaurar visibilidade
+  // Busca TODOS os alunos da turma selecionada
   const studentsRef = useMemoFirebase(() => {
     if (!selectedClassId) return null;
     return query(
@@ -74,18 +81,35 @@ function AttendanceContent() {
     );
   }, [selectedClassId, firestore]);
   
-  const { data: students = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
+  const { data: rawStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
-  // Registros agora buscados na coleção GLOBAL
+  // FILTRAGEM GRANULAR: Apenas alunos matriculados com ESTE professor para ESTA disciplina
+  const students = useMemo(() => {
+    if (!user || !selectedClassId) return [];
+    
+    return rawStudents.filter(s => {
+      // Se o aluno tem o novo sistema de matrículas, verifica se o professor logado está na grade dele para esta turma
+      if (s.enrollments && s.enrollments.length > 0) {
+        return s.enrollments.some(e => 
+          e.classId === selectedClassId && 
+          (isAdmin || e.teacherId === user.uid)
+        );
+      }
+      // Fallback para dados antigos sem o array de enrollments (visibilidade total)
+      return true;
+    });
+  }, [rawStudents, user, selectedClassId, isAdmin]);
+
   const attendanceRecordsRef = useMemoFirebase(() => {
     if (!selectedClassId || !currentDate) return null;
     const dateStr = format(currentDate, "yyyy-MM-dd");
     return query(
       collection(firestore, 'attendanceRecords'),
       where('classId', '==', selectedClassId),
-      where('date', '==', dateStr)
+      where('date', '==', dateStr),
+      where('teacherId', '==', user?.uid)
     );
-  }, [selectedClassId, currentDate, firestore]);
+  }, [selectedClassId, currentDate, firestore, user]);
 
   const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
 
@@ -100,9 +124,9 @@ function AttendanceContent() {
 
   useEffect(() => {
     async function loadLessonContent() {
-      if (!selectedClassId || !currentDate) return;
+      if (!selectedClassId || !currentDate || !user) return;
       const dateStr = format(currentDate, "yyyy-MM-dd");
-      const lessonId = `${selectedClassId}_${dateStr}`;
+      const lessonId = `${selectedClassId}_${dateStr}_${user.uid}`;
       const lessonRef = doc(firestore, 'lessons', lessonId);
       const snap = await getDoc(lessonRef);
       if (snap.exists()) {
@@ -124,7 +148,7 @@ function AttendanceContent() {
       setAttendance(newState);
       loadLessonContent();
     }
-  }, [existingRecords, students, mounted, currentDate, selectedClassId, firestore]);
+  }, [existingRecords, students, mounted, currentDate, selectedClassId, firestore, user]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
@@ -139,27 +163,25 @@ function AttendanceContent() {
     return getBimestreFromDate(currentDate);
   }, [currentDate, schoolConfig]);
 
-  const isOutsideActiveBimestre = useMemo(() => {
-    if (!schoolConfig?.activeBimestre) return false;
-    return dateBimestre !== schoolConfig.activeBimestre;
-  }, [dateBimestre, schoolConfig]);
-
   const handleSave = async () => {
     if (!user || !selectedClassId || !currentDate) return;
     if (!contentSummary.trim()) {
-      toast({ title: "Campo Obrigatório", description: "O resumo do conteúdo ministrado é necessário para a auditoria.", variant: "destructive" });
+      toast({ title: "Campo Obrigatório", description: "O resumo do conteúdo ministrado é necessário.", variant: "destructive" });
       return;
     }
 
     setIsSaving(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
     const recordsColRef = collection(firestore, 'attendanceRecords');
-    const lessonRef = doc(firestore, 'lessons', `${selectedClassId}_${dateStr}`);
+    // Lesson ID agora é composto também pelo professor para permitir múltiplos diários por turma (ex: Port e Mat)
+    const lessonId = `${selectedClassId}_${dateStr}_${user.uid}`;
+    const lessonRef = doc(firestore, 'lessons', lessonId);
     const selectedClass = classes.find(c => c.id === selectedClassId);
 
     try {
       const savePromises = Object.entries(attendance).map(([studentId, status]) => {
-        const recordId = `${studentId}_${dateStr}`;
+        // Record ID também deve ser único por professor/disciplina
+        const recordId = `${studentId}_${dateStr}_${user.uid}`;
         return setDoc(doc(recordsColRef, recordId), {
           id: recordId,
           studentId,
@@ -167,33 +189,33 @@ function AttendanceContent() {
           date: dateStr,
           bimestre: dateBimestre,
           status: status === 'present' ? 'Presente' : 'Falta',
-          teacherId: user.uid
+          teacherId: user.uid,
+          subject: currentClass?.subject || selectedClass?.subject || ""
         }, { merge: true });
       });
 
       const lessonPromise = setDoc(lessonRef, {
-        id: `${selectedClassId}_${dateStr}`,
+        id: lessonId,
         classId: selectedClassId,
         className: selectedClass?.name || "",
-        class: selectedClass?.name || "",
         date: dateStr,
         teacherId: user.uid,
         content: contentSummary,
         bimestre: dateBimestre,
-        subject: selectedClass?.subject || ""
+        subject: currentClass?.subject || selectedClass?.subject || ""
       }, { merge: true });
 
       await Promise.all([...savePromises, lessonPromise]);
-      toast({ title: "Diário Sincronizado", description: `Dados gravados no ${BIMESTRE_LABELS[dateBimestre]}.` })
+      toast({ title: "Diário Sincronizado", description: `Registros salvos no ${BIMESTRE_LABELS[dateBimestre]}.` })
     } catch (err: any) {
-      toast({ title: "Falha ao Salvar", description: "Erro de permissão no Firestore.", variant: "destructive" })
+      toast({ title: "Falha ao Salvar", variant: "destructive" })
     } finally {
       setIsSaving(false);
     }
   }
 
   const handleDeleteDayRecords = async () => {
-    if (!selectedClassId || !currentDate) return;
+    if (!selectedClassId || !currentDate || !user) return;
     setIsDeleting(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
     try {
@@ -202,7 +224,7 @@ function AttendanceContent() {
       );
       await Promise.all([
         ...deletePromises,
-        deleteDoc(doc(firestore, 'lessons', `${selectedClassId}_${dateStr}`))
+        deleteDoc(doc(firestore, 'lessons', `${selectedClassId}_${dateStr}_${user.uid}`))
       ]);
       toast({ title: "Registros Removidos" });
     } catch (err: any) {
@@ -223,13 +245,9 @@ function AttendanceContent() {
             <Select value={selectedClassId} onValueChange={setSelectedClassId}>
               <SelectTrigger className="h-11 shadow-sm"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
               <SelectContent>
-                {classes.length > 0 ? (
-                  classes.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>Nenhuma turma atribuída pelo Coordenador</SelectItem>
-                )}
+                {classes.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -244,113 +262,74 @@ function AttendanceContent() {
             </div>
           </div>
         </div>
-        {isOutsideActiveBimestre && (
-          <div className="bg-yellow-50 border-yellow-200 border p-3 rounded-lg flex items-center gap-2 text-yellow-800 text-xs font-bold animate-pulse">
-            <AlertCircle className="h-4 w-4" />
-            Atenção: Você está visualizando uma data fora do Bimestre Ativo ({BIMESTRE_LABELS[schoolConfig?.activeBimestre || "1"]}).
-          </div>
-        )}
       </div>
 
-      {!isUserLoading && classes.length === 0 ? (
-        <Card className="p-20 text-center flex flex-col items-center gap-4 bg-white shadow-sm border-dashed border-2">
-          <AlertCircle className="h-12 w-12 text-muted-foreground opacity-20" />
-          <p className="font-bold text-muted-foreground">Aguardando atribuição de turmas pelo Coordenador Berga.</p>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">Escola: {schoolConfig?.schoolName}</p>
-        </Card>
-      ) : (
-        <Card className="border-none shadow-md overflow-hidden bg-white">
-          {(isStudentsLoading || isRecordsLoading) ? (
-            <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : (
-            <>
-              <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              </div>
-              <Table>
-                <TableHeader><TableRow className="bg-muted/10 h-14">
-                  <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
-                  <TableHead className="font-black uppercase text-[10px]">Estudante</TableHead>
-                  <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {filteredStudents.map((s, idx) => (
-                    <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
-                      <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
-                            {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
-                          </div>
+      <Card className="border-none shadow-md overflow-hidden bg-white">
+        {(isStudentsLoading || isRecordsLoading) ? (
+          <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+        ) : (
+          <>
+            <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+            <Table>
+              <TableHeader><TableRow className="bg-muted/10 h-14">
+                <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
+                <TableHead className="font-black uppercase text-[10px]">Estudante Matriculado em {currentClass?.subject || 'Aula'}</TableHead>
+                <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {filteredStudents.map((s, idx) => (
+                  <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
+                    <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
+                          {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center gap-4">
-                          <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white scale-110" : "border-slate-200 text-slate-300")}>P</button>
-                          <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all shadow-sm", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white scale-110" : "border-slate-200 text-slate-300")}>F</button>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredStudents.length === 0 && (
-                    <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic">Nenhum aluno encontrado para os critérios de busca.</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </>
-          )}
-        </Card>
-      )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center gap-4">
+                        <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white" : "border-slate-200 text-slate-300")}>P</button>
+                        <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white" : "border-slate-200 text-slate-300")}>F</button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredStudents.length === 0 && (
+                  <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic font-bold">Nenhum aluno matriculado nesta disciplina para esta turma.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </Card>
 
       {selectedClassId && (
         <>
           <Card className="p-6 border-none shadow-md bg-white">
-            <div className="flex items-center gap-2 mb-4 text-primary">
-              <BookText className="h-5 w-5" />
-              <h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3>
-            </div>
-            <Textarea 
-              placeholder="Descreva as competências e habilidades trabalhadas nesta aula..." 
-              className="min-h-[120px] bg-slate-50 border-dashed border-2 focus:border-primary" 
-              value={contentSummary} 
-              onChange={(e) => setContentSummary(e.target.value)} 
-            />
-            <p className="text-[10px] text-muted-foreground mt-2 font-bold uppercase">* Obrigatório para conformidade pedagógica</p>
+            <div className="flex items-center gap-2 mb-4 text-primary"><BookText className="h-5 w-5" /><h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3></div>
+            <Textarea placeholder="Descreva o conteúdo desta aula..." className="min-h-[120px] bg-slate-50" value={contentSummary} onChange={(e) => setContentSummary(e.target.value)} />
           </Card>
 
           <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
             <div className="flex gap-10 px-6">
-              <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] tracking-widest bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
+              <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded-full bg-green-500" />
                 <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
               </div>
             </div>
-            
-            <div className="flex gap-4">
-              {isAdmin && existingRecords.length > 0 && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild><Button variant="outline" className="text-destructive border-destructive font-black h-12 uppercase text-[10px]">Limpar Diário</Button></AlertDialogTrigger>
-                  <AlertDialogContent className="bg-white">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Apagar registros?</AlertDialogTitle>
-                      <AlertDialogDescription>Isso removerá a frequência e o resumo de conteúdo deste dia para todos os alunos desta turma.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDayRecords} className="bg-destructive">Confirmar Exclusão</AlertDialogAction></AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-
-              <Button onClick={handleSave} disabled={!selectedClassId || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
-                {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                {isSaving ? "Gravando..." : "Salvar Diário"}
-              </Button>
-            </div>
+            <Button onClick={handleSave} disabled={!selectedClassId || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
+              {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              {isSaving ? "Gravando..." : "Salvar Diário"}
+            </Button>
           </div>
         </>
       )}
