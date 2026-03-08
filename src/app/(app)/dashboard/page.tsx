@@ -20,34 +20,65 @@ export default function Dashboard() {
     setIsClient(true)
   }, [])
 
-  // Coleção GLOBAL de Turmas
+  // Coleções Globais
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: rawClasses = [] } = useCollection(classesRef)
-
-  // Coleção GLOBAL de Alunos
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore])
-  const { data: rawStudents = [] } = useCollection(studentsRef)
+  const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
+  const assessmentsRef = useMemoFirebase(() => collection(firestore, 'assessments'), [firestore])
 
-  // Cálculos dinâmicos baseados no perfil
-  const stats = useMemo(() => {
-    if (!profile) return { totalClasses: 0, totalStudents: 0 };
+  const { data: rawClasses = [] } = useCollection(classesRef)
+  const { data: rawStudents = [] } = useCollection(studentsRef)
+  const { data: rawAttendance = [] } = useCollection(attendanceRef)
+  const { data: rawAssessments = [] } = useCollection(assessmentsRef)
+
+  // Filtros e Cálculos de Identidade
+  const dashboardData = useMemo(() => {
+    if (!profile) return { totalClasses: 0, totalStudents: 0, avgAttendance: 0, bloomEvolution: 0, chartData: [] };
     
-    if (isAdmin) {
-      return {
-        totalClasses: rawClasses.length,
-        totalStudents: rawStudents.length
-      };
+    let filteredClasses = rawClasses;
+    let filteredStudents = rawStudents;
+    let filteredAttendance = rawAttendance;
+    let filteredAssessments = rawAssessments;
+
+    if (!isAdmin) {
+      const assignedClassIds = profile.assignments?.map(a => a.classId) || [];
+      filteredClasses = rawClasses.filter(c => assignedClassIds.includes(c.id));
+      filteredStudents = rawStudents.filter(s => assignedClassIds.includes(s.classId));
+      filteredAttendance = rawAttendance.filter(r => assignedClassIds.includes(r.classId));
+      filteredAssessments = rawAssessments.filter(a => a.classIds.some(id => assignedClassIds.includes(id)));
     }
 
-    const assignedClassIds = profile.assignments?.map(a => a.classId) || [];
-    const myClasses = rawClasses.filter(c => assignedClassIds.includes(c.id));
-    const myStudents = rawStudents.filter(s => assignedClassIds.includes(s.classId));
+    // Cálculo de Presença Média
+    const totalAttendanceDocs = filteredAttendance.length;
+    const presentCount = filteredAttendance.filter(r => r.status === 'Presente').length;
+    const avgAttendance = totalAttendanceDocs > 0 ? Math.round((presentCount / totalAttendanceDocs) * 100) : 0;
+
+    // Projeção de Gráfico baseada em Avaliações Reais
+    const chartData = filteredAssessments
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map(a => {
+        const grades = Object.values(a.grades || {});
+        const avg = grades.length > 0 ? grades.reduce((acc, val) => acc + val, 0) / grades.length : 0;
+        return {
+          month: new Date(a.date).toLocaleDateString('pt-BR', { month: 'short' }),
+          value: Math.round(avg * 10) // Normaliza para 0-100
+        }
+      });
+
+    // Evolução (Diferença entre a última e a penúltima avaliação)
+    let bloomEvolution = 0;
+    if (chartData.length >= 2) {
+      bloomEvolution = chartData[chartData.length - 1].value - chartData[chartData.length - 2].value;
+    }
 
     return {
-      totalClasses: myClasses.length,
-      totalStudents: myStudents.length
+      totalClasses: filteredClasses.length,
+      totalStudents: filteredStudents.length,
+      avgAttendance,
+      bloomEvolution,
+      chartData
     };
-  }, [profile, isAdmin, rawClasses, rawStudents]);
+  }, [profile, isAdmin, rawClasses, rawStudents, rawAttendance, rawAssessments]);
 
   const userName = profile?.name || user?.displayName || user?.email?.split('@')[0] || "Professor"
 
@@ -59,18 +90,25 @@ export default function Dashboard() {
         <h2 className="text-3xl font-bold tracking-tight text-primary">
           Bem-vindo, {userName}
         </h2>
-        <p className="text-muted-foreground mt-1">Aqui está o resumo das suas {stats.totalClasses} turmas e {stats.totalStudents} alunos.</p>
+        <p className="text-muted-foreground mt-1">
+          {dashboardData.totalClasses > 0 
+            ? `Resumo das suas ${dashboardData.totalClasses} turmas e ${dashboardData.totalStudents} alunos.`
+            : "Sistema pronto para novas atribuições."
+          }
+        </p>
       </div>
 
       <OverviewCards 
-        totalClasses={stats.totalClasses} 
-        totalStudents={stats.totalStudents} 
+        totalClasses={dashboardData.totalClasses} 
+        totalStudents={dashboardData.totalStudents}
+        avgAttendance={dashboardData.avgAttendance}
+        bloomEvolution={dashboardData.bloomEvolution}
       />
 
       <div className="grid gap-6 md:grid-cols-6">
         <div className="col-span-4">
           {isClient ? (
-            <EvolutionChart />
+            <EvolutionChart data={dashboardData.chartData} />
           ) : (
             <Card className="border-none shadow-md bg-white h-[450px] flex items-center justify-center">
               <div className="flex flex-col items-center gap-2">
@@ -90,29 +128,30 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Chamada Pendente</span>
-                    <Badge variant="outline" className="text-accent border-accent">Urgente</Badge>
+                {dashboardData.totalClasses === 0 ? (
+                  <div className="p-4 rounded-lg border-2 border-dashed border-primary/20 bg-primary/5 text-center">
+                    <p className="text-xs font-bold text-primary uppercase tracking-widest">Aguardando Turmas</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">O coordenador ainda não atribuiu turmas ao seu perfil.</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Lembre-se de registrar a frequência do dia para suas turmas ativas.</p>
-                </div>
-                
-                <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Dados Sincronizados</span>
-                    <Badge variant="secondary">Tempo Real</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">As contagens de alunos são atualizadas instantaneamente via Firestore.</p>
-                </div>
-
-                <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Planejamento</span>
-                    <Badge variant="outline">Aviso</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Acesse a aba Calendário para organizar seus próximos conteúdos.</p>
-                </div>
+                ) : (
+                  <>
+                    <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">Chamada do Dia</span>
+                        <Badge variant="outline" className="text-accent border-accent">Pendente</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Lembre-se de registrar a frequência das turmas ativas.</p>
+                    </div>
+                    
+                    <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">Dados Sincronizados</span>
+                        <Badge variant="secondary">Tempo Real</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">O dashboard reflete os dados globais do Firestore.</p>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
