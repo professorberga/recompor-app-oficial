@@ -53,14 +53,16 @@ function AttendanceContent() {
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição no perfil
+  // Filtra turmas conforme atribuição no perfil e ordena alfabeticamente
   const classes = useMemo(() => {
-    if (isAdmin) return rawClasses;
-    if (profile?.assignments && profile.assignments.length > 0) {
+    let list = [];
+    if (isAdmin) {
+      list = [...rawClasses];
+    } else if (profile?.assignments && profile.assignments.length > 0) {
       const assignedIds = profile.assignments.map(a => a.classId);
-      return rawClasses.filter(c => assignedIds.includes(c.id));
+      list = rawClasses.filter(c => assignedIds.includes(c.id));
     }
-    return [];
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
   // Alunos agora buscados na coleção GLOBAL para restaurar visibilidade

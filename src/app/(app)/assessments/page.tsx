@@ -107,9 +107,14 @@ export default function AssessmentPage() {
   const { data: rawClasses = [] } = useCollection(classesRef)
 
   const classes = useMemo(() => {
-    if (isAdmin) return rawClasses;
-    const assignedIds = profile?.assignments?.map(a => a.classId) || [];
-    return rawClasses.filter(c => assignedIds.includes(c.id));
+    let list = [];
+    if (isAdmin) {
+      list = [...rawClasses];
+    } else {
+      const assignedIds = profile?.assignments?.map(a => a.classId) || [];
+      list = rawClasses.filter(c => assignedIds.includes(c.id));
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
   const [classStudents, setClassStudents] = useState<any[]>([])

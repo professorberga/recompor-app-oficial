@@ -87,7 +87,9 @@ export default function ClassesPage() {
   }
 
   const filteredClasses = useMemo(() => {
-    return classes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    return classes
+      .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [classes, searchTerm]);
 
   const isLoading = isClassesLoading || isStudentsLoading || isUserLoading;

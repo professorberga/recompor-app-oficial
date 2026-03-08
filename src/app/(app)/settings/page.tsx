@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle
 } from "lucide-react"
@@ -67,6 +67,11 @@ export default function SettingsPage() {
 
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: globalClasses = [] } = useCollection(globalClassesRef)
+
+  // Turmas ordenadas para os seletores
+  const sortedGlobalClasses = useMemo(() => {
+    return [...globalClasses].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [globalClasses]);
 
   useEffect(() => {
     setMounted(true)
@@ -410,7 +415,7 @@ export default function SettingsPage() {
                             <Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label>
                             <Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
                               <SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                              <SelectContent>{sortedGlobalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1">
