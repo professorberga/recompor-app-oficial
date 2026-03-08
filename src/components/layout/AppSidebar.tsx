@@ -84,7 +84,7 @@ const items = [
     title: "Configurações",
     url: "/settings",
     icon: Settings,
-    adminOnly: false // Permitir que todos vejam seu próprio perfil/escola
+    adminOnly: false
   },
 ]
 
@@ -103,12 +103,16 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     try {
+      // O signOut do Firebase limpa o auth.currentUser
       await signOut(auth)
+      
       toast({
         title: "Sessão Encerrada",
         description: "Você saiu do sistema com segurança.",
       })
-      router.push("/login")
+      
+      // Força o redirecionamento imediato para limpar o estado do Next.js
+      router.replace("/login")
     } catch (error) {
       toast({
         title: "Erro ao sair",

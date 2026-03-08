@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -71,56 +71,69 @@ export const FirebaseProvider: React.FC<{
     userError: null,
   });
 
+  // Ref para gerenciar o unsubscribe do perfil de forma manual e segura
+  const profileUnsubscribeRef = useRef<Unsubscribe | null>(null);
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Limpa qualquer listener de perfil anterior imediatamente ao mudar o estado de auth
+      if (profileUnsubscribeRef.current) {
+        profileUnsubscribeRef.current();
+        profileUnsubscribeRef.current = null;
+      }
+
       if (firebaseUser) {
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
         
-        // Antes de liberar o carregamento, garantimos que o perfil existe ou é provisionado
-        const docSnap = await getDoc(teacherRef);
-        
-        if (!docSnap.exists()) {
-          // Provisionamento automático se o documento não existir
-          const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
-          const newProfile: TeacherProfile = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
-            email: firebaseUser.email || "",
-            role: isKnownAdmin ? 'Admin' : 'Professor',
-            subjects: [],
-            schoolName: isKnownAdmin ? "Escola Central" : "E.E. Professor Milton Santos",
-            academicYear: new Date().getFullYear().toString(),
-            activeBimestre: "1",
-            assignments: []
-          };
-          
-          try {
+        try {
+          // Verifica se o perfil existe. Se não, provisiona.
+          const docSnap = await getDoc(teacherRef);
+          if (!docSnap.exists()) {
+            const isKnownAdmin = firebaseUser.uid === ADMIN_UID;
+            const newProfile: TeacherProfile = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Docente",
+              email: firebaseUser.email || "",
+              role: isKnownAdmin ? 'Admin' : 'Professor',
+              subjects: [],
+              schoolName: isKnownAdmin ? "Escola Central" : "E.E. Professor Milton Santos",
+              academicYear: new Date().getFullYear().toString(),
+              activeBimestre: "1",
+              assignments: []
+            };
             await setDoc(teacherRef, newProfile);
-          } catch (err) {
-            console.error("Erro ao provisionar perfil:", err);
           }
+
+          // Estabelece a escuta em tempo real para mudanças no perfil
+          profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
+            if (snapshot.exists()) {
+              const profileData = snapshot.data() as TeacherProfile;
+              setUserAuthState({
+                user: firebaseUser,
+                profile: { ...profileData, id: snapshot.id },
+                isAdmin: profileData.role === 'Admin',
+                isUserLoading: false,
+                userError: null,
+              });
+            } else {
+              setUserAuthState(prev => ({ ...prev, isUserLoading: false }));
+            }
+          }, (error) => {
+            // Ignora erros de permissão silenciosamente durante logout
+            if (error.code === 'permission-denied') return;
+            setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
+          });
+
+        } catch (err: any) {
+          // Se falhar o getDoc inicial (comum em logout rápido), limpa o estado
+          setUserAuthState({
+            user: null,
+            profile: null,
+            isAdmin: false,
+            isUserLoading: false,
+            userError: err,
+          });
         }
-
-        // Estabelece a escuta em tempo real para mudanças no perfil
-        const unsubscribeProfile = onSnapshot(teacherRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const profileData = snapshot.data() as TeacherProfile;
-            setUserAuthState({
-              user: firebaseUser,
-              profile: { ...profileData, id: snapshot.id },
-              isAdmin: profileData.role === 'Admin',
-              isUserLoading: false,
-              userError: null,
-            });
-          } else {
-            setUserAuthState(prev => ({ ...prev, isUserLoading: false }));
-          }
-        }, (error) => {
-          console.error("Erro na escuta do perfil (Firestore Rules?):", error);
-          setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: error }));
-        });
-
-        return () => unsubscribeProfile();
       } else {
         // Usuário deslogado: Limpa estado e interrompe carregamento
         setUserAuthState({
@@ -133,7 +146,10 @@ export const FirebaseProvider: React.FC<{
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
+    };
   }, [auth, firestore]);
 
   const contextValue = useMemo((): FirebaseContextState => {

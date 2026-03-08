@@ -16,7 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 export type WithId<T> = T & { id: string };
 
 export interface UseCollectionResult<T> {
-  data: WithId<T>[]; // Retorna array vazio por padrão para evitar quebras
+  data: WithId<T>[];
   isLoading: boolean;
   error: FirestoreError | Error | null;
 }
@@ -32,7 +32,7 @@ export interface InternalQuery extends Query<DocumentData> {
 
 /**
  * Hook para assinar uma coleção ou query do Firestore em tempo real.
- * Garante o retorno de um array vazio [] se não houver documentos.
+ * Inclui proteção contra erros de permissão durante o logout.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean})  | null | undefined,
@@ -64,6 +64,13 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
+        // Silencia erro de permissão negada comum durante o processo de logout
+        if (err.code === 'permission-denied') {
+          setData([]);
+          setIsLoading(false);
+          return;
+        }
+
         const path: string =
           memoizedTargetRefOrQuery.type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
