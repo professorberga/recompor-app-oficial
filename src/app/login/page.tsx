@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { useAuth, useUser } from "@/firebase/provider"
-import { Brain, Mail, Lock, ArrowRight, Loader2 } from "lucide-react"
+import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,9 +15,10 @@ import { useToast } from "@/hooks/use-toast"
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const auth = useAuth()
-  const { user, isUserLoading } = useUser()
+  const { user, isUserLoading, schoolConfig } = useUser()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -82,6 +83,8 @@ export default function LoginPage() {
     )
   }
 
+  const schoolName = schoolConfig?.schoolName || "Recompor+"
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md space-y-8">
@@ -90,7 +93,9 @@ export default function LoginPage() {
             <Brain className="h-8 w-8" />
           </div>
           <h1 className="text-3xl font-black text-primary tracking-tighter uppercase">Recompor+</h1>
-          <p className="text-muted-foreground text-sm font-medium">Gestão de Recomposição das Aprendizagens</p>
+          <p className="text-muted-foreground text-sm font-bold uppercase tracking-wide">
+            {schoolConfig?.schoolName ? schoolName : "Gestão de Recomposição das Aprendizagens"}
+          </p>
         </div>
 
         <Card className="border-none shadow-xl bg-white overflow-hidden">
@@ -128,12 +133,19 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
                     id="password" 
-                    type="password" 
-                    className="pl-10 h-11"
+                    type={showPassword ? "text" : "password"} 
+                    className="pl-10 pr-10 h-11"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required 
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               <Button type="submit" className="w-full h-12 font-bold shadow-lg" disabled={isLoading}>
@@ -152,7 +164,7 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="bg-slate-50 p-4 border-t">
             <p className="text-[10px] text-center w-full text-muted-foreground uppercase font-bold tracking-widest">
-              Ambiente Seguro • E.E. Professor Milton Santos
+              Ambiente Seguro • {schoolName}
             </p>
           </CardFooter>
         </Card>
