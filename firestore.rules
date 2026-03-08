@@ -36,13 +36,15 @@ service cloud.firestore {
     // --- ESTUDANTES (GLOBAL) ---
     match /students/{studentId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
     }
 
     // --- FREQUÊNCIA (GLOBAL) ---
     match /attendanceRecords/{recordId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isAdmin() || (isSignedIn() && (request.method == 'delete' ? request.auth.uid == resource.data.teacherId : true));
     }
 
     // --- REGISTROS DE AULA (GLOBAL) ---
