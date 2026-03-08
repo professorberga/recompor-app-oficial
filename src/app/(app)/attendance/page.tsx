@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc } from "firebase/firestore"
+import { collection, doc, setDoc, query, where } from "firebase/firestore"
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
@@ -38,10 +38,13 @@ function AttendanceContent() {
   )
   const { data: classes = [] } = useCollection(classesRef)
 
-  // Real Firestore Students for selected class
+  // Estudantes da turma selecionada na nova hierarquia (teachers/{uid}/students)
   const studentsRef = useMemoFirebase(() => {
     if (!user || !selectedClassId) return null;
-    return collection(firestore, 'teachers', user.uid, 'classes', selectedClassId, 'students');
+    return query(
+      collection(firestore, 'teachers', user.uid, 'students'), 
+      where('classId', '==', selectedClassId)
+    );
   }, [user, selectedClassId, firestore]);
   const { data: students = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 

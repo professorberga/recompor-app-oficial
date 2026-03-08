@@ -127,7 +127,11 @@ export default function AssessmentPage() {
     async function loadStudents() {
       if (!user || !gradingClassId) return;
       setIsStudentsLoading(true);
-      const q = collection(firestore, 'teachers', user.uid, 'classes', gradingClassId, 'students');
+      // Query nos alunos do professor filtrando pela turma selecionada
+      const q = query(
+        collection(firestore, 'teachers', user.uid, 'students'), 
+        where('classId', '==', gradingClassId)
+      );
       const snap = await getDocs(q);
       const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
       setClassStudents(list);
@@ -198,17 +202,6 @@ export default function AssessmentPage() {
     }
   }
 
-  // Lógica de Planilha e Mapa (Filtrada por Turma)
-  const spreadsheetData = useMemo(() => {
-    if (!spreadsheetClassId) return { assessments: [], rows: [] };
-    const classAssessments = assessments.filter(a => a.classIds.includes(spreadsheetClassId))
-    
-    // Como os alunos estão em subcoleções de turmas, esta lógica precisa carregar alunos separadamente se quisermos ser precisos.
-    // Para o protótipo real, vamos assumir os alunos carregados anteriormente ou fazer uma lógica de mock para a visualização se não houver tempo.
-    // O ideal é que a página Students gerencie a lista mestra.
-    return { assessments: classAssessments, rows: [] }
-  }, [assessments, spreadsheetClassId])
-
   if (!mounted || isUserLoading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div>
 
   return (
@@ -216,7 +209,7 @@ export default function AssessmentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações</h2>
-          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas reais no Firestore.</p>
+          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas sincronizadas.</p>
         </div>
         
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
@@ -289,7 +282,6 @@ export default function AssessmentPage() {
             </div>
           )}
         </TabsContent>
-        {/* Outros TabsContent em branco para brevidade, mas funcionais com real data */}
       </Tabs>
 
       <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>

@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Student } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
+import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
 
 function StudentsContent() {
   const searchParams = useSearchParams()
@@ -45,10 +45,14 @@ function StudentsContent() {
   )
   const { data: classes = [] } = useCollection(classesRef)
 
-  // Estudantes da turma selecionada
+  // Estudantes na subcoleção direta do professor, filtrados por turma se houver filtro
   const studentsRef = useMemoFirebase(() => {
-    if (!user || !classFilter) return null;
-    return collection(firestore, 'teachers', user.uid, 'classes', classFilter, 'students');
+    if (!user) return null;
+    const baseCol = collection(firestore, 'teachers', user.uid, 'students');
+    if (classFilter) {
+      return query(baseCol, where('classId', '==', classFilter));
+    }
+    return baseCol;
   }, [user, classFilter, firestore]);
 
   const { data: students = [], isLoading } = useCollection(studentsRef)
@@ -132,7 +136,8 @@ function StudentsContent() {
     }
 
     const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
-    const targetRef = doc(firestore, 'teachers', user.uid, 'classes', formData.classId, 'students', studentId)
+    // Salvando na nova hierarquia: /teachers/{uid}/students/{studentId}
+    const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
 
     const studentData = {
       ...formData,
@@ -147,16 +152,16 @@ function StudentsContent() {
       await setDoc(targetRef, studentData)
       setIsRegisterOpen(false)
       stopCamera()
-      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado no Firestore." })
+      toast({ title: "Sucesso", description: isEditing ? "Cadastro atualizado." : "Aluno cadastrado com sucesso no Firestore." })
     } catch (err) {
       toast({ title: "Falha ao Salvar", description: "Verifique as regras de segurança do Firestore.", variant: "destructive" })
     }
   }
 
   const handleDelete = async (studentId: string) => {
-    if (!user || !classFilter) return
+    if (!user) return
     try {
-      await deleteDoc(doc(firestore, 'teachers', user.uid, 'classes', classFilter, 'students', studentId))
+      await deleteDoc(doc(firestore, 'teachers', user.uid, 'students', studentId))
       toast({ title: "Removido", description: "Aluno excluído do banco de dados." })
     } catch (err) {
       toast({ title: "Erro ao excluir", variant: "destructive" })
@@ -168,20 +173,22 @@ function StudentsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Gestão de Alunos</h2>
-          <p className="text-sm text-muted-foreground">Listagem real baseada em sua conta docente.</p>
+          <p className="text-sm text-muted-foreground">Listagem real filtrada por professor e turma.</p>
         </div>
         {classFilter ? (
           <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter, status: "Ativo" }); setIsRegisterOpen(true); }}>
             <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
           </Button>
         ) : (
-          <Badge variant="outline" className="p-2 bg-yellow-50 border-yellow-200 text-yellow-700">Selecione uma turma para gerenciar</Badge>
+          <Button onClick={() => { setIsEditing(false); setCapturedPhoto(null); setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: "", status: "Ativo" }); setIsRegisterOpen(true); }}>
+            <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
+          </Button>
         )}
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nome ou RA no Firestore..." className="pl-10 h-11 bg-white shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <Input placeholder="Buscar por nome ou RA..." className="pl-10 h-11 bg-white shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {isLoading ? (
@@ -210,8 +217,8 @@ function StudentsContent() {
           {filteredStudents.length === 0 && (
             <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
               <GraduationCap className="h-16 w-16 mx-auto mb-4" />
-              <p className="text-xl font-bold">Nenhum aluno no Firestore</p>
-              <p className="text-sm">Cadastre novos alunos para começar o acompanhamento.</p>
+              <p className="text-xl font-bold">Nenhum aluno encontrado</p>
+              <p className="text-sm">Cadastre alunos para começar o acompanhamento no diário.</p>
             </div>
           )}
         </div>
