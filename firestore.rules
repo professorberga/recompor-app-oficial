@@ -23,7 +23,8 @@ service cloud.firestore {
     // --- PROFESSORES ---
     match /teachers/{teacherId} {
       allow get: if isSignedIn();
-      allow list: if isAdmin();
+      // Permite listagem restrita para o handshake de login/atribuição
+      allow list: if isSignedIn() && (isAdmin() || request.query.limit <= 5);
       allow write: if isAdmin() || (isSignedIn() && request.auth.uid == teacherId);
     }
 
@@ -44,7 +45,10 @@ service cloud.firestore {
     // --- FREQUÊNCIA (GLOBAL) ---
     match /attendanceRecords/{recordId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && (request.method == 'delete' ? request.auth.uid == resource.data.teacherId : true));
+      // Permite criar se estiver logado, e atualizar/deletar se for o dono ou admin
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
     }
 
     // --- REGISTROS DE AULA (GLOBAL) ---

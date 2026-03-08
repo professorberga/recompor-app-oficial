@@ -82,7 +82,6 @@ function StudentsContent() {
   const [isFichaOpen, setIsFichaOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
@@ -256,30 +255,27 @@ function StudentsContent() {
     }
   }
 
-  const handleDelete = async () => {
-    if (!studentToDelete) return
+  const handleDelete = async (student: Student) => {
+    if (!student || !user) return
     setIsDeleting(true)
     try {
       // 1. Limpar registros de frequência (Cascata)
-      const recordsQuery = query(collection(firestore, 'attendanceRecords'), where('studentId', '==', studentToDelete.id));
+      const recordsQuery = query(collection(firestore, 'attendanceRecords'), where('studentId', '==', student.id));
       const recordsSnap = await getDocs(recordsQuery);
       const batch = writeBatch(firestore);
       recordsSnap.docs.forEach((doc) => batch.delete(doc.ref));
       await batch.commit();
 
       // 2. Deletar aluno
-      await deleteDoc(doc(firestore, 'students', studentToDelete.id))
+      await deleteDoc(doc(firestore, 'students', student.id))
       
       toast({ title: "Aluno e registros removidos com sucesso" })
     } catch (err: any) {
       console.error(err);
       let errorMessage = "Erro inesperado ao excluir.";
       if (err.code === 'permission-denied') {
-        errorMessage = "Permissão negada. Apenas o criador do registro ou um administrador podem excluir este aluno.";
-      } else if (err.message?.includes('network')) {
-        errorMessage = "Falha de rede. Verifique sua conexão e tente novamente.";
+        errorMessage = "Apenas o dono do registro ou um administrador podem excluir este aluno e suas frequências.";
       }
-
       toast({ 
         title: "Não foi possível excluir", 
         description: errorMessage,
@@ -287,7 +283,6 @@ function StudentsContent() {
       })
     } finally {
       setIsDeleting(false)
-      setStudentToDelete(null)
     }
   }
 
@@ -345,10 +340,11 @@ function StudentsContent() {
                       <AlertDialogFooter>
                         <AlertDialogCancel className="font-bold">Cancelar</AlertDialogCancel>
                         <AlertDialogAction 
-                          onClick={() => { setStudentToDelete(student); handleDelete(); }} 
+                          onClick={() => handleDelete(student)} 
                           className="bg-destructive hover:bg-destructive/90 font-bold uppercase text-xs tracking-widest"
+                          disabled={isDeleting}
                         >
-                          Confirmar Exclusão
+                          {isDeleting ? "Excluindo..." : "Confirmar Exclusão"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
