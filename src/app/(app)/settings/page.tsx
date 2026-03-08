@@ -26,14 +26,16 @@ import { format, startOfWeek, eachDayOfInterval } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+
+// Grade Horária Atualizada conforme solicitação
 const LESSONS_LIST = [
   "1ª aula (07:00 - 07:50)",
   "2ª aula (07:50 - 08:40)",
   "3ª aula (08:40 - 09:30)",
-  "4ª aula (09:50 - 10:40)",
-  "5ª aula (10:40 - 11:30)",
-  "6ª aula (11:30 - 12:20)",
-  "7ª aula (13:30 - 14:20)",
+  "4ª aula (09:45 - 10:35)",
+  "5ª aula (10:35 - 11:25)",
+  "6ª aula (12:25 - 13:15)",
+  "7ª aula (13:15 - 14:05)",
   "8ª aula (14:20 - 15:10)",
   "9ª aula (15:10 - 16:00)"
 ];
