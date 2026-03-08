@@ -106,7 +106,6 @@ export default function SettingsPage() {
             const dateStr = format(day, "yyyy-MM-dd");
             const lessonId = `${assignment.classId}_${dateStr}`;
             
-            // Consulta na coleção GLOBAL de frequências
             const recordsQuery = query(
               collection(firestore, 'attendanceRecords'),
               where('classId', '==', assignment.classId),
@@ -115,7 +114,6 @@ export default function SettingsPage() {
             );
             const recordsSnap = await getDocs(recordsQuery);
             
-            // Consulta na coleção GLOBAL de registros de aula
             const lessonRef = doc(firestore, 'lessons', lessonId);
             const lessonSnap = await getDoc(lessonRef);
             
@@ -355,44 +353,55 @@ export default function SettingsPage() {
             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Atribuição Docente</DialogTitle>
             <DialogDescription className="text-white/70 font-bold text-xs">Vincule turmas e defina a grade horária oficial no Firestore.</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 p-8">
-            <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-xs font-black uppercase">Nome do Docente</Label><Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} placeholder="Ex: Marcio Bergamini" className="h-11" /></div>
-                <div className="space-y-2"><Label className="text-xs font-black uppercase">E-mail Institucional</Label><Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} placeholder="escola@educacao.sp.gov.br" className="h-11" /></div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
-                  <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher({...editingTeacher, role: v})}>
-                    <SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Professor">Professor</SelectItem>
-                      <SelectItem value="Admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-primary">Grade Horária Semanal</h4>
-                  <Button type="button" variant="outline" size="sm" className="font-bold border-2" onClick={() => setEditingTeacher({...editingTeacher, assignments: [...(editingTeacher?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]})}>
-                    <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {editingTeacher?.assignments?.map((a, idx) => (
-                    <div key={idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-slate-50 relative group hover:border-primary/30 transition-all">
-                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label><Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label><Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Português">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label><Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <ScrollArea className="flex-1">
+              <div className="p-8 space-y-8">
+                <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-8">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2"><Label className="text-xs font-black uppercase">Nome do Docente</Label><Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} placeholder="Ex: Marcio Bergamini" className="h-11" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-black uppercase">E-mail Institucional</Label><Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} placeholder="escola@educacao.sp.gov.br" className="h-11" /></div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
+                      <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher({...editingTeacher, role: v})}>
+                        <SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Professor">Professor</SelectItem>
+                          <SelectItem value="Admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-primary">Grade Horária Semanal</h4>
+                      <Button type="button" variant="outline" size="sm" className="font-bold border-2" onClick={() => setEditingTeacher({...editingTeacher, assignments: [...(editingTeacher?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]})}>
+                        <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
+                      </Button>
+                    </div>
+                    
+                    {/* Container com scroll interno para os horários de aula */}
+                    <div className="max-h-[300px] overflow-y-auto pr-2 space-y-3 border-2 border-dashed rounded-xl p-4 bg-slate-50/50">
+                      {editingTeacher?.assignments?.map((a, idx) => (
+                        <div key={idx} className="grid grid-cols-5 gap-3 p-4 border-2 rounded-xl bg-white relative group hover:border-primary/30 transition-all shadow-sm">
+                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label><Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label><Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Português">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent></Select></div>
+                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label><Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
+                        </div>
+                      ))}
+                      {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
+                        <div className="py-8 text-center text-xs text-muted-foreground font-bold uppercase opacity-30 italic">
+                          Nenhuma aula atribuída. Clique em "Nova Aula" para começar.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </form>
               </div>
-            </form>
-          </ScrollArea>
+            </ScrollArea>
+          </div>
           <DialogFooter className="p-6 border-t bg-slate-100 shrink-0">
             <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-black shadow-xl uppercase tracking-widest text-xs">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
