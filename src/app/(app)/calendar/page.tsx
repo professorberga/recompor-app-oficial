@@ -20,7 +20,15 @@ import { collection, doc, setDoc, query, where } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 const CLASS_SCHEDULES = [
-  "07:00 às 07:50", "07:50 às 08:40", "08:40 às 09:30", "09:45 às 10:35", "10:35 às 11:25"
+  "1ª aula (07:00 - 07:50)",
+  "2ª aula (07:50 - 08:40)",
+  "3ª aula (08:40 - 09:30)",
+  "4ª aula (09:50 - 10:40)",
+  "5ª aula (10:40 - 11:30)",
+  "6ª aula (11:30 - 12:20)",
+  "7ª aula (13:30 - 14:20)",
+  "8ª aula (14:20 - 15:10)",
+  "9ª aula (15:10 - 16:00)"
 ]
 
 const dayMap: Record<string, string> = {
@@ -96,6 +104,7 @@ export default function CalendarPage() {
       ...newEvent,
       class: className,
       lessonDate: currentDate?.toISOString() || new Date().toISOString(),
+      date: format(currentDate || new Date(), "yyyy-MM-dd"),
       teacherId: user.uid
     }
 
@@ -132,7 +141,12 @@ export default function CalendarPage() {
         recorded: dailyRecorded.some(r => r.classId === a.classId)
       }));
 
-    return [...plannedAssignments, ...dailyRecorded.map(r => ({ ...r, isPlanned: false }))];
+    // Remove duplicados se já houver registro real para a aula prevista
+    const uniquePlanned = plannedAssignments.filter(p => 
+      !dailyRecorded.some(r => r.classId === p.classId && (r.time === p.time || r.lessonNumber === p.time))
+    );
+
+    return [...uniquePlanned, ...dailyRecorded.map(r => ({ ...r, isPlanned: false }))];
   }, [currentDate, recordedLessons, profile]);
 
   const filteredEvents = useMemo(() => {

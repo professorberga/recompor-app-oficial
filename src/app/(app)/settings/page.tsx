@@ -23,7 +23,17 @@ import { format, startOfWeek, eachDayOfInterval } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
-const LESSONS = ['1ª aula', '2ª aula', '3ª aula', '4ª aula', '5ª aula', '6ª aula', '7ª aula', '8ª aula', '9ª aula'];
+const LESSONS_LIST = [
+  "1ª aula (07:00 - 07:50)",
+  "2ª aula (07:50 - 08:40)",
+  "3ª aula (08:40 - 09:30)",
+  "4ª aula (09:50 - 10:40)",
+  "5ª aula (10:40 - 11:30)",
+  "6ª aula (11:30 - 12:20)",
+  "7ª aula (13:30 - 14:20)",
+  "8ª aula (14:20 - 15:10)",
+  "9ª aula (15:10 - 16:00)"
+];
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
@@ -365,7 +375,7 @@ export default function SettingsPage() {
               <div className="space-y-4 pt-4 border-t">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-widest text-primary">Grade Horária Semanal</h4>
-                  <Button type="button" variant="outline" size="sm" className="font-bold border-2" onClick={() => setEditingTeacher({...editingTeacher, assignments: [...(editingTeacher?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: "1ª aula" }]})}>
+                  <Button type="button" variant="outline" size="sm" className="font-bold border-2" onClick={() => setEditingTeacher({...editingTeacher, assignments: [...(editingTeacher?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]})}>
                     <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
                   </Button>
                 </div>
@@ -375,7 +385,7 @@ export default function SettingsPage() {
                       <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Turma</Label><Select value={a.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
                       <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Disciplina</Label><Select value={a.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Português">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent></Select></div>
                       <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Dia</Label><Select value={a.dayOfWeek} onValueChange={(v) => updateAssignment(idx, 'dayOfWeek', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{LESSONS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[9px] uppercase font-black text-muted-foreground">Aula</Label><Select value={a.lessonNumber} onValueChange={(v) => updateAssignment(idx, 'lessonNumber', v)}><SelectTrigger className="bg-white h-9 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
                       <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
                     </div>
                   ))}
