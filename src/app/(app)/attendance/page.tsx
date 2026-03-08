@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, query, where } from "firebase/firestore"
+import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
@@ -41,7 +42,6 @@ function AttendanceContent() {
   )
   const { data: rawClasses = [] } = useCollection(classesRef)
 
-  // Filtra as turmas com base nas atribuições feitas pelo Admin
   const classes = useMemo(() => {
     if (isAdmin) return rawClasses;
     if (profile?.assignments && profile.assignments.length > 0) {
@@ -51,7 +51,6 @@ function AttendanceContent() {
     return rawClasses;
   }, [rawClasses, profile, isAdmin]);
 
-  // Busca estudantes na subcoleção do professor filtrando pela turma selecionada
   const studentsRef = useMemoFirebase(() => {
     if (!user || !selectedClassId) return null;
     return query(
@@ -62,7 +61,6 @@ function AttendanceContent() {
   
   const { data: students = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
-  // Busca registros de presença para a data e turma selecionadas
   const attendanceRecordsRef = useMemoFirebase(() => {
     if (!user || !selectedClassId || !currentDate) return null;
     const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -109,8 +107,15 @@ function AttendanceContent() {
     }).sort((a, b) => (a.callNumber || 0) - (b.callNumber || 0));
   }, [students, searchTerm]);
 
+  // Lógica de Bimestre
+  const dateBimestre = useMemo(() => currentDate ? getBimestreFromDate(currentDate) : null, [currentDate]);
+  const isOutOfBimestre = useMemo(() => {
+    if (!profile?.activeBimestre || !dateBimestre) return false;
+    return profile.activeBimestre !== dateBimestre;
+  }, [profile, dateBimestre]);
+
   const handleSave = async () => {
-    if (!user || !selectedClassId || !currentDate) return;
+    if (!user || !selectedClassId || !currentDate || !dateBimestre) return;
 
     setIsSaving(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -124,13 +129,14 @@ function AttendanceContent() {
           studentId,
           classId: selectedClassId,
           date: dateStr,
+          bimestre: dateBimestre,
           status: status === 'present' ? 'Presente' : 'Falta',
           recordedByTeacherId: user.uid
         }, { merge: true });
       });
 
       await Promise.all(savePromises);
-      toast({ title: "Diário Gravado", description: `Chamada do dia ${format(currentDate, "dd/MM")} salva no Firestore.` })
+      toast({ title: "Diário Gravado", description: `Chamada do dia ${format(currentDate, "dd/MM")} salva no ${BIMESTRE_LABELS[dateBimestre]}.` })
     } catch (err: any) {
       toast({ title: "Falha ao Salvar", description: "Erro nas permissões do Firestore.", variant: "destructive" })
     } finally {
@@ -150,6 +156,15 @@ function AttendanceContent() {
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
+      {isOutOfBimestre && (
+        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-3 text-amber-700 animate-in slide-in-from-top-4 duration-300">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <p className="text-sm font-bold uppercase tracking-tighter">
+            Atenção: Você está lançando dados no <span className="underline">{BIMESTRE_LABELS[dateBimestre || ""]}</span>, mas o bimestre ativo configurado é o <span className="underline">{BIMESTRE_LABELS[profile?.activeBimestre || ""]}</span>.
+          </p>
+        </div>
+      )}
+
       <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -187,13 +202,18 @@ function AttendanceContent() {
             />
           </div>
           {selectedClassId && (
-            <Badge variant={hasRecords ? "default" : "outline"} className={cn("h-11 px-4 font-bold uppercase text-[10px] tracking-widest", hasRecords ? "bg-green-600 hover:bg-green-700" : "text-amber-600 border-amber-600 bg-amber-50")}>
-              {hasRecords ? (
-                <><CheckCircle2 className="h-3 w-3 mr-2" /> Chamada Realizada</>
-              ) : (
-                <><History className="h-3 w-3 mr-2" /> Nova Chamada</>
-              )}
-            </Badge>
+            <div className="flex gap-2">
+              <Badge variant="secondary" className="h-11 px-4 font-black uppercase text-[10px] tracking-widest bg-blue-50 text-blue-700 border-blue-200">
+                {BIMESTRE_LABELS[dateBimestre || "1"]}
+              </Badge>
+              <Badge variant={hasRecords ? "default" : "outline"} className={cn("h-11 px-4 font-bold uppercase text-[10px] tracking-widest", hasRecords ? "bg-green-600 hover:bg-green-700" : "text-amber-600 border-amber-600 bg-amber-50")}>
+                {hasRecords ? (
+                  <><CheckCircle2 className="h-3 w-3 mr-2" /> Chamada Realizada</>
+                ) : (
+                  <><History className="h-3 w-3 mr-2" /> Nova Chamada</>
+                )}
+              </Badge>
+            </div>
           )}
         </div>
       </div>

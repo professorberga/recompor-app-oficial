@@ -8,7 +8,7 @@ import {
   Camera, Check, Trash2, Pencil, 
   Calendar, ClipboardCheck, GraduationCap, Info,
   Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw, Loader2,
-  CheckCircle2, XCircle, BarChart3, TrendingUp
+  CheckCircle2, XCircle, BarChart3, TrendingUp, Filter
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,11 +26,8 @@ import { Student } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, deleteDoc, query, where } from "firebase/firestore"
 import { Progress } from "@/components/ui/progress"
+import { BIMESTRE_LABELS } from "@/lib/date-utils"
 
-/**
- * Utilitário para comprimir e redimensionar imagens para Thumbnail (200x200px).
- * Essencial para evitar o erro de limite de 1MB do Firestore.
- */
 const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -39,7 +36,6 @@ const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Prom
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
-
       if (width > height) {
         if (width > maxWidth) {
           height *= maxWidth / width;
@@ -63,12 +59,13 @@ const compressImage = (base64Str: string, maxWidth = 200, maxHeight = 200): Prom
 function StudentsContent() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { user } = useUser()
+  const { user, profile } = useUser()
   const firestore = useFirestore()
   
   const classFilter = searchParams.get('class')
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [selectedBimestre, setSelectedBimestre] = useState<string>("all")
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isFichaOpen, setIsFichaOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -91,29 +88,35 @@ function StudentsContent() {
 
   const { data: students = [], isLoading } = useCollection(studentsRef)
 
-  // Query para buscar histórico de presença do aluno selecionado
+  useEffect(() => {
+    if (profile?.activeBimestre && selectedBimestre === "all") {
+      setSelectedBimestre(profile.activeBimestre);
+    }
+  }, [profile]);
+
   const attendanceHistoryRef = useMemoFirebase(() => {
     if (!user?.uid || !selectedStudent?.id) return null;
-    return query(
-      collection(firestore, 'teachers', user.uid, 'attendanceRecords'),
-      where('studentId', '==', selectedStudent.id)
-    );
+    const baseQuery = collection(firestore, 'teachers', user.uid, 'attendanceRecords');
+    return query(baseQuery, where('studentId', '==', selectedStudent.id));
   }, [user, selectedStudent, firestore]);
 
-  const { data: attendanceHistory = [] } = useCollection(attendanceHistoryRef)
+  const { data: rawAttendanceHistory = [] } = useCollection(attendanceHistoryRef)
 
-  // Cálculos de Frequência e Definição de Cores Dinâmicas
+  const filteredAttendance = useMemo(() => {
+    if (selectedBimestre === "all") return rawAttendanceHistory;
+    return rawAttendanceHistory.filter(h => h.bimestre === selectedBimestre);
+  }, [rawAttendanceHistory, selectedBimestre]);
+
   const attendanceStats = useMemo(() => {
-    if (attendanceHistory.length === 0) return { total: 0, present: 0, absent: 0, rate: 0, color: "text-primary", bg: "bg-primary/5", border: "border-primary" };
-    const total = attendanceHistory.length;
-    const present = attendanceHistory.filter(h => h.status === 'Presente').length;
+    if (filteredAttendance.length === 0) return { total: 0, present: 0, absent: 0, rate: 0, color: "text-primary", bg: "bg-primary/5", border: "border-primary" };
+    const total = filteredAttendance.length;
+    const present = filteredAttendance.filter(h => h.status === 'Presente').length;
     const absent = total - present;
     const rate = Math.round((present / total) * 100);
 
     let color = "text-green-600";
     let bg = "bg-green-50";
     let border = "border-green-500";
-
     if (rate <= 50) {
       color = "text-red-600";
       bg = "bg-red-50";
@@ -123,9 +126,8 @@ function StudentsContent() {
       bg = "bg-yellow-50";
       border = "border-yellow-500";
     }
-
     return { total, present, absent, rate, color, bg, border };
-  }, [attendanceHistory]);
+  }, [filteredAttendance]);
 
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
@@ -222,14 +224,12 @@ function StudentsContent() {
       toast({ title: "Campos Obrigatórios", description: "Nome, RA e Turma são essenciais.", variant: "destructive" })
       return
     }
-
     setIsSubmitting(true);
     try {
       const studentId = isEditing && selectedStudent ? selectedStudent.id : Math.random().toString(36).substr(2, 9)
       const targetRef = doc(firestore, 'teachers', user.uid, 'students', studentId)
       let finalPhoto = capturedPhoto;
-      if (capturedPhoto) finalPhoto = await compressImage(capturedPhoto);
-
+      if (capturedPhoto && capturedPhoto.length > 50000) finalPhoto = await compressImage(capturedPhoto);
       const studentData = {
         ...formData,
         id: studentId,
@@ -238,7 +238,6 @@ function StudentsContent() {
         class: classes.find(c => c.id === formData.classId)?.name || "Turma",
         enrollmentDate: new Date().toISOString()
       }
-
       await setDoc(targetRef, studentData, { merge: true })
       toast({ title: "Sucesso!", description: isEditing ? "Cadastro atualizado." : "Aluno registrado." })
       resetForm()
@@ -301,12 +300,6 @@ function StudentsContent() {
               </CardContent>
             </Card>
           ))}
-          {filteredStudents.length === 0 && (
-            <div className="py-24 text-center opacity-40 border-2 border-dashed rounded-2xl bg-muted/20">
-              <GraduationCap className="h-16 w-16 mx-auto mb-4" />
-              <p className="text-xl font-bold text-primary">Nenhum aluno cadastrado</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -379,7 +372,7 @@ function StudentsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* FICHA DO ALUNO (HISTÓRICO) */}
+      {/* FICHA DO ALUNO */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
         <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white shadow-2xl overflow-hidden">
           <DialogHeader className="p-8 bg-primary text-white shrink-0">
@@ -393,28 +386,32 @@ function StudentsContent() {
               </div>
             </div>
           </DialogHeader>
-          <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="bg-slate-50 border-b px-8 h-14 justify-start gap-8 rounded-none">
+          <div className="bg-slate-50 border-b px-8 py-3 flex items-center justify-between shrink-0">
+            <div className="flex gap-4">
+              <Badge variant="outline" className="font-black">Bimestre:</Badge>
+              <Select value={selectedBimestre} onValueChange={setSelectedBimestre}>
+                <SelectTrigger className="h-8 w-44 bg-white border-primary/20"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Períodos</SelectItem>
+                  <SelectItem value="1">1º Bimestre</SelectItem>
+                  <SelectItem value="2">2º Bimestre</SelectItem>
+                  <SelectItem value="3">3º Bimestre</SelectItem>
+                  <SelectItem value="4">4º Bimestre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedBimestre !== "all" && (
+              <Badge variant="secondary" className="bg-blue-50 text-blue-700 font-bold">
+                Exibindo dados do {BIMESTRE_LABELS[selectedBimestre]}
+              </Badge>
+            )}
+          </div>
+          <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="bg-white border-b px-8 h-12 justify-start gap-8 rounded-none">
+              <TabsTrigger value="history" className="font-bold">Frequência & Analítico</TabsTrigger>
               <TabsTrigger value="info" className="font-bold">Informações</TabsTrigger>
-              <TabsTrigger value="history" className="font-bold">Frequência & Histórico</TabsTrigger>
             </TabsList>
             <ScrollArea className="flex-1 p-8">
-              <TabsContent value="info" className="m-0 space-y-6">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Status</Label>
-                    <p className="font-bold text-green-600">{selectedStudent?.status}</p>
-                  </div>
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Turma</Label>
-                    <p className="font-bold">{selectedStudent?.class}</p>
-                  </div>
-                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Chamada</Label>
-                    <p className="font-bold">#{selectedStudent?.callNumber}</p>
-                  </div>
-                </div>
-              </TabsContent>
               <TabsContent value="history" className="m-0 space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card className="bg-slate-50 border-none">
@@ -431,21 +428,17 @@ function StudentsContent() {
                   </Card>
                   <Card className={cn("border-none transition-colors", attendanceStats.bg)}>
                     <CardHeader className="p-4 pb-1">
-                      <CardTitle className={cn("text-xs uppercase font-black", attendanceStats.color)}>
-                        Frequência
-                      </CardTitle>
+                      <CardTitle className={cn("text-xs uppercase font-black", attendanceStats.color)}>Frequência</CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
-                      <p className={cn("text-3xl font-black", attendanceStats.color)}>
-                        {attendanceStats.rate}%
-                      </p>
+                      <p className={cn("text-3xl font-black", attendanceStats.color)}>{attendanceStats.rate}%</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução de Frequência</h4>
+                    <h4 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Evolução Pedagógica</h4>
                     <Badge variant="outline" className={cn("font-bold border-2 px-4 py-1", attendanceStats.border, attendanceStats.color, attendanceStats.bg)}>
                       {attendanceStats.rate >= 75 ? 'Dentro da Meta' : 'Abaixo da Meta'}
                     </Badge>
@@ -454,25 +447,42 @@ function StudentsContent() {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Últimas Faltas Registradas</h4>
-                  <div className="border rounded-xl divide-y">
-                    {attendanceHistory
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Ocorrências de Faltas {selectedBimestre !== "all" ? `no ${BIMESTRE_LABELS[selectedBimestre]}` : "no Ano"}</h4>
+                  <div className="border rounded-xl divide-y bg-white">
+                    {filteredAttendance
                       .filter(record => record.status === 'Falta')
-                      .slice(0, 10)
+                      .sort((a, b) => b.date.localeCompare(a.date))
                       .map((record) => (
                       <div key={record.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                         <div className="flex items-center gap-3">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{new Date(record.date).toLocaleDateString('pt-BR')}</span>
+                          <Badge variant="outline" className="text-[9px] uppercase">{BIMESTRE_LABELS[record.bimestre || "1"]}</Badge>
                         </div>
                         <Badge variant="destructive" className="font-bold px-3">
-                          <XCircle className="h-3 w-3 mr-1" /> FALTA
+                          <XCircle className="h-3 w-3 mr-1" /> AUSÊNCIA
                         </Badge>
                       </div>
                     ))}
-                    {attendanceHistory.filter(record => record.status === 'Falta').length === 0 && (
-                      <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhuma falta registrada para este aluno.</p>
+                    {filteredAttendance.filter(record => record.status === 'Falta').length === 0 && (
+                      <p className="p-10 text-center text-sm text-muted-foreground italic">Nenhuma falta registrada para este filtro.</p>
                     )}
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="info" className="m-0 space-y-6">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Status</Label>
+                    <p className="font-bold text-green-600">{selectedStudent?.status}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Turma</Label>
+                    <p className="font-bold">{selectedStudent?.class}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Chamada</Label>
+                    <p className="font-bold">#{selectedStudent?.callNumber}</p>
                   </div>
                 </div>
               </TabsContent>

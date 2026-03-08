@@ -49,13 +49,14 @@ export interface Student {
   photo: string | null;
   enrollments: string[]; 
   history: {
-    attendance: Array<{ date: string; status: 'present' | 'absent' }>;
+    attendance: Array<{ date: string; status: 'present' | 'absent'; bimestre?: string }>;
     assessments: Array<{ 
       subject: string; 
       competency: string; 
       level: BloomLevel; 
       score: number; 
-      date: string 
+      date: string;
+      bimestre?: string;
     }>;
     occurrences: Array<{ 
       id: string; 
@@ -81,6 +82,7 @@ export interface AssessmentRecord {
   classIds: string[];
   bloomLevel: string;
   date: string;
+  bimestre: string;
   rubric: RubricCriterion[];
   grades: Record<string, number>;
   studentCriterionGrades: Record<string, Record<string, string>>;

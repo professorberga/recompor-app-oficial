@@ -33,10 +33,10 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
 import { AssessmentRecord, RubricCriterion } from "@/lib/types"
+import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
 
 const BLOOM_LEVELS = [
   { value: 'Remember', label: 'Lembrar', color: 'bg-blue-100 text-blue-700' },
@@ -82,7 +82,7 @@ function ClassMultiSelect({ classes, value, onChange }: ClassMultiSelectProps) {
 
 export default function AssessmentPage() {
   const [mounted, setMounted] = useState(false)
-  const { user, isUserLoading } = useUser()
+  const { user, profile, isUserLoading } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
   
@@ -91,7 +91,6 @@ export default function AssessmentPage() {
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   const [gradingClassId, setGradingClassId] = useState<string>("")
-  const [spreadsheetClassId, setSpreadsheetClassId] = useState<string>("")
 
   // Real Data
   const assessmentsRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'assessments') : null, [user, firestore])
@@ -120,14 +119,9 @@ export default function AssessmentPage() {
   }, [])
 
   useEffect(() => {
-    if (classes.length > 0 && !spreadsheetClassId) setSpreadsheetClassId(classes[0].id)
-  }, [classes, spreadsheetClassId])
-
-  useEffect(() => {
     async function loadStudents() {
       if (!user || !gradingClassId) return;
       setIsStudentsLoading(true);
-      // Query nos alunos do professor filtrando pela turma selecionada
       const q = query(
         collection(firestore, 'teachers', user.uid, 'students'), 
         where('classId', '==', gradingClassId)
@@ -149,6 +143,9 @@ export default function AssessmentPage() {
     }
 
     const assessmentId = Math.random().toString(36).substr(2, 9)
+    const assessmentDate = new Date(newAssessment.date);
+    const bimestre = getBimestreFromDate(assessmentDate);
+
     const assessmentData = {
       id: assessmentId,
       ...newAssessment,
@@ -157,7 +154,8 @@ export default function AssessmentPage() {
       grades: {},
       studentCriterionGrades: {},
       teacherId: user.uid,
-      assessmentDate: new Date(newAssessment.date).toISOString()
+      assessmentDate: assessmentDate.toISOString(),
+      bimestre: bimestre
     }
 
     try {
@@ -166,7 +164,7 @@ export default function AssessmentPage() {
       setNewAssessment({ title: "", subject: "Portuguese", bloomLevel: "Understand", date: new Date().toISOString().split('T')[0] })
       setSelectedClasses([])
       setNewRubric([])
-      toast({ title: "Avaliação Criada", description: "A avaliação foi registrada no Firestore." })
+      toast({ title: "Avaliação Criada", description: `Registrada no ${BIMESTRE_LABELS[bimestre]}.` })
     } catch (err) {
       toast({ title: "Erro", description: "Falha ao salvar no banco de dados.", variant: "destructive" })
     }
@@ -209,7 +207,7 @@ export default function AssessmentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">Avaliações</h2>
-          <p className="text-muted-foreground mt-1">Gerencie o desempenho acadêmico com rubricas sincronizadas.</p>
+          <p className="text-muted-foreground mt-1">Organização por competências e bimestres letivos.</p>
         </div>
         
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
@@ -269,8 +267,13 @@ export default function AssessmentPage() {
               {assessments.map(a => (
                 <Card key={a.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
-                    <Badge variant="outline">{a.subject === 'Portuguese' ? 'Português' : 'Matemática'}</Badge>
-                    <CardTitle className="text-lg">{a.title}</CardTitle>
+                    <div className="flex justify-between items-start">
+                      <Badge variant="outline">{a.subject === 'Portuguese' ? 'Português' : 'Matemática'}</Badge>
+                      <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                        {BIMESTRE_LABELS[a.bimestre || "1"]}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-lg mt-2">{a.title}</CardTitle>
                     <CardDescription>{new Date(a.date).toLocaleDateString()}</CardDescription>
                   </CardHeader>
                   <CardFooter className="pt-0 border-t bg-muted/5 p-0">
