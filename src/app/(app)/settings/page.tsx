@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { 
   School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle
 } from "lucide-react"
@@ -68,30 +68,35 @@ export default function SettingsPage() {
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: globalClasses = [] } = useCollection(globalClassesRef)
 
-  // Turmas ordenadas para os seletores
   const sortedGlobalClasses = useMemo(() => {
     return [...globalClasses].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [globalClasses]);
 
   useEffect(() => {
     setMounted(true)
-    if (profile) {
+  }, [])
+
+  useEffect(() => {
+    if (!isUserLoading && profile) {
       setProfileData({
         name: profile.name || "",
         email: profile.email || ""
       })
     }
-    if (schoolConfig) {
+  }, [profile, isUserLoading])
+
+  useEffect(() => {
+    if (!isUserLoading && schoolConfig) {
       setSchoolData({
         schoolName: schoolConfig.schoolName || "",
         academicYear: schoolConfig.academicYear || "",
         activeBimestre: schoolConfig.activeBimestre || "1"
       })
     }
-  }, [profile, schoolConfig])
+  }, [schoolConfig, isUserLoading])
 
-  const runAudit = async () => {
-    if (!isAdmin) return;
+  const runAudit = useCallback(async () => {
+    if (!isAdmin || !firestore) return;
     setIsAuditing(true);
     const results: any[] = [];
     const today = new Date();
@@ -103,7 +108,6 @@ export default function SettingsPage() {
         if (!teacher.assignments || teacher.assignments.length === 0) continue;
         
         for (const assignment of teacher.assignments) {
-          // Normalização do dia da semana para comparação
           const matchingDays = days.filter(d => {
             const dayName = format(d, 'EEEE', { locale: ptBR }).toLowerCase();
             return dayName.includes(assignment.dayOfWeek?.toLowerCase() || '');
@@ -113,7 +117,6 @@ export default function SettingsPage() {
             const dateStr = format(day, "yyyy-MM-dd");
             const lessonId = `${assignment.classId}_${dateStr}`;
             
-            // Verifica presença de registros de frequência
             const recordsQuery = query(
               collection(firestore, 'attendanceRecords'),
               where('classId', '==', assignment.classId),
@@ -122,7 +125,6 @@ export default function SettingsPage() {
             );
             const recordsSnap = await getDocs(recordsQuery);
             
-            // Verifica presença de registro de aula (conteúdo)
             const lessonRef = doc(firestore, 'lessons', lessonId);
             const lessonSnap = await getDoc(lessonRef);
             
@@ -132,7 +134,6 @@ export default function SettingsPage() {
               status = (lessonData && lessonData.content && lessonData.content.trim() !== "") ? 'complete' : 'partial';
             }
 
-            // Lookup seguro de nome de turma e disciplina
             const classInfo = globalClasses.find(c => c.id === assignment.classId);
             
             results.push({
@@ -146,18 +147,16 @@ export default function SettingsPage() {
           }
         }
       }
-      // Ordena por data (mais recentes primeiro)
       setAuditData(results.reverse());
     } catch (err) {
-      console.error(err);
       toast({ title: "Erro na auditoria", description: "Falha ao consultar coleções globais.", variant: "destructive" });
     } finally {
       setIsAuditing(false);
     }
-  }
+  }, [isAdmin, firestore, allTeachers, globalClasses, toast]);
 
-  const handleSaveProfile = async () => {
-    if (!user) return
+  const handleSaveProfile = useCallback(async () => {
+    if (!user || !firestore) return
     setIsSaving(true)
     try {
       await setDoc(doc(firestore, "teachers", user.uid), profileData, { merge: true });
@@ -167,10 +166,10 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [user, firestore, profileData, toast]);
 
-  const handleSaveSchool = async () => {
-    if (!isAdmin) return
+  const handleSaveSchool = useCallback(async () => {
+    if (!isAdmin || !firestore) return
     setIsSaving(true)
     try {
       await setDoc(doc(firestore, "settings", "school"), schoolData, { merge: true });
@@ -180,11 +179,11 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [isAdmin, firestore, schoolData, toast]);
 
-  const handleSaveTeacher = async (e: React.FormEvent) => {
+  const handleSaveTeacher = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isAdmin || !editingTeacher?.email || !editingTeacher?.name) {
+    if (!isAdmin || !editingTeacher?.email || !editingTeacher?.name || !firestore) {
       toast({ title: "Nome e E-mail obrigatórios", variant: "destructive" });
       return;
     }
@@ -206,18 +205,16 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [isAdmin, firestore, editingTeacher, toast]);
 
-  const updateAssignment = (index: number, field: keyof TeacherAssignment, value: string) => {
+  const updateAssignment = useCallback((index: number, field: keyof TeacherAssignment, value: string) => {
     if (!editingTeacher || !editingTeacher.assignments) return;
     const next = [...editingTeacher.assignments];
     const assignment = { ...next[index], [field]: value };
     
-    // Sincroniza o nome da turma automaticamente ao selecionar o ID
     if (field === 'classId') {
       const classInfo = globalClasses.find(c => c.id === value);
       assignment.className = classInfo?.name || "";
-      // Se a disciplina ainda for padrão, sugere a disciplina da turma
       if (!assignment.subject) {
         assignment.subject = classInfo?.subject === 'Portuguese' ? 'Português' : 'Matemática';
       }
@@ -225,9 +222,22 @@ export default function SettingsPage() {
     
     next[index] = assignment;
     setEditingTeacher({ ...editingTeacher, assignments: next });
+  }, [editingTeacher, globalClasses]);
+
+  const handleNewTeacher = useCallback(() => {
+    setEditingTeacher({ assignments: [], role: 'Professor' });
+    setIsTeacherDialogOpen(true);
+  }, []);
+
+  if (!mounted || isUserLoading) {
+    return (
+      <div className="flex items-center justify-center p-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  if (!mounted || isUserLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+  const gridCols = isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1";
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
@@ -241,16 +251,19 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={cn(
-          "grid w-full bg-white border h-auto p-1 shadow-sm",
-          isAdmin ? "grid-cols-4 md:grid-cols-4" : "grid-cols-1 md:grid-cols-1"
-        )}>
+        <TabsList className={cn("grid w-full bg-white border h-auto p-1 shadow-sm", gridCols)}>
           <TabsTrigger value="profile" className="font-bold py-2 uppercase text-[10px]">Meus Dados</TabsTrigger>
           {isAdmin && (
             <>
               <TabsTrigger value="school" className="font-bold py-2 uppercase text-[10px]">Escola</TabsTrigger>
               <TabsTrigger value="users" className="font-bold py-2 uppercase text-[10px]">Docentes</TabsTrigger>
-              <TabsTrigger value="audit" className="font-bold py-2 uppercase text-[10px]" onClick={runAudit}>Auditoria</TabsTrigger>
+              <TabsTrigger 
+                value="audit" 
+                className="font-bold py-2 uppercase text-[10px]" 
+                onClick={() => !isAuditing && runAudit()}
+              >
+                Auditoria
+              </TabsTrigger>
             </>
           )}
         </TabsList>
@@ -263,115 +276,142 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome Completo</Label><Input value={profileData.name} onChange={(e) => setProfileData({...profileData, name: e.target.value})} /></div>
-                <div className="space-y-2"><Label className="text-xs font-bold uppercase">E-mail Institucional</Label><Input value={user?.email || ""} disabled className="bg-muted opacity-60" /></div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase">Nome Completo</Label>
+                  <Input value={profileData.name} onChange={(e) => setProfileData(prev => ({...prev, name: e.target.value}))} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase">E-mail Institucional</Label>
+                  <Input value={user?.email || ""} disabled className="bg-muted opacity-60" />
+                </div>
               </div>
-              <Button onClick={handleSaveProfile} disabled={isSaving} className="font-bold shadow-lg">{isSaving ? "Gravando..." : "Salvar Perfil"}</Button>
+              <Button onClick={handleSaveProfile} disabled={isSaving} className="font-bold shadow-lg">
+                {isSaving ? "Gravando..." : "Salvar Perfil"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="school" className="mt-6">
-            <Card className="border-none shadow-md bg-white">
-              <CardHeader>
-                <CardTitle className="text-xl font-black uppercase text-primary">Configurações Escolares</CardTitle>
-                <CardDescription>Defina o nome da unidade e o período letivo vigente.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label className="text-xs font-bold uppercase">Nome da Escola</Label><Input value={schoolData.schoolName} onChange={(e) => setSchoolData({...schoolData, schoolName: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-xs font-bold uppercase">Ano Letivo</Label><Input value={schoolData.academicYear} onChange={(e) => setSchoolData({...schoolData, academicYear: e.target.value})} /></div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Bimestre Ativo</Label>
-                    <Select value={schoolData.activeBimestre} onValueChange={(v) => setSchoolData({...schoolData, activeBimestre: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1º Bimestre</SelectItem>
-                        <SelectItem value="2">2º Bimestre</SelectItem>
-                        <SelectItem value="3">3º Bimestre</SelectItem>
-                        <SelectItem value="4">4º Bimestre</SelectItem>
-                      </SelectContent>
-                    </Select>
+          <>
+            <TabsContent value="school" className="mt-6">
+              <Card className="border-none shadow-md bg-white">
+                <CardHeader>
+                  <CardTitle className="text-xl font-black uppercase text-primary">Configurações Escolares</CardTitle>
+                  <CardDescription>Defina o nome da unidade e o período letivo vigente.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Nome da Escola</Label>
+                      <Input value={schoolData.schoolName} onChange={(e) => setSchoolData(prev => ({...prev, schoolName: e.target.value}))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Ano Letivo</Label>
+                      <Input value={schoolData.academicYear} onChange={(e) => setSchoolData(prev => ({...prev, academicYear: e.target.value}))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Bimestre Ativo</Label>
+                      <Select value={schoolData.activeBimestre} onValueChange={(v) => setSchoolData(prev => ({...prev, activeBimestre: v}))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1º Bimestre</SelectItem>
+                          <SelectItem value="2">2º Bimestre</SelectItem>
+                          <SelectItem value="3">3º Bimestre</SelectItem>
+                          <SelectItem value="4">4º Bimestre</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-                <Button onClick={handleSaveSchool} disabled={isSaving} className="font-bold shadow-lg">Salvar Configurações da Escola</Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+                  <Button onClick={handleSaveSchool} disabled={isSaving} className="font-bold shadow-lg">Salvar Configurações da Escola</Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="users" className="mt-6 space-y-6">
-            <Card className="border-none shadow-md bg-white">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div><CardTitle className="text-xl font-black uppercase text-primary">Quadro Docente</CardTitle><CardDescription className="font-bold text-xs">Gestão institucional de acessos e atribuições.</CardDescription></div>
-                <Button onClick={() => { setEditingTeacher({ assignments: [], role: 'Professor' }); setIsTeacherDialogOpen(true); }} className="font-bold shadow-md"><UserPlus className="h-4 w-4 mr-2" /> Novo Docente</Button>
-              </CardHeader>
-              <CardContent>
-                {isTeachersLoading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div> : (
-                  <div className="border rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 border-b font-black uppercase text-[9px] tracking-widest text-muted-foreground">
-                        <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Perfil</th><th className="px-6 py-4">Grade</th><th className="px-6 py-4 text-right">Ações</th></tr>
-                      </thead>
-                      <tbody className="divide-y bg-white">
-                        {allTeachers.map((t) => (
-                          <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4"><span className="font-black block uppercase text-xs text-primary">{t.name}</span><span className="text-[10px] font-medium opacity-60 italic">{t.email}</span></td>
-                            <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase tracking-tighter">{t.role}</Badge></td>
-                            <td className="px-6 py-4"><span className="text-[10px] font-black text-muted-foreground uppercase">{t.assignments?.length || 0} aulas / semana</span></td>
-                            <td className="px-6 py-4 text-right">
-                              <Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            <TabsContent value="users" className="mt-6 space-y-6">
+              <Card className="border-none shadow-md bg-white">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase text-primary">Quadro Docente</CardTitle>
+                    <CardDescription className="font-bold text-xs">Gestão institucional de acessos e atribuições.</CardDescription>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+                  <Button onClick={handleNewTeacher} className="font-bold shadow-md">
+                    <UserPlus className="h-4 w-4 mr-2" /> Novo Docente
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {isTeachersLoading ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div> : (
+                    <div className="border rounded-xl overflow-hidden shadow-sm">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 border-b font-black uppercase text-[9px] tracking-widest text-muted-foreground">
+                          <tr><th className="px-6 py-4">Docente</th><th className="px-6 py-4">Perfil</th><th className="px-6 py-4">Grade</th><th className="px-6 py-4 text-right">Ações</th></tr>
+                        </thead>
+                        <tbody className="divide-y bg-white">
+                          {allTeachers.map((t) => (
+                            <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <span className="font-black block uppercase text-xs text-primary">{t.name}</span>
+                                <span className="text-[10px] font-medium opacity-60 italic">{t.email}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase tracking-tighter">{t.role}</Badge>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-[10px] font-black text-muted-foreground uppercase">{t.assignments?.length || 0} aulas / semana</span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="audit" className="mt-6 space-y-6">
-            <Card className="border-none shadow-md bg-white">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div><CardTitle className="text-xl font-black uppercase text-primary">Auditoria de Lançamentos</CardTitle><CardDescription className="font-bold text-xs">Conferência reativa entre grade prevista e registros reais.</CardDescription></div>
-                <div className="flex gap-2">
-                   <Button variant="outline" onClick={runAudit} disabled={isAuditing} className="font-bold shadow-sm">
+            <TabsContent value="audit" className="mt-6 space-y-6">
+              <Card className="border-none shadow-md bg-white">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase text-primary">Auditoria de Lançamentos</CardTitle>
+                    <CardDescription className="font-bold text-xs">Conferência reativa entre grade prevista e registros reais.</CardDescription>
+                  </div>
+                  <Button variant="outline" onClick={runAudit} disabled={isAuditing} className="font-bold shadow-sm">
                     {isAuditing ? <Loader2 className="animate-spin h-4 w-4" /> : <History className="h-4 w-4 mr-2" />}
                     Atualizar Auditoria
                   </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {auditData.length === 0 && !isAuditing && <div className="text-center py-24 opacity-30 italic font-bold uppercase tracking-widest text-xs">Nenhuma pendência detectada para esta semana.</div>}
-                  {auditData.map((a, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 border rounded-xl bg-white shadow-sm hover:border-primary/50 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className={cn("w-3 h-3 rounded-full shadow-inner", a.status === 'complete' ? 'bg-green-500' : a.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500')} />
-                        <div className="flex flex-col">
-                          <span className="font-black text-xs uppercase text-primary">{a.teacherName} • {a.className}</span>
-                          <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">
-                            {a.subject} • {a.date} ({a.lesson.split(' ')[0]})
-                          </span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {auditData.length === 0 && !isAuditing && (
+                      <div className="text-center py-24 opacity-30 italic font-bold uppercase tracking-widest text-xs">Nenhuma pendência detectada para esta semana.</div>
+                    )}
+                    {auditData.map((a, i) => (
+                      <div key={i} className="flex items-center justify-between p-4 border rounded-xl bg-white shadow-sm hover:border-primary/50 transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className={cn("w-3 h-3 rounded-full shadow-inner", a.status === 'complete' ? 'bg-green-500' : a.status === 'partial' ? 'bg-yellow-500' : 'bg-red-500')} />
+                          <div className="flex flex-col">
+                            <span className="font-black text-xs uppercase text-primary">{a.teacherName} • {a.className}</span>
+                            <span className="text-[9px] font-black opacity-60 uppercase tracking-widest">
+                              {a.subject} • {a.date} ({a.lesson.split(' ')[0]})
+                            </span>
+                          </div>
                         </div>
+                        <Badge variant={a.status === 'complete' ? 'outline' : 'destructive'} className={cn("font-black text-[9px] uppercase", a.status === 'complete' && 'border-green-500 text-green-600 bg-green-50')}>
+                          {a.status === 'complete' ? 'Ok' : a.status === 'partial' ? 'Sem Conteúdo' : 'Chamada Pendente'}
+                        </Badge>
                       </div>
-                      <Badge variant={a.status === 'complete' ? 'outline' : 'destructive'} className={cn("font-black text-[9px] uppercase", a.status === 'complete' && 'border-green-500 text-green-600 bg-green-50')}>
-                        {a.status === 'complete' ? 'Ok' : a.status === 'partial' ? 'Sem Conteúdo' : 'Chamada Pendente'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </>
         )}
       </Tabs>
 
@@ -386,11 +426,17 @@ export default function SettingsPage() {
               <div className="p-8 space-y-8">
                 <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-8">
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2"><Label className="text-xs font-black uppercase">Nome do Docente</Label><Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} placeholder="Ex: Marcio Bergamini" className="h-11" /></div>
-                    <div className="space-y-2"><Label className="text-xs font-black uppercase">E-mail Institucional</Label><Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} placeholder="escola@educacao.sp.gov.br" className="h-11" /></div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase">Nome do Docente</Label>
+                      <Input value={editingTeacher?.name || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, name: e.target.value}))} placeholder="Ex: Marcio Bergamini" className="h-11" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase">E-mail Institucional</Label>
+                      <Input value={editingTeacher?.email || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, email: e.target.value}))} placeholder="escola@educacao.sp.gov.br" className="h-11" />
+                    </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
-                      <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher({...editingTeacher, role: v})}>
+                      <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher(prev => ({...prev, role: v}))}>
                         <SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Professor">Professor</SelectItem>
@@ -403,7 +449,13 @@ export default function SettingsPage() {
                   <div className="space-y-4 pt-4 border-t">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-xs font-black uppercase tracking-widest text-primary">Grade Horária Semanal</h4>
-                      <Button type="button" variant="outline" size="sm" className="font-bold border-2" onClick={() => setEditingTeacher({...editingTeacher, assignments: [...(editingTeacher?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]})}>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="font-bold border-2" 
+                        onClick={() => setEditingTeacher(prev => ({...prev, assignments: [...(prev?.assignments || []), { classId: "", className: "", subject: "Português", dayOfWeek: "Segunda", lessonNumber: LESSONS_LIST[0] }]}))}
+                      >
                         <PlusCircle className="h-4 w-4 mr-2" /> Nova Aula
                       </Button>
                     </div>
@@ -442,7 +494,21 @@ export default function SettingsPage() {
                               <SelectContent>{LESSONS_LIST.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
-                          <div className="flex items-end justify-center"><Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => { const next = [...(editingTeacher.assignments || [])]; next.splice(idx, 1); setEditingTeacher({...editingTeacher, assignments: next}); }}><X className="h-4 w-4" /></Button></div>
+                          <div className="flex items-end justify-center">
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-destructive hover:bg-destructive/10" 
+                              onClick={() => setEditingTeacher(prev => {
+                                const next = [...(prev?.assignments || [])];
+                                next.splice(idx, 1);
+                                return {...prev, assignments: next};
+                              })}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                       {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
