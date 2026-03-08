@@ -36,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogPortal } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -69,7 +69,7 @@ export default function SettingsPage() {
   const teachersRef = useMemoFirebase(() => isAdmin ? collection(firestore, "teachers") : null, [isAdmin, firestore])
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
-  // Classes para seleção nas atribuições (Admin busca de sua própria coleção ou de uma base comum)
+  // Classes para seleção nas atribuições
   const classesRef = useMemoFirebase(() => user ? collection(firestore, 'teachers', user.uid, 'classes') : null, [user, firestore])
   const { data: globalClasses = [] } = useCollection(classesRef)
 
@@ -146,6 +146,12 @@ export default function SettingsPage() {
     } catch (error) {
       toast({ title: "Erro ao remover", variant: "destructive" })
     }
+  }
+
+  const handleEditClick = (teacher: TeacherProfile) => {
+    setEditingTeacher({ ...teacher });
+    // Pequeno delay para garantir que o DropdownMenu fechou e liberou o scroll
+    setTimeout(() => setIsTeacherDialogOpen(true), 50);
   }
 
   const addAssignment = () => {
@@ -245,18 +251,6 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </div>
-              {profile?.assignments && profile.assignments.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Minhas Atribuições Administrativas</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.assignments.map((a, idx) => (
-                      <Badge key={idx} className="h-8 px-4 font-bold bg-primary/10 text-primary border-primary/20">
-                        {a.className} • {a.subject === 'Math' ? 'Matemática' : a.subject === 'Portuguese' ? 'Português' : a.subject}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -341,12 +335,12 @@ export default function SettingsPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <DropdownMenu>
+                              <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}>
+                                  <DropdownMenuItem onClick={() => handleEditClick(t)}>
                                     <Pencil className="h-4 w-4 mr-2" /> Editar Atribuição
                                   </DropdownMenuItem>
                                   {t.id !== user?.uid && (
@@ -369,103 +363,101 @@ export default function SettingsPage() {
         )}
       </Tabs>
 
-      {/* DIALOG DE GESTÃO DE PROFESSOR */}
+      {/* DIALOG DE GESTÃO DE PROFESSOR - FORA DO DROPDOWN */}
       <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
-        <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white">
-          <DialogHeader className="p-6 border-b">
-            <DialogTitle>{editingTeacher?.id ? 'Editar' : 'Novo'} Docente</DialogTitle>
-            <DialogDescription>Configure as permissões e atribuições do professor.</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="flex-1">
-            <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-6 p-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nome Completo</Label>
-                  <Input 
-                    value={editingTeacher?.name || ""} 
-                    onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} 
-                    placeholder="Nome do professor" 
-                    required
-                  />
+        <DialogPortal>
+          <DialogContent className="max-w-3xl w-[95vw] h-[90vh] flex flex-col p-0 bg-white" onInteractOutside={(e) => e.preventDefault()}>
+            <DialogHeader className="p-6 border-b">
+              <DialogTitle>{editingTeacher?.id ? 'Editar' : 'Novo'} Docente</DialogTitle>
+              <DialogDescription>Configure as permissões e atribuições do professor.</DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="flex-1">
+              <form id="teacher-form" onSubmit={handleSaveTeacher} className="space-y-6 p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome Completo</Label>
+                    <Input 
+                      value={editingTeacher?.name || ""} 
+                      onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} 
+                      placeholder="Nome do professor" 
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>E-mail Institucional</Label>
+                    <Input 
+                      value={editingTeacher?.email || ""} 
+                      onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} 
+                      placeholder="email@escola.gov.br" 
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Perfil de Acesso</Label>
+                    <Select value={editingTeacher?.role || "Professor"} onValueChange={(v: UserRole) => setEditingTeacher({...editingTeacher, role: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Professor">Professor</SelectItem>
+                        <SelectItem value="Admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>E-mail Institucional</Label>
-                  <Input 
-                    value={editingTeacher?.email || ""} 
-                    onChange={(e) => setEditingTeacher({...editingTeacher, email: e.target.value})} 
-                    placeholder="email@escola.gov.br" 
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Perfil de Acesso</Label>
-                  <Select value={editingTeacher?.role || "Professor"} onValueChange={(v: UserRole) => setEditingTeacher({...editingTeacher, role: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Professor">Professor</SelectItem>
-                      <SelectItem value="Admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Escola</Label>
-                  <Input value={editingTeacher?.schoolName || profile?.schoolName} onChange={(e) => setEditingTeacher({...editingTeacher, schoolName: e.target.value})} />
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-bold">Atribuições de Turma</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addAssignment} className="gap-2">
-                    <PlusCircle className="h-4 w-4" /> Adicionar Atribuição
-                  </Button>
-                </div>
-                
-                <div className="space-y-3">
-                  {editingTeacher?.assignments?.map((assignment, idx) => (
-                    <div key={idx} className="flex gap-3 items-end p-4 border rounded-xl bg-slate-50 relative group">
-                      <div className="flex-1 space-y-1.5">
-                        <Label className="text-[10px] uppercase font-bold">Turma</Label>
-                        <Select value={assignment.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
-                          <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                          <SelectContent>
-                            {globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-bold">Atribuições de Turma</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addAssignment} className="gap-2">
+                      <PlusCircle className="h-4 w-4" /> Adicionar Atribuição
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {editingTeacher?.assignments?.map((assignment, idx) => (
+                      <div key={idx} className="flex gap-3 items-end p-4 border rounded-xl bg-slate-50 relative group">
+                        <div className="flex-1 space-y-1.5">
+                          <Label className="text-[10px] uppercase font-bold">Turma</Label>
+                          <Select value={assignment.classId} onValueChange={(v) => updateAssignment(idx, 'classId', v)}>
+                            <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {globalClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <Label className="text-[10px] uppercase font-bold">Disciplina</Label>
+                          <Select value={assignment.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}>
+                            <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Português">Português</SelectItem>
+                              <SelectItem value="Matemática">Matemática</SelectItem>
+                              <SelectItem value="Ciências">Ciências</SelectItem>
+                              <SelectItem value="História">História</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" className="text-destructive h-10 w-10 hover:bg-destructive/10" onClick={() => removeAssignment(idx)}>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <div className="flex-1 space-y-1.5">
-                        <Label className="text-[10px] uppercase font-bold">Disciplina</Label>
-                        <Select value={assignment.subject} onValueChange={(v) => updateAssignment(idx, 'subject', v)}>
-                          <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Português">Português</SelectItem>
-                            <SelectItem value="Matemática">Matemática</SelectItem>
-                            <SelectItem value="Ciências">Ciências</SelectItem>
-                            <SelectItem value="História">História</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    ))}
+                    {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
+                      <div className="text-center py-6 border-2 border-dashed rounded-xl opacity-40 italic text-sm">
+                        Nenhuma turma atribuída a este docente.
                       </div>
-                      <Button type="button" variant="ghost" size="icon" className="text-destructive h-10 w-10 hover:bg-destructive/10" onClick={() => removeAssignment(idx)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  {(!editingTeacher?.assignments || editingTeacher.assignments.length === 0) && (
-                    <div className="text-center py-6 border-2 border-dashed rounded-xl opacity-40 italic text-sm">
-                      Nenhuma turma atribuída a este docente.
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            </form>
-          </ScrollArea>
-          <DialogFooter className="p-6 border-t bg-slate-50">
-            <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-bold shadow-lg">
-              {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Gravar Atribuição no Firestore
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+              </form>
+            </ScrollArea>
+            <DialogFooter className="p-6 border-t bg-slate-50">
+              <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-bold shadow-lg">
+                {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Gravar Atribuição no Firestore
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </DialogPortal>
       </Dialog>
     </div>
   )
