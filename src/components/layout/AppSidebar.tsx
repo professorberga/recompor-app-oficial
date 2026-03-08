@@ -13,7 +13,6 @@ import {
   UserCircle,
   LogOut,
   ChevronUp,
-  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -95,20 +94,12 @@ export function AppSidebar() {
   const { setOpenMobile, isMobile } = useSidebar()
   const [mounted, setMounted] = useState(false)
   const auth = useAuth()
-  const { user } = useUser()
+  const { user, isAdmin } = useUser()
   const { toast } = useToast()
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Lógica de Admin centralizada
-  const isAdmin = useMemo(() => {
-    if (!user?.email) return false;
-    const email = user.email.toLowerCase();
-    // Verifica se é o admin principal ou se o email contém a string de administração de forma explícita
-    return email.includes('admin@') || email === 'marciobergamini@prof.educacao.sp.gov.br' || email.startsWith('admin.');
-  }, [user]);
 
   const handleSignOut = async () => {
     try {
@@ -121,7 +112,7 @@ export function AppSidebar() {
     } catch (error) {
       toast({
         title: "Erro ao sair",
-        description: "Não foi possível encerrar a sessão. Tente novamente.",
+        description: "Não foi possível encerrar a sessão.",
         variant: "destructive"
       })
     }

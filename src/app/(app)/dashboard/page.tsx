@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,18 +7,24 @@ import { EvolutionChart } from "@/components/dashboard/EvolutionChart"
 import { AbsenteeCard } from "@/components/dashboard/AbsenteeCard"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useUser } from "@/firebase/provider"
 
 export default function Dashboard() {
   const [isClient, setIsClient] = useState(false)
+  const { user } = useUser()
 
   useEffect(() => {
     setIsClient(true)
   }, [])
 
+  const userName = user?.displayName || user?.email?.split('@')[0] || "Professor"
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-primary">Bem-vindo, Professor</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-primary">
+          Bem-vindo, {userName}
+        </h2>
         <p className="text-muted-foreground mt-1">Aqui está o resumo do desempenho das suas turmas hoje.</p>
       </div>
 
@@ -51,7 +58,7 @@ export default function Dashboard() {
                     <span className="font-semibold text-sm">Chamada Pendente</span>
                     <Badge variant="outline" className="text-accent border-accent">Urgente</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Turma 9º Ano A - Português ainda não teve a chamada registrada hoje.</p>
+                  <p className="text-xs text-muted-foreground">Sua turma principal ainda não teve a chamada registrada hoje.</p>
                 </div>
                 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
@@ -59,7 +66,7 @@ export default function Dashboard() {
                     <span className="font-semibold text-sm">Relatório Pedagógico</span>
                     <Badge variant="secondary">Novo</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">3 alunos da Turma 8º B atingiram novos níveis de competência pedagógica.</p>
+                  <p className="text-xs text-muted-foreground">Há novos níveis de competência atingidos por seus alunos.</p>
                 </div>
 
                 <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
@@ -67,7 +74,7 @@ export default function Dashboard() {
                     <span className="font-semibold text-sm">Planejamento</span>
                     <Badge variant="outline">Aviso</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Seu cronograma de conteúdos de Português termina em 3 dias.</p>
+                  <p className="text-xs text-muted-foreground">Seu cronograma de conteúdos de Português termina em breve.</p>
                 </div>
               </div>
             </CardContent>
