@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, UserCircle, Loader2, Trash2, ArrowRight } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, UserCircle, Loader2, Trash2, ArrowRight, User } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,13 +22,17 @@ export default function ClassesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  // Busca turmas da coleção GLOBAL para restaurar visibilidade institucional
+  // Busca turmas da coleção GLOBAL
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore]);
   const { data: rawClasses = [], isLoading: isClassesLoading } = useCollection(classesRef)
 
   // Estudantes em Coleção Global
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
   const { data: allStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
+
+  // Docentes para exibir no Card
+  const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore]);
+  const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
   const [newClass, setNewClass] = useState({
     name: "",
@@ -46,6 +50,12 @@ export default function ClassesPage() {
 
   const getStudentCount = (classId: string) => {
     return allStudents.filter(s => s.classId === classId).length;
+  }
+
+  const getTeachersForClass = (classId: string) => {
+    return allTeachers.filter(t => 
+      t.assignments?.some(a => a.classId === classId)
+    ).map(t => t.name);
   }
 
   const handleCreateClass = async (e: React.FormEvent) => {
@@ -92,7 +102,7 @@ export default function ClassesPage() {
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [classes, searchTerm]);
 
-  const isLoading = isClassesLoading || isStudentsLoading || isUserLoading;
+  const isLoading = isClassesLoading || isStudentsLoading || isUserLoading || isTeachersLoading;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -147,40 +157,57 @@ export default function ClassesPage() {
         <div className="flex items-center justify-center py-24"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredClasses.map((cls) => (
-            <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-2xl transition-all duration-300 bg-white border-l-4 border-l-primary">
-              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4">
-                <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-lg`}>
-                  <BookOpen className="h-6 w-6" />
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <CardTitle className="text-xl font-black truncate uppercase tracking-tighter">{cls.name}</CardTitle>
-                  <Badge variant="secondary" className="text-[9px] font-black uppercase mt-1 tracking-wider">
-                    {cls.subject === 'Portuguese' ? 'Português' : 'Matemática'}
-                  </Badge>
-                </div>
-                {isAdmin && (
-                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
-                    <Trash2 className="h-4 w-4" />
+          {filteredClasses.map((cls) => {
+            const classTeachers = getTeachersForClass(cls.id);
+            return (
+              <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-2xl transition-all duration-300 bg-white border-l-4 border-l-primary">
+                <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4">
+                  <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-lg`}>
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <CardTitle className="text-xl font-black truncate uppercase tracking-tighter">{cls.name}</CardTitle>
+                    <Badge variant="secondary" className="text-[9px] font-black uppercase mt-1 tracking-wider">
+                      {cls.subject === 'Portuguese' ? 'Português' : 'Matemática'}
+                    </Badge>
+                  </div>
+                  {isAdmin && (
+                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClass(cls.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="pb-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <GraduationCap className="h-4 w-4 text-primary" />
+                    <span className="font-bold">{getStudentCount(cls.id)} Alunos Ativos</span>
+                  </div>
+                  <div className="space-y-1.5 pt-2 border-t border-dashed">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                      <UserCircle className="h-3 w-3" /> Professores Responsáveis
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {classTeachers.length > 0 ? (
+                        classTeachers.map((name, i) => (
+                          <Badge key={i} variant="outline" className="text-[9px] font-bold uppercase border-primary/20 bg-primary/5">{name}</Badge>
+                        ))
+                      ) : (
+                        <span className="text-[9px] font-bold text-muted-foreground italic">Nenhuma atribuição docente</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
+                  <Button variant="outline" size="sm" className="flex-1 font-black h-10" asChild>
+                    <Link href={`/students?class=${cls.id}`}>ESTUDANTES</Link>
                   </Button>
-                )}
-              </CardHeader>
-              <CardContent className="pb-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <GraduationCap className="h-4 w-4 text-primary" />
-                  <span className="font-bold">{getStudentCount(cls.id)} Alunos Ativos</span>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-slate-50/50 p-4 flex gap-2 border-t">
-                <Button variant="outline" size="sm" className="flex-1 font-black h-10" asChild>
-                  <Link href={`/students?class=${cls.id}`}>ESTUDANTES</Link>
-                </Button>
-                <Button size="sm" className="flex-1 font-black h-10 shadow-md gap-2 uppercase text-[10px]" asChild>
-                  <Link href={`/attendance?class=${cls.id}`}>CHAMADA <ArrowRight className="h-3 w-3" /></Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                  <Button size="sm" className="flex-1 font-black h-10 shadow-md gap-2 uppercase text-[10px]" asChild>
+                    <Link href={`/attendance?class=${cls.id}`}>CHAMADA <ArrowRight className="h-3 w-3" /></Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
           {filteredClasses.length === 0 && (
             <div className="col-span-full py-32 text-center opacity-30 italic font-black uppercase tracking-widest">Nenhuma turma para exibir</div>
           )}
