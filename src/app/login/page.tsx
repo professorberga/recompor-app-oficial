@@ -110,30 +110,82 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-md space-y-8">
+      <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4"><Brain className="h-8 w-8" /></div>
+          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4">
+            <Brain className="h-8 w-8" />
+          </div>
           <h1 className="text-3xl font-black text-primary tracking-tighter uppercase">Recompor+</h1>
           <p className="text-muted-foreground text-sm font-bold uppercase tracking-wide">{schoolName}</p>
         </div>
         <Card className="border-none shadow-xl bg-white overflow-hidden">
-          <CardHeader className="space-y-1 text-center"><CardTitle className="text-2xl font-bold">Acesse sua conta</CardTitle></CardHeader>
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">Acesse sua conta</CardTitle>
+            <CardDescription>Entre com suas credenciais institucionais</CardDescription>
+          </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-muted-foreground">E-mail Institucional</Label>
-                <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="email" placeholder="nome@educacao.sp.gov.br" className="pl-10 h-11" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="email" 
+                    placeholder="nome@educacao.sp.gov.br" 
+                    className="pl-10 h-11" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    required 
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between"><Label className="text-xs font-bold uppercase text-muted-foreground">Senha</Label><Button variant="link" className="px-0 font-bold text-xs text-primary" type="button" onClick={handleForgotPassword} disabled={isResetting}>{isResetting ? "Enviando..." : "Esqueci minha senha"}</Button></div>
-                <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type={showPassword ? "text" : "password"} className="pl-10 pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Senha</Label>
+                  <Button 
+                    variant="link" 
+                    className="px-0 h-auto font-bold text-xs text-primary" 
+                    type="button" 
+                    onClick={handleForgotPassword} 
+                    disabled={isResetting}
+                  >
+                    {isResetting ? "Enviando..." : "Esqueci minha senha"}
+                  </Button>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type={showPassword ? "text" : "password"} 
+                    className="pl-10 pr-10 h-11" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    required 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-              <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest text-xs" disabled={isLoading}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Autenticando...</> : <>Entrar no Sistema <ArrowRight className="ml-2 h-4 w-4" /></>}</Button>
+              <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest text-xs" disabled={isLoading}>
+                {isLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Autenticando...</>
+                ) : (
+                  <>Entrar no Sistema <ArrowRight className="ml-2 h-4 w-4" /></>
+                )}
+              </Button>
             </form>
           </CardContent>
           <CardFooter className="bg-slate-50 p-6 border-t flex flex-col items-center gap-1">
-            <p className="text-[10px] text-center w-full text-muted-foreground uppercase font-black tracking-widest">Ambiente Seguro • {schoolName}</p>
-            <p className="text-[8px] text-center w-full text-muted-foreground font-mono mt-1">Versão {SYSTEM_VERSION}</p>
+            <p className="text-[10px] text-center w-full text-muted-foreground uppercase font-black tracking-widest">
+              Ambiente Seguro • {schoolName}
+            </p>
+            <p className="text-[8px] text-center w-full text-muted-foreground font-mono mt-1">
+              Versão {SYSTEM_VERSION}
+            </p>
           </CardFooter>
         </Card>
       </div>
