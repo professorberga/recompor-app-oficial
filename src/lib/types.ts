@@ -26,6 +26,7 @@ export interface TeacherProfile {
   activeBimestre?: string;
   assignedClasses?: string[];
   scheduleInfo?: string;
+  password?: string;
 }
 
 export interface SystemUser extends TeacherProfile {

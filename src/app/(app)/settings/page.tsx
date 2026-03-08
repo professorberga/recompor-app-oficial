@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { 
-  School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle
+  School, Settings as SettingsIcon, Plus, UserPlus, Pencil, History, Loader2, Save, UserCheck, CheckCircle2, X, PlusCircle, Key
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils"
 import { TeacherProfile, TeacherAssignment } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { doc, setDoc, collection, query, getDocs, where, getDoc } from "firebase/firestore"
+import { initializeApp, deleteApp } from "firebase/app"
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth"
+import { firebaseConfig } from "@/firebase/config"
 import { format, startOfWeek, eachDayOfInterval } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -192,7 +195,23 @@ export default function SettingsPage() {
     const teacherId = editingTeacher.id || editingTeacher.email.replace(/[.@]/g, '_');
     
     try {
-      // Limpar IDs temporários usados para chaves de renderização antes de salvar
+      // 1. Provisionamento no Firebase Auth (se houver senha informada)
+      if (editingTeacher.password && editingTeacher.password.length >= 6) {
+        try {
+          const secondaryAppName = `provision-${Date.now()}`;
+          const provisionApp = initializeApp(firebaseConfig, secondaryAppName);
+          const provisionAuth = getAuth(provisionApp);
+          await createUserWithEmailAndPassword(provisionAuth, editingTeacher.email, editingTeacher.password);
+          await deleteApp(provisionApp);
+        } catch (authErr: any) {
+          // Se o usuário já existe, apenas ignoramos para permitir atualização do perfil no Firestore
+          if (authErr.code !== 'auth/email-already-in-use') {
+            console.warn("Auth provision warning:", authErr.message);
+          }
+        }
+      }
+
+      // 2. Gravação no Firestore
       const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
 
       await setDoc(doc(firestore, "teachers", teacherId), {
@@ -260,7 +279,7 @@ export default function SettingsPage() {
   }, []);
 
   const handleNewTeacher = useCallback(() => {
-    setEditingTeacher({ assignments: [], role: 'Professor' });
+    setEditingTeacher({ assignments: [], role: 'Professor', password: "" });
     setIsTeacherDialogOpen(true);
   }, []);
 
@@ -471,6 +490,18 @@ export default function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase flex items-center gap-2">
+                        <Key className="h-3 w-3" /> Senha de Acesso
+                      </Label>
+                      <Input 
+                        type="password"
+                        value={editingTeacher?.password || ""} 
+                        onChange={(e) => setEditingTeacher(prev => ({...prev, password: e.target.value}))} 
+                        placeholder="Mínimo 6 caracteres" 
+                        className="h-11" 
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-4 pt-4 border-t">
@@ -548,7 +579,7 @@ export default function SettingsPage() {
           <DialogFooter className="p-6 border-t bg-slate-100 shrink-0">
             <Button type="submit" form="teacher-form" disabled={isSaving} className="w-full h-12 font-black shadow-xl uppercase tracking-widest text-xs">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {isSaving ? "Gravando no Firestore..." : "Sincronizar Docente"}
+              {isSaving ? "Provisionando no Auth..." : "Sincronizar Docente"}
             </Button>
           </DialogFooter>
         </DialogContent>
