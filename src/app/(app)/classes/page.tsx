@@ -98,8 +98,8 @@ export default function ClassesPage() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Turmas Globais</h2>
-          <p className="text-muted-foreground mt-1">Dados centralizados para restauração de lista e chamadas.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Turmas</h2>
+          <p className="text-muted-foreground mt-1">Organização das turmas atribuídas e institucionalizadas.</p>
         </div>
 
         {isAdmin && (
@@ -130,7 +130,7 @@ export default function ClassesPage() {
                   </Select>
                 </div>
                 <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full h-12 font-black shadow-xl uppercase text-xs tracking-widest">Sincronizar Global</Button>
+                  <Button type="submit" className="w-full h-12 font-black shadow-xl uppercase text-xs tracking-widest">Sincronizar Turma</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -140,7 +140,7 @@ export default function ClassesPage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Filtrar turmas globais..." className="pl-10 bg-white border-none shadow-sm h-12 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <Input placeholder="Filtrar turmas..." className="pl-10 bg-white border-none shadow-sm h-12 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {isLoading ? (
