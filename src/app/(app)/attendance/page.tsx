@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle, Trash2, BookText, Save } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle, Trash2, BookText, Save, CalendarOff } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { addDays, format } from "date-fns"
+import { addDays, format, getDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { collection, doc, setDoc, query, where, deleteDoc, getDoc } from "firebase/firestore"
@@ -33,6 +33,22 @@ import {
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
+// Mapeamento de nomes de dias para índices do JavaScript (0 = Domingo, 1 = Segunda...)
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  'domingo': 0,
+  'segunda': 1,
+  'terça': 2,
+  'quarta': 3,
+  'quinta': 4,
+  'sexta': 5,
+  'sábado': 6,
+  'segunda-feira': 1,
+  'terça-feira': 2,
+  'quarta-feira': 3,
+  'quinta-feira': 4,
+  'sexta-feira': 5,
+};
+
 function AttendanceContent() {
   const searchParams = useSearchParams()
   const classIdFromUrl = searchParams.get('class')
@@ -49,10 +65,31 @@ function AttendanceContent() {
   const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
+  // Dias da semana permitidos para a turma selecionada conforme atribuição
+  const allowedDayIndices = useMemo(() => {
+    if (!profile?.assignments || !selectedClassId) return [];
+    
+    return profile.assignments
+      .filter(a => a.classId === selectedClassId)
+      .map(a => {
+        const dayName = a.dayOfWeek?.toLowerCase().trim() || "";
+        return DAY_NAME_TO_INDEX[dayName];
+      })
+      .filter(idx => idx !== undefined);
+  }, [profile, selectedClassId]);
+
+  // Verifica se o dia atual é válido na grade
+  const isDateValid = useMemo(() => {
+    if (!currentDate) return false;
+    // Admins podem lançar em qualquer dia se necessário, mas professores seguem a grade
+    if (isAdmin) return true;
+    if (allowedDayIndices.length === 0) return false;
+    return allowedDayIndices.includes(getDay(currentDate));
+  }, [currentDate, allowedDayIndices, isAdmin]);
+
   // Turma selecionada atualmente (objeto completo)
   const currentClass = useMemo(() => {
     if (!profile || !selectedClassId) return null;
-    // Tenta encontrar nas atribuições do professor para saber qual disciplina ele leciona para esta turma
     return profile.assignments?.find(a => a.classId === selectedClassId);
   }, [profile, selectedClassId]);
 
@@ -88,14 +125,12 @@ function AttendanceContent() {
     if (!user || !selectedClassId) return [];
     
     return rawStudents.filter(s => {
-      // Se o aluno tem o novo sistema de matrículas, verifica se o professor logado está na grade dele para esta turma
       if (s.enrollments && s.enrollments.length > 0) {
         return s.enrollments.some(e => 
           e.classId === selectedClassId && 
           (isAdmin || e.teacherId === user.uid)
         );
       }
-      // Fallback para dados antigos sem o array de enrollments (visibilidade total)
       return true;
     });
   }, [rawStudents, user, selectedClassId, isAdmin]);
@@ -113,10 +148,30 @@ function AttendanceContent() {
 
   const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
 
+  // Inicialização
   useEffect(() => {
     setMounted(true)
-    setCurrentDate(new Date())
+    const today = new Date();
+    setCurrentDate(today);
   }, [])
+
+  // Efeito para ajustar a data quando a turma muda (vai para o dia de aula mais próximo se necessário)
+  useEffect(() => {
+    if (mounted && selectedClassId && currentDate && !isAdmin) {
+      const currentDayIdx = getDay(currentDate);
+      if (!allowedDayIndices.includes(currentDayIdx) && allowedDayIndices.length > 0) {
+        // Busca o próximo dia de aula disponível a partir de hoje
+        let checkDate = new Date();
+        for (let i = 0; i < 7; i++) {
+          if (allowedDayIndices.includes(getDay(checkDate))) {
+            setCurrentDate(checkDate);
+            break;
+          }
+          checkDate = addDays(checkDate, 1);
+        }
+      }
+    }
+  }, [selectedClassId, allowedDayIndices, mounted, isAdmin]);
 
   useEffect(() => {
     if (classIdFromUrl) setSelectedClassId(classIdFromUrl)
@@ -163,8 +218,42 @@ function AttendanceContent() {
     return getBimestreFromDate(currentDate);
   }, [currentDate, schoolConfig]);
 
+  // Função para navegar apenas em dias permitidos
+  const handleNavigateDate = (direction: number) => {
+    if (!currentDate) return;
+    
+    let nextDate = addDays(currentDate, direction);
+    
+    // Se for Admin, navega livremente
+    if (isAdmin) {
+      setCurrentDate(nextDate);
+      return;
+    }
+
+    // Se não tiver atribuição, não navega
+    if (allowedDayIndices.length === 0) {
+      toast({ title: "Grade Vazia", description: "Você não tem aulas configuradas para esta turma.", variant: "destructive" });
+      return;
+    }
+
+    // Busca o próximo dia de aula na direção solicitada (limite de 14 dias para evitar loop)
+    for (let i = 0; i < 14; i++) {
+      if (allowedDayIndices.includes(getDay(nextDate))) {
+        setCurrentDate(nextDate);
+        return;
+      }
+      nextDate = addDays(nextDate, direction);
+    }
+  };
+
   const handleSave = async () => {
     if (!user || !selectedClassId || !currentDate) return;
+    
+    if (!isDateValid) {
+      toast({ title: "Data Inválida", description: "Você não tem aula prevista nesta data para esta turma.", variant: "destructive" });
+      return;
+    }
+
     if (!contentSummary.trim()) {
       toast({ title: "Campo Obrigatório", description: "O resumo do conteúdo ministrado é necessário.", variant: "destructive" });
       return;
@@ -173,14 +262,12 @@ function AttendanceContent() {
     setIsSaving(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
     const recordsColRef = collection(firestore, 'attendanceRecords');
-    // Lesson ID agora é composto também pelo professor para permitir múltiplos diários por turma (ex: Port e Mat)
     const lessonId = `${selectedClassId}_${dateStr}_${user.uid}`;
     const lessonRef = doc(firestore, 'lessons', lessonId);
     const selectedClass = classes.find(c => c.id === selectedClassId);
 
     try {
       const savePromises = Object.entries(attendance).map(([studentId, status]) => {
-        // Record ID também deve ser único por professor/disciplina
         const recordId = `${studentId}_${dateStr}_${user.uid}`;
         return setDoc(doc(recordsColRef, recordId), {
           id: recordId,
@@ -214,26 +301,6 @@ function AttendanceContent() {
     }
   }
 
-  const handleDeleteDayRecords = async () => {
-    if (!selectedClassId || !currentDate || !user) return;
-    setIsDeleting(true);
-    const dateStr = format(currentDate, "yyyy-MM-dd");
-    try {
-      const deletePromises = existingRecords.map(rec => 
-        deleteDoc(doc(firestore, 'attendanceRecords', rec.id))
-      );
-      await Promise.all([
-        ...deletePromises,
-        deleteDoc(doc(firestore, 'lessons', `${selectedClassId}_${dateStr}_${user.uid}`))
-      ]);
-      toast({ title: "Registros Removidos" });
-    } catch (err: any) {
-      toast({ title: "Erro ao Excluir", variant: "destructive" });
-    } finally {
-      setIsDeleting(false);
-    }
-  }
-
   if (!mounted || isUserLoading || !currentDate) return <div className="flex items-center justify-center p-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
   return (
@@ -252,85 +319,102 @@ function AttendanceContent() {
             </Select>
           </div>
           <div className="w-full md:w-auto">
-            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Data da Chamada</Label>
+            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Data da Chamada (Apenas dias de aula)</Label>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setCurrentDate(prev => addDays(prev!, -1))}><ChevronLeft /></Button>
-              <div className="h-11 px-6 border rounded-md flex items-center justify-center font-black min-w-[200px] bg-slate-50 uppercase text-xs tracking-tighter shadow-inner">
-                {format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
+              <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => handleNavigateDate(-1)}><ChevronLeft /></Button>
+              <div className={cn(
+                "h-11 px-6 border rounded-md flex flex-col items-center justify-center font-black min-w-[200px] uppercase text-[10px] tracking-tighter shadow-inner transition-colors",
+                isDateValid ? "bg-slate-50" : "bg-red-50 text-red-600 border-red-200"
+              )}>
+                <span>{format(currentDate, "dd 'de' MMMM", { locale: ptBR })}</span>
+                {!isDateValid && <span className="text-[8px] font-bold mt-0.5">Sem aula prevista</span>}
               </div>
-              <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setCurrentDate(prev => addDays(prev!, 1))}><ChevronRight /></Button>
+              <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => handleNavigateDate(1)}><ChevronRight /></Button>
             </div>
           </div>
         </div>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden bg-white">
-        {(isStudentsLoading || isRecordsLoading) ? (
-          <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-        ) : (
-          <>
-            <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            </div>
-            <Table>
-              <TableHeader><TableRow className="bg-muted/10 h-14">
-                <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Estudante Matriculado em {currentClass?.subject || 'Aula'}</TableHead>
-                <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {filteredStudents.map((s, idx) => (
-                  <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
-                    <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
-                          {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
-                          <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center gap-4">
-                        <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white" : "border-slate-200 text-slate-300")}>P</button>
-                        <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white" : "border-slate-200 text-slate-300")}>F</button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredStudents.length === 0 && (
-                  <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic font-bold">Nenhum aluno matriculado nesta disciplina para esta turma.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </>
-        )}
-      </Card>
-
-      {selectedClassId && (
+      {!isDateValid && !isAdmin ? (
+        <Card className="p-20 flex flex-col items-center justify-center text-center bg-white border-none shadow-md">
+          <CalendarOff className="h-16 w-16 text-muted-foreground mb-4 opacity-20" />
+          <h3 className="text-xl font-black text-primary uppercase tracking-tighter">Dia sem Atribuição</h3>
+          <p className="text-muted-foreground max-w-xs mt-2 text-sm">
+            De acordo com sua grade horária em "Configurações", você não tem aulas previstas para esta turma nesta data.
+          </p>
+          <Button variant="outline" className="mt-6 font-bold uppercase text-[10px] tracking-widest" onClick={() => handleNavigateDate(1)}>Ir para o próximo dia de aula</Button>
+        </Card>
+      ) : (
         <>
-          <Card className="p-6 border-none shadow-md bg-white">
-            <div className="flex items-center gap-2 mb-4 text-primary"><BookText className="h-5 w-5" /><h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3></div>
-            <Textarea placeholder="Descreva o conteúdo desta aula..." className="min-h-[120px] bg-slate-50" value={contentSummary} onChange={(e) => setContentSummary(e.target.value)} />
+          <Card className="border-none shadow-md overflow-hidden bg-white">
+            {(isStudentsLoading || isRecordsLoading) ? (
+              <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : (
+              <>
+                <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/10 h-14">
+                    <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
+                    <TableHead className="font-black uppercase text-[10px]">Estudante Matriculado em {currentClass?.subject || 'Aula'}</TableHead>
+                    <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {filteredStudents.map((s, idx) => (
+                      <TableRow key={s.id} className="h-20 hover:bg-slate-50 transition-colors border-b">
+                        <TableCell className="text-center font-black text-muted-foreground">{s.callNumber || idx + 1}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border">
+                              {s.photo ? <img src={s.photo} className="h-full w-full object-cover" /> : <UserCircle className="h-8 w-8 text-slate-300" />}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-primary uppercase">{s.name}</span>
+                              <span className="text-[10px] text-muted-foreground font-bold">RA: {s.ra}-{s.raDigit}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center gap-4">
+                            <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white" : "border-slate-200 text-slate-300")}>P</button>
+                            <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white" : "border-slate-200 text-slate-300")}>F</button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredStudents.length === 0 && (
+                      <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic font-bold">Nenhum aluno matriculado nesta disciplina para esta turma.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </>
+            )}
           </Card>
 
-          <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
-            <div className="flex gap-10 px-6">
-              <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full bg-green-500" />
-                <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
+          {selectedClassId && (
+            <>
+              <Card className="p-6 border-none shadow-md bg-white">
+                <div className="flex items-center gap-2 mb-4 text-primary"><BookText className="h-5 w-5" /><h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3></div>
+                <Textarea placeholder="Descreva o conteúdo desta aula..." className="min-h-[120px] bg-slate-50" value={contentSummary} onChange={(e) => setContentSummary(e.target.value)} />
+              </Card>
+
+              <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
+                <div className="flex gap-10 px-6">
+                  <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full bg-green-500" />
+                    <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
+                  </div>
+                </div>
+                <Button onClick={handleSave} disabled={!selectedClassId || !isDateValid || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
+                  {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  {isSaving ? "Gravando..." : "Salvar Diário"}
+                </Button>
               </div>
-            </div>
-            <Button onClick={handleSave} disabled={!selectedClassId || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
-              {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {isSaving ? "Gravando..." : "Salvar Diário"}
-            </Button>
-          </div>
+            </>
+          )}
         </>
       )}
     </div>
