@@ -138,9 +138,18 @@ export default function Dashboard() {
                     <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-sm">Chamada do Dia</span>
-                        <Badge variant="outline" className="text-accent border-accent">Pendente</Badge>
+                        {/* REGRA MENTOR: Mentores não são obrigados a fazer chamada */}
+                        {profile?.role === 'Mentor' ? (
+                          <Badge variant="secondary">Consultivo</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-accent border-accent">Pendente</Badge>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground">Lembre-se de registrar a frequência das turmas ativas.</p>
+                      <p className="text-xs text-muted-foreground">
+                        {profile?.role === 'Mentor' 
+                          ? 'Acompanhe os lançamentos e faça apontamentos qualitativos.' 
+                          : 'Lembre-se de registrar a frequência das turmas ativas.'}
+                      </p>
                     </div>
                     
                     <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">

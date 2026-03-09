@@ -3,7 +3,7 @@ export type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Eval
 
 export type Subject = 'Portuguese' | 'Math';
 
-export type UserRole = 'Admin' | 'Professor';
+export type UserRole = 'Admin' | 'Professor' | 'Mentor';
 
 export interface TeacherAssignment {
   classId: string;

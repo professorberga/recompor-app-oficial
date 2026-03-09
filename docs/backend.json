@@ -9,7 +9,7 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["Admin", "Professor"] },
+        "role": { "type": "string", "enum": ["Admin", "Professor", "Mentor"] },
         "assignments": {
           "type": "array",
           "items": {

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
-import { TeacherProfile, TeacherAssignment } from "@/lib/types"
+import { TeacherProfile, TeacherAssignment, UserRole } from "@/lib/types"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
 import { doc, setDoc, collection, query, getDocs, where, getDoc } from "firebase/firestore"
 import { initializeApp, deleteApp } from "firebase/app"
@@ -124,6 +125,8 @@ export default function SettingsPage() {
 
     try {
       for (const teacher of allTeachers) {
+        // REGRA MENTOR: Mentores não aparecem na lista de pendências de diários
+        if (teacher.role === 'Mentor') continue;
         if (!teacher.assignments || teacher.assignments.length === 0) continue;
         
         for (const assignment of teacher.assignments) {
@@ -431,7 +434,7 @@ export default function SettingsPage() {
                               <span className="font-black block uppercase text-xs text-primary">{t.name}</span>
                               <span className="text-[10px] font-medium opacity-60 italic">{t.email}</span>
                             </td>
-                            <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : 'outline'} className="font-black text-[9px] uppercase">{t.role}</Badge></td>
+                            <td className="px-6 py-4"><Badge variant={t.role === 'Admin' ? 'default' : t.role === 'Mentor' ? 'secondary' : 'outline'} className="font-black text-[9px] uppercase">{t.role}</Badge></td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" onClick={() => { setEditingTeacher(t); setIsTeacherDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
@@ -516,7 +519,11 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase">Perfil de Acesso</Label>
                   <Select value={editingTeacher?.role} onValueChange={(v: any) => setEditingTeacher(prev => ({...prev, role: v}))}><SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="Professor">Professor</SelectItem><SelectItem value="Admin">Administrador</SelectItem></SelectContent>
+                    <SelectContent>
+                      <SelectItem value="Professor">Professor</SelectItem>
+                      <SelectItem value="Mentor">Mentor</SelectItem>
+                      <SelectItem value="Admin">Administrador</SelectItem>
+                    </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2"><Label className="text-xs font-black uppercase">Senha de Acesso</Label><Input type="password" value={editingTeacher?.password || ""} onChange={(e) => setEditingTeacher(prev => ({...prev, password: e.target.value}))} placeholder="Mínimo 6 caracteres" className="h-11" /></div>
