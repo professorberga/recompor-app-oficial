@@ -35,21 +35,23 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.8.0"
+  const SYSTEM_VERSION = "v1.8.2"
 
-  // REGRA DE FERRO 1: Zero Cache de Sessão no Carregamento
+  // Limpeza de cache apenas se o usuário NÃO estiver logado e NÃO estiver carregando
   useEffect(() => {
-    const clearSession = async () => {
-      try {
-        await signOut(auth);
-        window.localStorage.clear();
-        console.log("[Auth] Sessão e Cache purgados para novo acesso.");
-      } catch (err) {
-        console.error("Erro ao limpar sessão:", err);
-      }
-    };
-    clearSession();
-  }, [auth]);
+    if (!isUserLoading && !user) {
+      const clearSession = async () => {
+        try {
+          // Apenas limpa se realmente necessário para evitar loops de redirecionamento
+          window.localStorage.removeItem('firebase:previous_websocket_failure');
+          console.log("[Auth] Ambiente de login preparado.");
+        } catch (err) {
+          console.error("Erro ao preparar sessão:", err);
+        }
+      };
+      clearSession();
+    }
+  }, [auth, user, isUserLoading]);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -59,7 +61,6 @@ export default function LoginPage() {
 
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
-      // REGRA DE FERRO 2: Busca Universal por E-mail Normalizado
       const normalizedEmail = firebaseUser.email.toLowerCase().trim();
       const teachersRef = collection(firestore, 'teachers');
       const q = query(teachersRef, where('email', '==', normalizedEmail));
@@ -69,22 +70,19 @@ export default function LoginPage() {
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
-          description: "E-mail autenticado, mas nenhum perfil docente vinculado ao sistema Recompor+.",
+          description: "E-mail autenticado, mas nenhum perfil docente vinculado ao Recompor+.",
           variant: "destructive",
         });
         return;
       }
 
-      // REGRA DE FERRO 3: Protocolo de Migração 'Bavelloni'
       const foundDoc = qSnap.docs[0];
       const legacyData = foundDoc.data();
       const legacyId = foundDoc.id;
 
-      // Se o ID do documento encontrado NÃO for o UID, realizamos a migração ou pareamento
       if (legacyId !== firebaseUser.uid) {
         console.log(`[Migration] Sincronizando perfil ${legacyId} -> ${firebaseUser.uid}`);
         
-        // 1. Cria ou Atualiza o novo documento com o UID oficial
         const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
         await setDoc(newDocRef, { 
           ...legacyData, 
@@ -92,35 +90,18 @@ export default function LoginPage() {
           role: legacyData.role || 'Professor'
         }, { merge: true });
 
-        // 2. Se o ID antigo era o e-mail ou RA (diferente do UID), deleta o legado
         if (legacyId === normalizedEmail || legacyId.length < 20) {
           await deleteDoc(doc(firestore, 'teachers', legacyId));
-          console.log("[Migration] Documento legado removido com sucesso.");
         }
         
-        toast({ title: "Perfil Sincronizado", description: "Identidade institucional vinculada ao seu UID com sucesso." });
-      } else {
-        // Garante que o ID interno coincide mesmo se o doc ID já for o UID
-        await setDoc(doc(firestore, 'teachers', firebaseUser.uid), { id: firebaseUser.uid }, { merge: true });
+        toast({ title: "Perfil Sincronizado", description: "Identidade institucional vinculada com sucesso." });
       }
 
-      // REGRA DE FERRO 4: Delay para Propagação do Firestore
-      console.log('Aguardando propagação de segurança...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Delay para garantir que o Firestore propague as permissões antes do redirect
+      await new Promise(resolve => setTimeout(resolve, 800));
       router.push("/dashboard");
     } catch (error: any) {
-      console.error("Handshake Error:", error);
-      if (error.code === 'permission-denied') {
-        toast({ 
-          title: "Erro de Permissão", 
-          description: "Acesso autenticado, mas perfil em sincronização. Tente novamente em 5 segundos.", 
-          variant: "destructive" 
-        });
-        await signOut(auth);
-      } else {
-        handleAuthError(error);
-      }
+      handleAuthError(error);
     }
   }
 
@@ -158,18 +139,27 @@ export default function LoginPage() {
   const handleAuthError = (error: any) => {
     console.error("Auth Error:", error.code, error.message);
     
-    if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
+    if (error.code === "auth/unauthorized-domain") {
       toast({ 
-        title: "Falha na Comunicação", 
-        description: "Falha na comunicação com o Google. Tente limpar o cache do navegador ou usar aba anônima.", 
+        title: "Domínio Não Autorizado", 
+        description: "A URL deste site precisa ser adicionada aos 'Domínios Autorizados' no Console do Firebase (Authentication > Settings).", 
         variant: "destructive" 
       });
       return;
     }
 
-    let message = "Verifique suas credenciais ou tente novamente mais tarde.";
+    if (error.code === "auth/network-request-failed") {
+      toast({ 
+        title: "Erro de Conexão", 
+        description: "Falha ao conectar com os serviços do Google. Verifique sua internet ou limpe o cache.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    let message = "Verifique suas credenciais ou tente novamente em instantes.";
     if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
-      message = "E-mail ou senha incorretos. Verifique os dados ou fale com o Coordenador.";
+      message = "E-mail ou senha incorretos. Verifique os dados.";
     }
 
     toast({ title: "Falha na Autenticação", description: message, variant: "destructive" });
@@ -177,7 +167,7 @@ export default function LoginPage() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "E-mail Necessário", description: "Digite seu e-mail institucional para receber o link de recuperação.", variant: "destructive" });
+      toast({ title: "E-mail Necessário", description: "Digite seu e-mail para receber o link de recuperação.", variant: "destructive" });
       return;
     }
     setIsResetting(true);
