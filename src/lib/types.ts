@@ -1,4 +1,3 @@
-
 export type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Evaluate' | 'Create';
 
 export type Subject = 'Portuguese' | 'Math';
@@ -64,6 +63,17 @@ export interface AttendanceRecord {
   status: 'Presente' | 'Falta';
   teacherId: string;
   subject?: string;
+}
+
+export interface StudentObservation {
+  id: string;
+  studentId: string;
+  teacherId: string;
+  classId: string;
+  date: string;
+  content: string;
+  bimestre: string;
+  teacherName?: string;
 }
 
 export interface LessonRecord {

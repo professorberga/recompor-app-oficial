@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Teacher": {
@@ -62,6 +61,20 @@
         "teacherId": { "type": "string" },
         "bimestre": { "type": "string" }
       }
+    },
+    "StudentObservation": {
+      "title": "StudentObservation",
+      "type": "object",
+      "description": "Observações pedagógicas sobre o aluno.",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "classId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "content": { "type": "string" },
+        "bimestre": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -83,6 +96,10 @@
     "/attendanceRecords/{recordId}": {
       "schema": { "$ref": "#/backend/entities/AttendanceRecord" },
       "description": "Coleção global de frequências."
+    },
+    "/studentObservations/{obsId}": {
+      "schema": { "$ref": "#/backend/entities/StudentObservation" },
+      "description": "Coleção global de observações pedagógicas."
     },
     "/lessons/{lessonId}": {
       "schema": { "type": "object" },

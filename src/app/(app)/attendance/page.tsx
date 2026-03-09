@@ -1,9 +1,12 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, UserCircle, CheckCircle2, History, AlertCircle, Trash2, BookText, Save, CalendarOff } from "lucide-react"
+import { 
+  Search, ChevronLeft, ChevronRight, Loader2, UserCircle, 
+  CheckCircle2, History, AlertCircle, Trash2, BookText, 
+  Save, CalendarOff, NotebookPen 
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -12,28 +15,17 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { addDays, format, getDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, query, where, deleteDoc, getDoc } from "firebase/firestore"
+import { collection, doc, setDoc, query, where, deleteDoc, getDoc, getDocs } from "firebase/firestore"
 import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
-} from "@/components/ui/alert-dialog"
 
 type AttendanceState = Record<string, 'present' | 'absent'>;
 
-// Mapeamento de nomes de dias para índices do JavaScript (0 = Domingo, 1 = Segunda...)
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   'domingo': 0,
   'segunda': 1,
@@ -62,74 +54,60 @@ function AttendanceContent() {
   const [attendance, setAttendance] = useState<AttendanceState>({})
   const [contentSummary, setContentSummary] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  
+  const [isObsDialogOpen, setIsObsDialogOpen] = useState(false)
+  const [obsStudent, setObsStudent] = useState<any>(null)
+  const [obsContent, setObsContent] = useState("")
+  const [isSavingObs, setIsSavingObs] = useState(false)
+
   const { toast } = useToast()
 
-  // Dias da semana permitidos para a turma selecionada conforme atribuição
   const allowedDayIndices = useMemo(() => {
     if (!profile?.assignments || !selectedClassId) return [];
-    
     return profile.assignments
       .filter(a => a.classId === selectedClassId)
-      .map(a => {
-        const dayName = a.dayOfWeek?.toLowerCase().trim() || "";
-        return DAY_NAME_TO_INDEX[dayName];
-      })
+      .map(a => DAY_NAME_TO_INDEX[a.dayOfWeek?.toLowerCase().trim() || ""])
       .filter(idx => idx !== undefined);
   }, [profile, selectedClassId]);
 
-  // Verifica se o dia atual é válido na grade
   const isDateValid = useMemo(() => {
     if (!currentDate) return false;
-    // Admins podem lançar em qualquer dia se necessário, mas professores seguem a grade
     if (isAdmin) return true;
     if (allowedDayIndices.length === 0) return false;
     return allowedDayIndices.includes(getDay(currentDate));
   }, [currentDate, allowedDayIndices, isAdmin]);
 
-  // Turma selecionada atualmente (objeto completo)
   const currentClass = useMemo(() => {
     if (!profile || !selectedClassId) return null;
     return profile.assignments?.find(a => a.classId === selectedClassId);
   }, [profile, selectedClassId]);
 
-  // Busca turmas Globais
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const { data: rawClasses = [] } = useCollection(globalClassesRef)
 
-  // Filtra turmas conforme atribuição no perfil
   const classes = useMemo(() => {
     let list = [];
     if (isAdmin) {
       list = [...rawClasses];
-    } else if (profile?.assignments && profile.assignments.length > 0) {
+    } else if (profile?.assignments) {
       const assignedIds = profile.assignments.map(a => a.classId);
       list = rawClasses.filter(c => assignedIds.includes(c.id));
     }
     return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
-  // Busca TODOS os alunos da turma selecionada
   const studentsRef = useMemoFirebase(() => {
     if (!selectedClassId) return null;
-    return query(
-      collection(firestore, 'students'), 
-      where('classId', '==', selectedClassId)
-    );
+    return query(collection(firestore, 'students'), where('classId', '==', selectedClassId));
   }, [selectedClassId, firestore]);
   
   const { data: rawStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
-  // FILTRAGEM GRANULAR: Apenas alunos matriculados com ESTE professor para ESTA disciplina
   const students = useMemo(() => {
     if (!user || !selectedClassId) return [];
-    
     return rawStudents.filter(s => {
       if (s.enrollments && s.enrollments.length > 0) {
-        return s.enrollments.some(e => 
-          e.classId === selectedClassId && 
-          (isAdmin || e.teacherId === user.uid)
-        );
+        return s.enrollments.some(e => e.classId === selectedClassId && (isAdmin || e.teacherId === user.uid));
       }
       return true;
     });
@@ -148,19 +126,14 @@ function AttendanceContent() {
 
   const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
 
-  // Inicialização
   useEffect(() => {
     setMounted(true)
-    const today = new Date();
-    setCurrentDate(today);
+    setCurrentDate(new Date())
   }, [])
 
-  // Efeito para ajustar a data quando a turma muda (vai para o dia de aula mais próximo se necessário)
   useEffect(() => {
     if (mounted && selectedClassId && currentDate && !isAdmin) {
-      const currentDayIdx = getDay(currentDate);
-      if (!allowedDayIndices.includes(currentDayIdx) && allowedDayIndices.length > 0) {
-        // Busca o próximo dia de aula disponível a partir de hoje
+      if (!allowedDayIndices.includes(getDay(currentDate)) && allowedDayIndices.length > 0) {
         let checkDate = new Date();
         for (let i = 0; i < 7; i++) {
           if (allowedDayIndices.includes(getDay(checkDate))) {
@@ -174,34 +147,23 @@ function AttendanceContent() {
   }, [selectedClassId, allowedDayIndices, mounted, isAdmin]);
 
   useEffect(() => {
-    if (classIdFromUrl) setSelectedClassId(classIdFromUrl)
-  }, [classIdFromUrl])
-
-  useEffect(() => {
-    async function loadLessonContent() {
+    async function loadData() {
       if (!selectedClassId || !currentDate || !user) return;
       const dateStr = format(currentDate, "yyyy-MM-dd");
+      
       const lessonId = `${selectedClassId}_${dateStr}_${user.uid}`;
-      const lessonRef = doc(firestore, 'lessons', lessonId);
-      const snap = await getDoc(lessonRef);
-      if (snap.exists()) {
-        setContentSummary(snap.data().content || "");
-      } else {
-        setContentSummary("");
-      }
+      const snap = await getDoc(doc(firestore, 'lessons', lessonId));
+      setContentSummary(snap.exists() ? snap.data().content || "" : "");
     }
-
     if (mounted && students.length > 0) {
       const newState: AttendanceState = {};
       if (existingRecords.length > 0) {
-        existingRecords.forEach(rec => {
-          newState[rec.studentId] = rec.status === 'Presente' ? 'present' : 'absent';
-        });
+        existingRecords.forEach(rec => { newState[rec.studentId] = rec.status === 'Presente' ? 'present' : 'absent'; });
       } else {
         students.forEach(s => { newState[s.id] = 'present'; });
       }
       setAttendance(newState);
-      loadLessonContent();
+      loadData();
     }
   }, [existingRecords, students, mounted, currentDate, selectedClassId, firestore, user]);
 
@@ -213,63 +175,69 @@ function AttendanceContent() {
     }).sort((a, b) => (Number(a.callNumber) || 0) - (Number(b.callNumber) || 0));
   }, [students, searchTerm]);
 
-  const dateBimestre = useMemo(() => {
-    if (!currentDate) return schoolConfig?.activeBimestre || "1";
-    return getBimestreFromDate(currentDate);
-  }, [currentDate, schoolConfig]);
+  const dateBimestre = useMemo(() => currentDate ? getBimestreFromDate(currentDate) : "1", [currentDate]);
 
-  // Função para navegar apenas em dias permitidos
   const handleNavigateDate = (direction: number) => {
     if (!currentDate) return;
-    
     let nextDate = addDays(currentDate, direction);
-    
-    // Se for Admin, navega livremente
-    if (isAdmin) {
-      setCurrentDate(nextDate);
-      return;
-    }
-
-    // Se não tiver atribuição, não navega
-    if (allowedDayIndices.length === 0) {
-      toast({ title: "Grade Vazia", description: "Você não tem aulas configuradas para esta turma.", variant: "destructive" });
-      return;
-    }
-
-    // Busca o próximo dia de aula na direção solicitada (limite de 14 dias para evitar loop)
+    if (isAdmin) { setCurrentDate(nextDate); return; }
     for (let i = 0; i < 14; i++) {
-      if (allowedDayIndices.includes(getDay(nextDate))) {
-        setCurrentDate(nextDate);
-        return;
-      }
+      if (allowedDayIndices.includes(getDay(nextDate))) { setCurrentDate(nextDate); return; }
       nextDate = addDays(nextDate, direction);
     }
   };
 
+  const handleOpenObs = async (student: any) => {
+    if (!currentDate || !user) return;
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    const obsId = `${student.id}_${dateStr}_${user.uid}`;
+    setObsStudent(student);
+    setIsSavingObs(true);
+    const snap = await getDoc(doc(firestore, 'studentObservations', obsId));
+    setObsContent(snap.exists() ? snap.data().content || "" : "");
+    setIsSavingObs(false);
+    setIsObsDialogOpen(true);
+  };
+
+  const handleSaveObs = async () => {
+    if (!obsStudent || !user || !currentDate) return;
+    setIsSavingObs(true);
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    const obsId = `${obsStudent.id}_${dateStr}_${user.uid}`;
+    try {
+      await setDoc(doc(firestore, 'studentObservations', obsId), {
+        id: obsId,
+        studentId: obsStudent.id,
+        classId: selectedClassId,
+        date: dateStr,
+        teacherId: user.uid,
+        teacherName: profile?.name || user.email,
+        content: obsContent,
+        bimestre: dateBimestre
+      }, { merge: true });
+      setIsObsDialogOpen(false);
+      toast({ title: "Observação Salva" });
+    } catch (e) {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    } finally {
+      setIsSavingObs(false);
+    }
+  };
+
   const handleSave = async () => {
-    if (!user || !selectedClassId || !currentDate) return;
-    
-    if (!isDateValid) {
-      toast({ title: "Data Inválida", description: "Você não tem aula prevista nesta data para esta turma.", variant: "destructive" });
-      return;
-    }
-
+    if (!user || !selectedClassId || !currentDate || !isDateValid) return;
     if (!contentSummary.trim()) {
-      toast({ title: "Campo Obrigatório", description: "O resumo do conteúdo ministrado é necessário.", variant: "destructive" });
+      toast({ title: "Resumo Obrigatório", variant: "destructive" });
       return;
     }
-
     setIsSaving(true);
     const dateStr = format(currentDate, "yyyy-MM-dd");
-    const recordsColRef = collection(firestore, 'attendanceRecords');
     const lessonId = `${selectedClassId}_${dateStr}_${user.uid}`;
-    const lessonRef = doc(firestore, 'lessons', lessonId);
     const selectedClass = classes.find(c => c.id === selectedClassId);
-
     try {
-      const savePromises = Object.entries(attendance).map(([studentId, status]) => {
+      const promises = Object.entries(attendance).map(([studentId, status]) => {
         const recordId = `${studentId}_${dateStr}_${user.uid}`;
-        return setDoc(doc(recordsColRef, recordId), {
+        return setDoc(doc(firestore, 'attendanceRecords', recordId), {
           id: recordId,
           studentId,
           classId: selectedClassId,
@@ -280,8 +248,7 @@ function AttendanceContent() {
           subject: currentClass?.subject || selectedClass?.subject || ""
         }, { merge: true });
       });
-
-      const lessonPromise = setDoc(lessonRef, {
+      promises.push(setDoc(doc(firestore, 'lessons', lessonId), {
         id: lessonId,
         classId: selectedClassId,
         className: selectedClass?.name || "",
@@ -290,15 +257,12 @@ function AttendanceContent() {
         content: contentSummary,
         bimestre: dateBimestre,
         subject: currentClass?.subject || selectedClass?.subject || ""
-      }, { merge: true });
-
-      await Promise.all([...savePromises, lessonPromise]);
-      toast({ title: "Diário Sincronizado", description: `Registros salvos no ${BIMESTRE_LABELS[dateBimestre]}.` })
-    } catch (err: any) {
-      toast({ title: "Falha ao Salvar", variant: "destructive" })
-    } finally {
-      setIsSaving(false);
-    }
+      }, { merge: true }));
+      await Promise.all(promises);
+      toast({ title: "Diário Sincronizado" });
+    } catch (err) {
+      toast({ title: "Falha ao Salvar", variant: "destructive" });
+    } finally { setIsSaving(false); }
   }
 
   if (!mounted || isUserLoading || !currentDate) return <div className="flex items-center justify-center p-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
@@ -310,24 +274,17 @@ function AttendanceContent() {
           <div className="flex-1">
             <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Turma Atribuída</Label>
             <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-              <SelectTrigger className="h-11 shadow-sm"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
-              <SelectContent>
-                {classes.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger className="h-11 shadow-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name} • {c.subject === 'Portuguese' ? 'Português' : 'Matemática'}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="w-full md:w-auto">
-            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Data da Chamada (Apenas dias de aula)</Label>
+          <div>
+            <Label className="text-[10px] font-bold uppercase mb-1 block text-muted-foreground">Data da Chamada</Label>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => handleNavigateDate(-1)}><ChevronLeft /></Button>
-              <div className={cn(
-                "h-11 px-6 border rounded-md flex flex-col items-center justify-center font-black min-w-[200px] uppercase text-[10px] tracking-tighter shadow-inner transition-colors",
-                isDateValid ? "bg-slate-50" : "bg-red-50 text-red-600 border-red-200"
-              )}>
+              <div className={cn("h-11 px-6 border rounded-md flex flex-col items-center justify-center font-black min-w-[200px] uppercase text-[10px] shadow-inner", isDateValid ? "bg-slate-50" : "bg-red-50 text-red-600 border-red-200")}>
                 <span>{format(currentDate, "dd 'de' MMMM", { locale: ptBR })}</span>
-                {!isDateValid && <span className="text-[8px] font-bold mt-0.5">Sem aula prevista</span>}
+                {!isDateValid && <span className="text-[8px] mt-0.5">Sem aula prevista</span>}
               </div>
               <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => handleNavigateDate(1)}><ChevronRight /></Button>
             </div>
@@ -338,11 +295,9 @@ function AttendanceContent() {
       {!isDateValid && !isAdmin ? (
         <Card className="p-20 flex flex-col items-center justify-center text-center bg-white border-none shadow-md">
           <CalendarOff className="h-16 w-16 text-muted-foreground mb-4 opacity-20" />
-          <h3 className="text-xl font-black text-primary uppercase tracking-tighter">Dia sem Atribuição</h3>
-          <p className="text-muted-foreground max-w-xs mt-2 text-sm">
-            De acordo com sua grade horária em "Configurações", você não tem aulas previstas para esta turma nesta data.
-          </p>
-          <Button variant="outline" className="mt-6 font-bold uppercase text-[10px] tracking-widest" onClick={() => handleNavigateDate(1)}>Ir para o próximo dia de aula</Button>
+          <h3 className="text-xl font-black text-primary uppercase">Dia sem Atribuição</h3>
+          <p className="text-muted-foreground max-w-xs mt-2 text-sm">Você não tem aulas configuradas para esta turma nesta data.</p>
+          <Button variant="outline" className="mt-6 font-bold uppercase text-[10px]" onClick={() => handleNavigateDate(1)}>Ir para o próximo dia de aula</Button>
         </Card>
       ) : (
         <>
@@ -353,13 +308,14 @@ function AttendanceContent() {
               <>
                 <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
                   <Search className="h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent shadow-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <Input placeholder="Buscar por nome ou RA..." className="h-9 border-none bg-transparent" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 <Table>
                   <TableHeader><TableRow className="bg-muted/10 h-14">
                     <TableHead className="w-[80px] text-center font-black uppercase text-[10px]">Nº</TableHead>
-                    <TableHead className="font-black uppercase text-[10px]">Estudante Matriculado em {currentClass?.subject || 'Aula'}</TableHead>
+                    <TableHead className="font-black uppercase text-[10px]">Estudante</TableHead>
                     <TableHead className="text-center font-black uppercase text-[10px]">Frequência</TableHead>
+                    <TableHead className="text-center font-black uppercase text-[10px]">Ações</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {filteredStudents.map((s, idx) => (
@@ -378,37 +334,39 @@ function AttendanceContent() {
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-center gap-4">
-                            <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white" : "border-slate-200 text-slate-300")}>P</button>
-                            <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2 transition-all", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white" : "border-slate-200 text-slate-300")}>F</button>
+                            <button onClick={() => setAttendance({...attendance, [s.id]: 'present'})} className={cn("w-12 h-12 rounded-full font-black border-2", attendance[s.id] === 'present' ? "bg-green-500 border-green-600 text-white" : "border-slate-200 text-slate-300")}>P</button>
+                            <button onClick={() => setAttendance({...attendance, [s.id]: 'absent'})} className={cn("w-12 h-12 rounded-full font-black border-2", attendance[s.id] === 'absent' ? "bg-red-500 border-red-600 text-white" : "border-slate-200 text-slate-300")}>F</button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center">
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenObs(s)} className="h-11 w-11 text-primary hover:bg-primary/10">
+                              <NotebookPen className="h-5 w-5" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredStudents.length === 0 && (
-                      <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic font-bold">Nenhum aluno matriculado nesta disciplina para esta turma.</TableCell></TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </>
             )}
           </Card>
-
           {selectedClassId && (
             <>
               <Card className="p-6 border-none shadow-md bg-white">
                 <div className="flex items-center gap-2 mb-4 text-primary"><BookText className="h-5 w-5" /><h3 className="font-black uppercase text-xs tracking-widest">Resumo do Conteúdo Ministrado</h3></div>
-                <Textarea placeholder="Descreva o conteúdo desta aula..." className="min-h-[120px] bg-slate-50" value={contentSummary} onChange={(e) => setContentSummary(e.target.value)} />
+                <Textarea placeholder="Descreva o conteúdo..." className="min-h-[120px] bg-slate-50" value={contentSummary} onChange={(e) => setContentSummary(e.target.value)} />
               </Card>
-
               <div className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-white/95 backdrop-blur-md border-t p-6 flex items-center justify-between shadow-2xl z-50">
                 <div className="flex gap-10 px-6">
-                  <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre || "1"]}</Badge>
+                  <Badge variant="outline" className="h-11 px-4 font-black uppercase text-[10px] bg-blue-50 text-blue-700 border-blue-200">{BIMESTRE_LABELS[dateBimestre]}</Badge>
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4 rounded-full bg-green-500" />
                     <span className="text-xs font-black uppercase text-slate-600">{Object.values(attendance).filter(v => v === 'present').length} Presentes</span>
                   </div>
                 </div>
-                <Button onClick={handleSave} disabled={!selectedClassId || !isDateValid || isSaving} className="px-12 h-12 font-black shadow-xl uppercase tracking-widest text-xs">
+                <Button onClick={handleSave} disabled={!selectedClassId || !isDateValid || isSaving} className="px-12 h-12 font-black shadow-xl uppercase text-xs">
                   {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   {isSaving ? "Gravando..." : "Salvar Diário"}
                 </Button>
@@ -417,6 +375,32 @@ function AttendanceContent() {
           )}
         </>
       )}
+
+      <Dialog open={isObsDialogOpen} onOpenChange={setIsObsDialogOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 uppercase tracking-tighter">
+              <NotebookPen className="h-5 w-5 text-primary" />
+              Observação: {obsStudent?.name}
+            </DialogTitle>
+            <DialogDescription className="font-bold text-[10px] uppercase">Registrar anotação para o dia {currentDate && format(currentDate, "dd/MM")}.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea 
+              placeholder="Digite aqui as observações pedagógicas..." 
+              className="min-h-[150px]" 
+              value={obsContent} 
+              onChange={(e) => setObsContent(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsObsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveObs} disabled={isSavingObs} className="min-w-[120px]">
+              {isSavingObs ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
