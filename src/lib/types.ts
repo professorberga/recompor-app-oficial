@@ -1,3 +1,4 @@
+
 export type BloomLevel = 'Remember' | 'Understand' | 'Apply' | 'Analyze' | 'Evaluate' | 'Create';
 
 export type Subject = 'Portuguese' | 'Math';
@@ -51,6 +52,7 @@ export interface Student {
   status: 'Ativo' | 'Inativo';
   photo: string | null;
   teacherId: string;
+  tutor?: string;
   enrollments?: StudentEnrollment[];
 }
 

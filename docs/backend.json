@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Teacher": {
@@ -45,7 +46,8 @@
         "ra": { "type": "string" },
         "raDigit": { "type": "string" },
         "classId": { "type": "string" },
-        "photo": { "type": "string" }
+        "photo": { "type": "string" },
+        "tutor": { "type": "string", "description": "Nome do tutor ou responsável pelo aluno." }
       }
     },
     "AttendanceRecord": {

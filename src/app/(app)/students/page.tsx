@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect, Suspense, useMemo } from "react"
@@ -8,7 +9,7 @@ import {
   Calendar, ClipboardCheck, GraduationCap, Info,
   Upload, ImageIcon, BookOpen, Clock, Save, X, RotateCcw, Loader2,
   CheckCircle2, XCircle, BarChart3, TrendingUp, Filter, AlertTriangle,
-  UserCheck, PlusCircle, NotebookPen, FileText
+  UserCheck, PlusCircle, NotebookPen, FileText, UserRound
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -127,7 +128,7 @@ function StudentsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
-    callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter || "", status: "Ativo" as 'Ativo' | 'Inativo', enrollments: [] as StudentEnrollment[]
+    callNumber: "", name: "", ra: "", raDigit: "", tutor: "", classId: classFilter || "", status: "Ativo" as 'Ativo' | 'Inativo', enrollments: [] as StudentEnrollment[]
   })
   const [newEnrollment, setNewEnrollment] = useState({ classId: "", subject: "Língua Portuguesa", teacherId: "" })
 
@@ -211,7 +212,7 @@ function StudentsContent() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-primary uppercase">Alunos</h2>
-        <Button onClick={() => { setFormData({ callNumber: "", name: "", ra: "", raDigit: "", classId: classFilter || "", status: "Ativo", enrollments: [] }); setCapturedPhoto(null); setIsEditing(false); setIsRegisterOpen(true); }} className="font-bold shadow-lg">
+        <Button onClick={() => { setFormData({ callNumber: "", name: "", ra: "", raDigit: "", tutor: "", classId: classFilter || "", status: "Ativo", enrollments: [] }); setCapturedPhoto(null); setIsEditing(false); setIsRegisterOpen(true); }} className="font-bold shadow-lg">
           <UserPlus className="h-4 w-4 mr-2" /> Novo Aluno
         </Button>
       </div>
@@ -236,6 +237,7 @@ function StudentsContent() {
                     <button onClick={() => { setSelectedStudent(student); setIsFichaOpen(true); }} className="font-bold text-sm text-left hover:text-primary uppercase tracking-tight">{student.name}</button>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {student.enrollments?.map((e, i) => <Badge key={i} variant="outline" className="text-[8px] font-black uppercase py-0 border-primary/20">{e.className} • {e.subject}</Badge>)}
+                      {student.tutor && <Badge variant="secondary" className="text-[8px] font-bold uppercase py-0 bg-accent/10 text-accent-foreground border-accent/20">Tutor: {student.tutor}</Badge>}
                     </div>
                   </div>
                 </div>
@@ -276,6 +278,10 @@ function StudentsContent() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1"><Label className="text-[10px] uppercase font-black">RA</Label><Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} /></div>
                   <div className="space-y-1"><Label className="text-[10px] uppercase font-black">Dig.</Label><Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} /></div>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-[10px] uppercase font-black">Tutor / Responsável (Opcional)</Label>
+                  <Input placeholder="Nome do tutor" value={formData.tutor} onChange={(e) => setFormData({...formData, tutor: e.target.value})} />
                 </div>
               </div>
               <div className="bg-slate-50 p-6 rounded-xl border-2 border-dashed">
@@ -321,7 +327,15 @@ function StudentsContent() {
             </div>
             <div>
               <DialogTitle className="text-3xl font-black uppercase tracking-tighter">{selectedStudent?.name}</DialogTitle>
-              <div className="flex gap-2 mt-2">{selectedStudent?.enrollments?.map((e, idx) => <Badge key={idx} className="bg-white/20 text-white uppercase text-[9px]">{e.className} • {e.subject}</Badge>)}</div>
+              <div className="flex gap-2 mt-2">
+                {selectedStudent?.enrollments?.map((e, idx) => <Badge key={idx} className="bg-white/20 text-white uppercase text-[9px]">{e.className} • {e.subject}</Badge>)}
+              </div>
+              {selectedStudent?.tutor && (
+                <div className="flex items-center gap-2 mt-2 text-white/80 font-bold text-xs">
+                  <UserRound className="h-3 w-3" />
+                  Tutor: {selectedStudent.tutor}
+                </div>
+              )}
             </div>
           </DialogHeader>
           <ScrollArea className="flex-1 p-8">
