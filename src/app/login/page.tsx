@@ -40,9 +40,15 @@ export default function LoginPage() {
   useEffect(() => {
     const clearSession = async () => {
       try {
-        console.log(`[Recompor+] Inicializando: ${SYSTEM_VERSION}`);
-        // Protocolo Zero-Cache: Limpeza agressiva para evitar erro 400
-        window.localStorage.clear();
+        console.log(`[Recompor+] Inicializando Protocolo Zero-Cache: ${SYSTEM_VERSION}`);
+        console.log(`[Recompor+] Timestamp: ${new Date().toISOString()}`);
+        
+        // Limpeza agressiva de cache e sessões residuais
+        if (typeof window !== 'undefined') {
+          window.localStorage.clear();
+          window.sessionStorage.clear();
+        }
+        
         if (auth) {
           await signOut(auth);
         }
@@ -65,13 +71,15 @@ export default function LoginPage() {
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
       const normalizedEmail = firebaseUser.email.toLowerCase().trim();
+      console.log(`[Auth] Iniciando Protocolo Bavelloni para: ${normalizedEmail}`);
       
-      // Busca Universal por E-mail (Protocolo Bavelloni)
+      // Busca Universal por E-mail (Normalizado)
       const teachersRef = collection(firestore, 'teachers');
       const q = query(teachersRef, where('email', '==', normalizedEmail));
       const qSnap = await getDocs(q);
       
       if (qSnap.empty) {
+        console.error(`[Auth] Nenhum perfil docente vinculado para: ${normalizedEmail}`);
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
@@ -85,9 +93,11 @@ export default function LoginPage() {
       const legacyData = foundDoc.data();
       const legacyId = foundDoc.id;
 
-      // Sincronização de Identidade: Migra ID antigo (email/RA) para o UID oficial
+      // Sincronização de Identidade: Se o ID for diferente do UID, migra agora.
       if (legacyId !== firebaseUser.uid) {
         console.log(`[Migration] Sincronizando: ${legacyId} -> ${firebaseUser.uid}`);
+        
+        // 1. Cria/Atualiza o documento sob o UID correto
         const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
         await setDoc(newDocRef, { 
           ...legacyData, 
@@ -95,16 +105,18 @@ export default function LoginPage() {
           role: legacyData.role || 'Professor'
         }, { merge: true });
 
-        // Remove o registro legado se for diferente do UID
-        if (legacyId !== firebaseUser.uid) {
-          await deleteDoc(doc(firestore, 'teachers', legacyId));
-        }
+        // 2. Remove o registro legado (ID antigo)
+        await deleteDoc(doc(firestore, 'teachers', legacyId));
+        console.log(`[Migration] Documento legado ${legacyId} removido.`);
       }
 
-      // Delay para propagação de permissões no Firestore
+      console.log(`[Auth] Perfil sincronizado com cargo: ${legacyData.role}`);
+      
+      // Aguarda propagação das Security Rules
       await new Promise(resolve => setTimeout(resolve, 1000));
       router.push("/dashboard");
     } catch (error: any) {
+      console.error(`[Auth] Erro crítico no fluxo de login:`, error);
       handleAuthError(error);
     }
   }
@@ -141,7 +153,10 @@ export default function LoginPage() {
   }
 
   const handleAuthError = (error: any) => {
-    if (error.code === "auth/unauthorized-domain") {
+    const errorCode = error.code || 'unknown';
+    console.error(`[AuthError] Code: ${errorCode}`, error);
+
+    if (errorCode === "auth/unauthorized-domain") {
       toast({ 
         title: "Domínio Não Autorizado", 
         description: "Adicione este domínio em 'Authorized Domains' no Console do Firebase.", 
@@ -150,10 +165,10 @@ export default function LoginPage() {
       return;
     }
 
-    if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
+    if (error.message?.includes("400") || errorCode === "auth/network-request-failed") {
       toast({ 
         title: "Falha na Comunicação", 
-        description: "Falha de rede ou erro 400. Tente limpar o cache ou usar aba anônima.", 
+        description: "Erro 400 ou rede. Limpe os dados do navegador e tente novamente.", 
         variant: "destructive" 
       });
       return;

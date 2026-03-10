@@ -20,7 +20,8 @@ const nextConfig: NextConfig = {
       '*.cloudworkstations.dev', 
       'localhost:9002', 
       '*.web.app', 
-      '*.firebaseapp.com'
+      '*.firebaseapp.com',
+      'studio-*.cloudworkstations.dev'
     ],
   },
 

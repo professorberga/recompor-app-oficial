@@ -1,9 +1,11 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 /**
  * API Route para exclusão de usuários do sistema.
  * Realiza a limpeza atômica no Authentication e no Firestore.
+ * Protegida por verificação de token e cargo administrativo.
  */
 export async function POST(request: Request) {
   try {
@@ -15,7 +17,7 @@ export async function POST(request: Request) {
     const idToken = authHeader.split('Bearer ')[1];
     const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-    // Validação de segurança: Verifica se o solicitante tem perfil de Administrador no Firestore
+    // Validação de segurança: Somente Administradores podem deletar usuários
     const requesterDoc = await adminDb.collection('teachers').doc(decodedToken.uid).get();
     const requesterData = requesterDoc.data();
 
@@ -29,38 +31,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'UID do usuário alvo não fornecido.' }, { status: 400 });
     }
 
-    // Proteção contra auto-exclusão via API
+    // Proteção contra auto-exclusão
     if (uid === decodedToken.uid) {
-      return NextResponse.json({ error: 'Por razões de segurança, você não pode excluir sua própria conta administrativa via sistema.' }, { status: 400 });
+      return NextResponse.json({ error: 'Você não pode excluir sua própria conta administrativa via sistema.' }, { status: 400 });
     }
 
-    console.log(`[AdminAPI] Executando exclusão completa para o usuário: ${uid}`);
+    console.log(`[AdminAPI] Iniciando exclusão resiliente para: ${uid}`);
 
-    // 1. Remoção do Firebase Authentication (Trata caso de usuário já inexistente)
+    // 1. Remoção do Firebase Authentication
     try {
       await adminAuth.deleteUser(uid);
-      console.log(`[AdminAPI] Usuário removido do Firebase Auth: ${uid}`);
+      console.log(`[AdminAPI] Usuário removido do Auth.`);
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') {
-        console.warn(`[AdminAPI] Usuário ${uid} já não constava no Auth. Prosseguindo para limpeza do Firestore.`);
+        console.warn(`[AdminAPI] Usuário ${uid} já não existia no Auth. Prosseguindo.`);
       } else {
         throw err;
       }
     }
 
-    // 2. Remoção do Perfil no Firestore
+    // 2. Remoção do Perfil no Firestore (Limpeza de resíduos)
     await adminDb.collection('teachers').doc(uid).delete();
-    console.log(`[AdminAPI] Documento do docente removido do Firestore: ${uid}`);
+    console.log(`[AdminAPI] Documento Firestore removido.`);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Usuário e dados de perfil removidos com sucesso de todas as bases.' 
+      message: 'Usuário e dados de perfil removidos com sucesso.' 
     });
 
   } catch (error: any) {
-    console.error('[AdminAPI] Erro crítico durante exclusão de usuário:', error);
+    console.error('[AdminAPI] Erro crítico:', error);
     return NextResponse.json({ 
-      error: 'Erro interno ao processar a exclusão. Tente novamente mais tarde.',
+      error: 'Erro interno ao processar a exclusão.',
       details: error.message 
     }, { status: 500 });
   }
