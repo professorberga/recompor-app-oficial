@@ -23,7 +23,7 @@ interface TeacherProfile {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Professor';
+  role: 'Admin' | 'Professor' | 'Mentor';
   subjects: string[];
   schoolName?: string;
   academicYear?: string;
@@ -83,12 +83,16 @@ export const FirebaseProvider: React.FC<{
   const schoolUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
+    // Log de Sincronização de Build para Depuração de Produção
+    console.log(`[Recompor+] Build Global Sincronizada em: ${new Date().toLocaleString()}`);
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       // Limpa inscrições anteriores
       if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
       if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
 
       if (firebaseUser) {
+        console.log(`[Auth] Sessão ativa para: ${firebaseUser.email}`);
         const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
         const schoolRef = doc(firestore, 'settings', 'school');
         
@@ -103,33 +107,9 @@ export const FirebaseProvider: React.FC<{
             }
           });
 
-          // 2. PROTOCOLO BAVELLONI: Busca Híbrida e Migração por UID
-          const normalizedEmail = firebaseUser.email?.toLowerCase().trim();
-          const q = query(collection(firestore, 'teachers'), where('email', '==', normalizedEmail));
-          const querySnap = await getDocs(q);
-          
+          // 2. Busca Híbrida e Verificação de Perfil
           let profileDocSnap = await getDoc(teacherRef);
           
-          // Se o UID doc não existe mas o e-mail existe, migra
-          if (!profileDocSnap.exists() && !querySnap.empty) {
-            const legacyDoc = querySnap.docs[0];
-            const data = legacyDoc.data() as TeacherProfile;
-            
-            const profileData = { 
-              ...data, 
-              id: firebaseUser.uid,
-              role: data.role || (firebaseUser.uid === ADMIN_UID ? 'Admin' : 'Professor')
-            };
-            
-            console.log(`[Provider] Sincronizando ID legado ${legacyDoc.id} -> ${firebaseUser.uid}`);
-            await setDoc(teacherRef, profileData, { merge: true });
-            
-            if (legacyDoc.id !== firebaseUser.uid) {
-              await deleteDoc(legacyDoc.ref);
-            }
-            profileDocSnap = await getDoc(teacherRef);
-          }
-
           if (profileDocSnap.exists()) {
             profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
               if (snapshot.exists()) {
@@ -144,12 +124,22 @@ export const FirebaseProvider: React.FC<{
               }
             });
           } else {
-            console.warn("[Auth] Usuário sem perfil institucional. Redirecionando para login.");
-            setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
+            // Caso o UID não exista, tenta localizar por e-mail para migração (contingência)
+            const normalizedEmail = firebaseUser.email?.toLowerCase().trim();
+            const q = query(collection(firestore, 'teachers'), where('email', '==', normalizedEmail));
+            const querySnap = await getDocs(q);
+            
+            if (!querySnap.empty) {
+              console.log("[Auth] Perfil legado detectado por e-mail. Aguardando migração do handleLogin.");
+              // O handleLogin no /login cuida da migração atômica. Aqui apenas aguardamos.
+            } else {
+              console.warn("[Auth] Perfil não localizado. Sessão limitada.");
+              setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
+            }
           }
 
         } catch (err: any) {
-          console.error("Erro na sincronização:", err);
+          console.error("Erro na sincronização global:", err);
           setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: err }));
         }
       } else {

@@ -35,20 +35,28 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.8.2"
+  const SYSTEM_VERSION = "v1.9.0-DEPLOY-SYNC"
 
-  // Limpeza de cache apenas se o usuário NÃO estiver logado e NÃO estiver carregando
+  // Limpeza de cache agressiva no carregamento da página de login
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      const clearSession = async () => {
-        try {
-          // Apenas limpa se realmente necessário para evitar loops de redirecionamento
-          window.localStorage.removeItem('firebase:previous_websocket_failure');
-          console.log("[Auth] Ambiente de login preparado.");
-        } catch (err) {
-          console.error("Erro ao preparar sessão:", err);
+    const clearSession = async () => {
+      try {
+        console.log(`[Recompor+] Inicializando Versão: ${SYSTEM_VERSION}`);
+        console.log(`[Auth] Executando protocolo Zero-Cache e Logout Preventivo...`);
+        
+        // Limpa cache local para evitar erro 400 por sessões residuais
+        window.localStorage.clear();
+        
+        // Logout preventivo
+        if (auth) {
+          await signOut(auth);
         }
-      };
+      } catch (err) {
+        console.error("Erro ao preparar sessão limpa:", err);
+      }
+    };
+    
+    if (!isUserLoading && !user) {
       clearSession();
     }
   }, [auth, user, isUserLoading]);
@@ -62,11 +70,14 @@ export default function LoginPage() {
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
       const normalizedEmail = firebaseUser.email.toLowerCase().trim();
+      console.log(`[Auth] Buscando vínculo institucional para: ${normalizedEmail}`);
+      
       const teachersRef = collection(firestore, 'teachers');
       const q = query(teachersRef, where('email', '==', normalizedEmail));
       const qSnap = await getDocs(q);
       
       if (qSnap.empty) {
+        console.warn("[Auth] E-mail não localizado na base institucional.");
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
@@ -80,8 +91,9 @@ export default function LoginPage() {
       const legacyData = foundDoc.data();
       const legacyId = foundDoc.id;
 
+      // Protocolo de Migração Automática para UID
       if (legacyId !== firebaseUser.uid) {
-        console.log(`[Migration] Sincronizando perfil ${legacyId} -> ${firebaseUser.uid}`);
+        console.log(`[Migration] Sincronizando perfil legado ${legacyId} -> ${firebaseUser.uid}`);
         
         const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
         await setDoc(newDocRef, { 
@@ -90,6 +102,7 @@ export default function LoginPage() {
           role: legacyData.role || 'Professor'
         }, { merge: true });
 
+        // Remove o ID legado apenas se for diferente do UID (e-mail ou RA)
         if (legacyId === normalizedEmail || legacyId.length < 20) {
           await deleteDoc(doc(firestore, 'teachers', legacyId));
         }
@@ -97,8 +110,8 @@ export default function LoginPage() {
         toast({ title: "Perfil Sincronizado", description: "Identidade institucional vinculada com sucesso." });
       }
 
-      // Delay para garantir que o Firestore propague as permissões antes do redirect
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Delay para garantir propagação de segurança no Firestore
+      await new Promise(resolve => setTimeout(resolve, 1000));
       router.push("/dashboard");
     } catch (error: any) {
       handleAuthError(error);
@@ -126,6 +139,7 @@ export default function LoginPage() {
     const sanitizedEmail = email.trim();
 
     try {
+      // Garante persistência local robusta
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       await checkProfileAndRedirect(userCredential.user);
@@ -137,7 +151,7 @@ export default function LoginPage() {
   }
 
   const handleAuthError = (error: any) => {
-    console.error("Auth Error:", error.code, error.message);
+    console.error(`[AuthError] Code: ${error.code} | Message: ${error.message}`);
     
     if (error.code === "auth/unauthorized-domain") {
       toast({ 
@@ -148,10 +162,10 @@ export default function LoginPage() {
       return;
     }
 
-    if (error.code === "auth/network-request-failed") {
+    if (error.code === "auth/network-request-failed" || error.message.includes("400")) {
       toast({ 
-        title: "Erro de Conexão", 
-        description: "Falha ao conectar com os serviços do Google. Verifique sua internet ou limpe o cache.", 
+        title: "Falha na Comunicação", 
+        description: "Erro 400 ou falha de rede detectada. Tente usar uma aba anônima ou limpar o cache do navegador.", 
         variant: "destructive" 
       });
       return;
@@ -185,7 +199,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4">
             <Brain className="h-8 w-8" />
