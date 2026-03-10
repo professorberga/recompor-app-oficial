@@ -7,12 +7,13 @@ const nextConfig: NextConfig = {
    */
   output: 'standalone',
   
+  /** 
+   * O firebase-admin deve ser tratado como pacote externo no servidor.
+   * No Next.js 15, esta configuração fica na raiz.
+   */
+  serverExternalPackages: ['firebase-admin'],
+  
   experimental: {
-    /** 
-     * O firebase-admin deve ser tratado como pacote externo no servidor para evitar 
-     * erros de compilação de manifesto.
-     */
-    serverExternalPackages: ['firebase-admin'],
     /**
      * Autoriza origens do Firebase Studio e produção para evitar falhas de HMR/CORS.
      */
