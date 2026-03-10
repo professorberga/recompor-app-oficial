@@ -8,10 +8,19 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   
   /** 
-   * O firebase-admin deve ser tratado como pacote externo no servidor.
-   * No Next.js 15, esta configuração fica na raiz.
+   * O firebase-admin deve ser tratado como pacote externo no servidor no Next.js 15.
    */
   serverExternalPackages: ['firebase-admin'],
+
+  /**
+   * Configurações experimentais para suportar o ambiente de desenvolvimento
+   * do Cloud Workstations e evitar avisos de Cross-Origin.
+   */
+  experimental: {
+    allowedDevOrigins: [
+      '6000-firebase-studio-1772738614944.cluster-c72u3gwiofapkvxrcwjq5zllcu.cloudworkstations.dev'
+    ]
+  } as any,
   
   /**
    * Ignora erros de build para garantir que a sincronização do App Hosting ocorra 
