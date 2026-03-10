@@ -35,19 +35,14 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v1.9.0-DEPLOY-SYNC"
+  const SYSTEM_VERSION = "v2.0 - Sincronizado"
 
-  // Limpeza de cache agressiva no carregamento da página de login
   useEffect(() => {
     const clearSession = async () => {
       try {
-        console.log(`[Recompor+] Inicializando Versão: ${SYSTEM_VERSION}`);
-        console.log(`[Auth] Executando protocolo Zero-Cache e Logout Preventivo...`);
-        
-        // Limpa cache local para evitar erro 400 por sessões residuais
+        console.log(`[Recompor+] Inicializando: ${SYSTEM_VERSION}`);
+        // Protocolo Zero-Cache: Limpeza agressiva para evitar erro 400
         window.localStorage.clear();
-        
-        // Logout preventivo
         if (auth) {
           await signOut(auth);
         }
@@ -70,14 +65,13 @@ export default function LoginPage() {
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
       const normalizedEmail = firebaseUser.email.toLowerCase().trim();
-      console.log(`[Auth] Buscando vínculo institucional para: ${normalizedEmail}`);
       
+      // Busca Universal por E-mail (Protocolo Bavelloni)
       const teachersRef = collection(firestore, 'teachers');
       const q = query(teachersRef, where('email', '==', normalizedEmail));
       const qSnap = await getDocs(q);
       
       if (qSnap.empty) {
-        console.warn("[Auth] E-mail não localizado na base institucional.");
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
@@ -91,10 +85,9 @@ export default function LoginPage() {
       const legacyData = foundDoc.data();
       const legacyId = foundDoc.id;
 
-      // Protocolo de Migração Automática para UID
+      // Sincronização de Identidade: Migra ID antigo (email/RA) para o UID oficial
       if (legacyId !== firebaseUser.uid) {
-        console.log(`[Migration] Sincronizando perfil legado ${legacyId} -> ${firebaseUser.uid}`);
-        
+        console.log(`[Migration] Sincronizando: ${legacyId} -> ${firebaseUser.uid}`);
         const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
         await setDoc(newDocRef, { 
           ...legacyData, 
@@ -102,15 +95,13 @@ export default function LoginPage() {
           role: legacyData.role || 'Professor'
         }, { merge: true });
 
-        // Remove o ID legado apenas se for diferente do UID (e-mail ou RA)
-        if (legacyId === normalizedEmail || legacyId.length < 20) {
+        // Remove o registro legado se for diferente do UID
+        if (legacyId !== firebaseUser.uid) {
           await deleteDoc(doc(firestore, 'teachers', legacyId));
         }
-        
-        toast({ title: "Perfil Sincronizado", description: "Identidade institucional vinculada com sucesso." });
       }
 
-      // Delay para garantir propagação de segurança no Firestore
+      // Delay para propagação de permissões no Firestore
       await new Promise(resolve => setTimeout(resolve, 1000));
       router.push("/dashboard");
     } catch (error: any) {
@@ -136,10 +127,9 @@ export default function LoginPage() {
     if (!email || !password) return;
     
     setIsLoading(true);
-    const sanitizedEmail = email.trim();
+    const sanitizedEmail = email.toLowerCase().trim();
 
     try {
-      // Garante persistência local robusta
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       await checkProfileAndRedirect(userCredential.user);
@@ -151,45 +141,42 @@ export default function LoginPage() {
   }
 
   const handleAuthError = (error: any) => {
-    console.error(`[AuthError] Code: ${error.code} | Message: ${error.message}`);
-    
     if (error.code === "auth/unauthorized-domain") {
       toast({ 
         title: "Domínio Não Autorizado", 
-        description: "A URL deste site precisa ser adicionada aos 'Domínios Autorizados' no Console do Firebase (Authentication > Settings).", 
+        description: "Adicione este domínio em 'Authorized Domains' no Console do Firebase.", 
         variant: "destructive" 
       });
       return;
     }
 
-    if (error.code === "auth/network-request-failed" || error.message.includes("400")) {
+    if (error.message?.includes("400") || error.code === "auth/network-request-failed") {
       toast({ 
         title: "Falha na Comunicação", 
-        description: "Erro 400 ou falha de rede detectada. Tente usar uma aba anônima ou limpar o cache do navegador.", 
+        description: "Falha de rede ou erro 400. Tente limpar o cache ou usar aba anônima.", 
         variant: "destructive" 
       });
       return;
     }
 
-    let message = "Verifique suas credenciais ou tente novamente em instantes.";
-    if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
-      message = "E-mail ou senha incorretos. Verifique os dados.";
-    }
-
-    toast({ title: "Falha na Autenticação", description: message, variant: "destructive" });
+    toast({ 
+      title: "Falha na Autenticação", 
+      description: "E-mail ou senha incorretos. Verifique suas credenciais.", 
+      variant: "destructive" 
+    });
   }
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "E-mail Necessário", description: "Digite seu e-mail para receber o link de recuperação.", variant: "destructive" });
+      toast({ title: "E-mail Necessário", description: "Digite seu e-mail para receber o link.", variant: "destructive" });
       return;
     }
     setIsResetting(true);
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      toast({ title: "Recuperação Enviada", description: "Link enviado para seu e-mail." });
+      toast({ title: "Recuperação Enviada", description: "Verifique sua caixa de entrada." });
     } catch (error: any) {
-      toast({ title: "Erro no Envio", description: "Não foi possível enviar o e-mail de recuperação.", variant: "destructive" });
+      toast({ title: "Erro no Envio", variant: "destructive" });
     } finally {
       setIsResetting(false);
     }
@@ -199,7 +186,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-md space-y-8">
+      <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4">
             <Brain className="h-8 w-8" />
@@ -276,7 +263,7 @@ export default function LoginPage() {
               </div>
               <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest text-xs" disabled={isLoading || isGoogleLoading}>
                 {isLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sincronizando...</>
                 ) : (
                   <>Acessar Sistema <ArrowRight className="ml-2 h-4 w-4" /></>
                 )}
@@ -287,8 +274,8 @@ export default function LoginPage() {
             <p className="text-[10px] text-center w-full text-muted-foreground uppercase font-black tracking-widest">
               Ambiente Institucional Seguro
             </p>
-            <p className="text-[8px] text-center w-full text-muted-foreground font-mono mt-1">
-              Versão {SYSTEM_VERSION}
+            <p className="text-[8px] text-center w-full text-primary font-mono mt-1 font-bold">
+              {SYSTEM_VERSION}
             </p>
           </CardFooter>
         </Card>

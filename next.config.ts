@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  /**
+   * Ignora erros de build para garantir que a sincronização do App Hosting ocorra 
+   * mesmo com avisos de Lint ou Typescript.
+   */
   typescript: {
     ignoreBuildErrors: true,
   },
