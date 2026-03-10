@@ -133,8 +133,9 @@ function StudentsContent() {
   const [newEnrollment, setNewEnrollment] = useState({ classId: "", subject: "Língua Portuguesa", teacherId: "" })
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.ra?.includes(searchTerm))
-      .sort((a, b) => (Number(a.callNumber) || 0) - (Number(b.callNumber) || 0));
+    return students
+      .filter(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.ra?.includes(searchTerm))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", 'pt-BR'));
   }, [students, searchTerm])
 
   const startCamera = async () => {
