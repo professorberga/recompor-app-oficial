@@ -13,19 +13,6 @@ const nextConfig: NextConfig = {
    */
   serverExternalPackages: ['firebase-admin'],
   
-  experimental: {
-    /**
-     * Autoriza origens do Firebase Studio e produção para evitar falhas de HMR/CORS.
-     */
-    allowedDevOrigins: [
-      '*.cloudworkstations.dev', 
-      'localhost:9002', 
-      '*.web.app', 
-      '*.firebaseapp.com',
-      'studio-*.cloudworkstations.dev'
-    ],
-  },
-
   /**
    * Ignora erros de build para garantir que a sincronização do App Hosting ocorra 
    * mesmo com avisos de Lint ou Typescript.
