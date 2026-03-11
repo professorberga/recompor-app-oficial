@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight, Pencil } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight, Pencil, Users, Check, UserPlus } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,14 +13,18 @@ import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
-import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
+import { collection, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 export default function ClassesPage() {
   const { user, profile, isAdmin, isUserLoading } = useUser()
   const firestore = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
   const [editingClassId, setEditingClassId] = useState<string | null>(null)
+  const [assigningClass, setAssigningClass] = useState<any>(null)
   const { toast } = useToast()
 
   // Busca turmas da coleção GLOBAL
@@ -31,7 +35,7 @@ export default function ClassesPage() {
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
   const { data: allStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
 
-  // Docentes para exibir no Card
+  // Docentes para exibir no Card e no Painel de Atribuição
   const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore]);
   const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
 
@@ -56,7 +60,7 @@ export default function ClassesPage() {
   const getTeachersForClass = (classId: string) => {
     return allTeachers.filter(t => 
       t.assignments?.some(a => a.classId === classId)
-    ).map(t => t.name);
+    ).map(t => ({ name: t.name, role: t.role, id: t.id }));
   }
 
   const handleSaveClass = async (e: React.FormEvent) => {
@@ -105,6 +109,37 @@ export default function ClassesPage() {
       subject: cls.subject as "Portuguese" | "Math"
     })
     setIsDialogOpen(true)
+  }
+
+  const handleToggleTeacherAssignment = async (teacher: any) => {
+    if (!assigningClass) return;
+
+    const isCurrentlyAssigned = teacher.assignments?.some((a: any) => a.classId === assigningClass.id);
+    const teacherRef = doc(firestore, 'teachers', teacher.id);
+
+    try {
+      if (isCurrentlyAssigned) {
+        // Remove a atribuição específica desta turma
+        const updatedAssignments = teacher.assignments.filter((a: any) => a.classId !== assigningClass.id);
+        await updateDoc(teacherRef, { assignments: updatedAssignments });
+        toast({ title: "Atribuição removida" });
+      } else {
+        // Adiciona nova atribuição rápida
+        const newAssignment = {
+          classId: assigningClass.id,
+          className: assigningClass.name,
+          subject: assigningClass.subject === 'Portuguese' ? 'Português' : 'Matemática',
+          dayOfWeek: "Segunda", // Valor padrão para atribuição ágil
+          lessonNumber: "1ª aula (07:00 - 07:50)" // Valor padrão para atribuição ágil
+        };
+        await updateDoc(teacherRef, { 
+          assignments: arrayUnion(newAssignment) 
+        });
+        toast({ title: "Docente vinculado à turma" });
+      }
+    } catch (err) {
+      toast({ title: "Erro na atribuição", variant: "destructive" });
+    }
   }
 
   const filteredClasses = useMemo(() => {
@@ -196,6 +231,9 @@ export default function ClassesPage() {
                   </div>
                   {isAdmin && (
                     <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" onClick={() => { setAssigningClass(cls); setIsAssignDialogOpen(true); }}>
+                        <Users className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" onClick={() => handleEditClick(cls)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -212,10 +250,13 @@ export default function ClassesPage() {
                   </div>
                   <div className="flex flex-wrap gap-1.5 pt-3 border-t border-dashed">
                     {classTeachers.length > 0 ? (
-                      classTeachers.map((name, i) => (
-                        <Badge key={i} variant="secondary" className="bg-primary/5 text-primary border-none text-[9px] font-black uppercase py-0.5 px-2 flex items-center gap-1 hover:bg-primary/10 transition-colors">
+                      classTeachers.map((teacher, i) => (
+                        <Badge key={i} variant="secondary" className={cn(
+                          "border-none text-[9px] font-black uppercase py-0.5 px-2 flex items-center gap-1 transition-colors",
+                          teacher.role === 'Mentor' ? "bg-accent/10 text-accent-foreground" : "bg-primary/5 text-primary"
+                        )}>
                           <User className="h-2.5 w-2.5" />
-                          {name}
+                          {teacher.name}
                         </Badge>
                       ))
                     ) : (
@@ -239,6 +280,67 @@ export default function ClassesPage() {
           )}
         </div>
       )}
+
+      {/* DIÁLOGO DE ATRIBUIÇÃO RÁPIDA (SOMENTE ADMIN) */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden flex flex-col h-[80vh]">
+          <DialogHeader className="p-6 bg-primary text-white shrink-0">
+            <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
+              <Users className="h-6 w-6" />
+              Atribuição de Equipe: {assigningClass?.name}
+            </DialogTitle>
+            <DialogDescription className="text-white/70 font-bold text-xs uppercase">
+              Vincule professores e mentores à turma de forma ágil.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 border-b bg-slate-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar docente..." className="pl-10 h-10 bg-white" />
+            </div>
+          </div>
+          <ScrollArea className="flex-1 p-4">
+            <div className="grid gap-3">
+              {allTeachers
+                .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                .map((teacher) => {
+                  const isAssigned = teacher.assignments?.some((a: any) => a.classId === assigningClass?.id);
+                  return (
+                    <div key={teacher.id} className={cn(
+                      "flex items-center justify-between p-4 rounded-xl border-2 transition-all",
+                      isAssigned ? "border-primary bg-primary/5" : "border-slate-100 bg-white hover:border-slate-200"
+                    )}>
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs",
+                          teacher.role === 'Mentor' ? "bg-accent text-accent-foreground" : "bg-primary text-white"
+                        )}>
+                          {teacher.name.charAt(0)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-xs uppercase tracking-tight">{teacher.name}</span>
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">{teacher.role}</span>
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant={isAssigned ? "destructive" : "default"} 
+                        className="h-9 px-4 font-black uppercase text-[10px]"
+                        onClick={() => handleToggleTeacherAssignment(teacher)}
+                      >
+                        {isAssigned ? <Trash2 className="h-4 w-4 mr-1.5" /> : <UserPlus className="h-4 w-4 mr-1.5" />}
+                        {isAssigned ? "Remover" : "Atribuir"}
+                      </Button>
+                    </div>
+                  );
+                })}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="p-4 bg-slate-50 border-t shrink-0">
+            <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)} className="w-full font-bold">FECHAR</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
