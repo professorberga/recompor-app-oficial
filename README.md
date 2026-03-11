@@ -1,13 +1,13 @@
-# Recompor+ 1.0 - Monitor do BEEM
+# Recompor+ 1.0 - Monitor do BEEM (Repositório Oficial)
 
-Este é o diário de classe moderno para professores de Português e Matemática, integrado ao Firebase Studio.
+Este é o repositório oficial da solução de diário de classe para professores de Português e Matemática, sincronizado com o Firebase App Hosting.
 
 ## Status da Infraestrutura (v2.2.4)
-- **Modo de Build:** Standalone (Otimizado para App Hosting)
-- **Gatilho de Rollout:** Sincronizado com permissões IAM (Cloud Build Admin / Cloud Run Admin)
-- **Database:** Firestore (Regras de Segurança v1.0 ativas)
-- **Auth:** Firebase Auth (Provedores Google e Email/Senha)
+- **Modo de Build:** Standalone (Next.js 15)
+- **Deployment:** Firebase App Hosting
+- **Repositório:** github.com/professorberga/recompor-app-oficial
+- **Database:** Firestore
+- **Auth:** Firebase Auth (Google & Email)
 
-Para iniciar o ambiente de desenvolvimento local no Studio:
-1. Verifique se as dependências estão instaladas.
-2. O servidor iniciará automaticamente na porta 9002.
+## Protocolo de Sincronização
+O código neste repositório está otimizado para rollouts automáticos no Google Cloud via App Hosting Backend.
