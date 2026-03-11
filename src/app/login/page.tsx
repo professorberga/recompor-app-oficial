@@ -40,7 +40,7 @@ export default function LoginPage() {
   useEffect(() => {
     const clearSession = async () => {
       try {
-        console.log(`[Recompor+] Protocolo Zero-Cache v2.2: Sincronizando Deploy Crítico`);
+        console.log(`[Recompor+] Protocolo Zero-Cache ${SYSTEM_VERSION}: Sincronizando Deploy`);
         if (typeof window !== 'undefined') {
           window.localStorage.clear();
           window.sessionStorage.clear();
