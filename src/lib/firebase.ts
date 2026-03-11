@@ -1,4 +1,5 @@
-import { initializeApp, getApps } from "firebase/app";
+
+import { initializeApp, getApps, getApp } from "firebase/app";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -9,6 +10,24 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-export const app = !getApps().length
-  ? initializeApp(firebaseConfig)
-  : getApps()[0];
+/**
+ * Inicialização segura do Firebase App.
+ * Verifica se as variáveis de ambiente obrigatórias estão presentes antes da inicialização
+ * para evitar "Internal Server Error" durante a renderização no lado do servidor.
+ */
+function getSafeApp() {
+  if (getApps().length > 0) {
+    return getApp();
+  }
+
+  // Se as variáveis de ambiente essenciais estiverem ausentes, não inicializa
+  // Isso evita que o build quebre em ambientes onde as variáveis ainda não foram injetadas.
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.warn("[Firebase] Configurações de API ausentes no ambiente.");
+    return null;
+  }
+
+  return initializeApp(firebaseConfig);
+}
+
+export const app = getSafeApp();

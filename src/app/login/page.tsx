@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -34,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.8 - Preparado para Produção"
+  const SYSTEM_VERSION = "v2.2.9 - Estabilização de Tipos"
 
   useEffect(() => {
     const clearSession = async () => {

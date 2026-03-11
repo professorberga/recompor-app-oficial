@@ -101,19 +101,20 @@ export default function AssessmentPage() {
   }, [user, assessmentsRef, isAdmin])
   
   const [assessmentsSnap, isAssessmentsLoading] = useCollection(assessmentsQuery)
-  const assessments = useMemo(() => assessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [assessmentsSnap])
+  const assessments = useMemo(() => assessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) as AssessmentRecord[] || [], [assessmentsSnap])
 
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const [classesSnap] = useCollection(classesRef)
   const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const classes = useMemo(() => {
-    let list = [];
+    type ClassItem = { id: string; name: string };
+    let list: ClassItem[] = [];
     if (isAdmin) {
-      list = [...rawClasses];
+      list = [...(rawClasses as ClassItem[])];
     } else {
       const assignedIds = profile?.assignments?.map(a => a.classId) || [];
-      list = rawClasses.filter(c => assignedIds.includes(c.id));
+      list = (rawClasses as ClassItem[]).filter(c => assignedIds.includes(c.id));
     }
     return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
