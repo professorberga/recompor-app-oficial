@@ -5,3 +5,7 @@ runConfig:
   memoryMiB: 1024
   # Limite de instâncias para economia e estabilidade
   maxInstances: 1
+
+buildConfig:
+  # Limite de memória para a fase de compilação para evitar falhas de OOM (Out of Memory)
+  memoryMiB: 2048

@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.2 - Estabilização de Rollout"
+  const SYSTEM_VERSION = "v2.2.3 - Sincronização de Cloud Build"
 
   useEffect(() => {
     const clearSession = async () => {
