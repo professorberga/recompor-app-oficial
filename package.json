@@ -7,8 +7,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --port 9002 --hostname 0.0.0.0",
-    "build": "rm -rf .next out next-env.d.ts && next build",
+    "dev": "next dev",
+    "build": "rm -rf .next out next-env.d.ts node_modules/.cache && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
