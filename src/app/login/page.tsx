@@ -35,20 +35,16 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.0 - Sincronizado"
+  const SYSTEM_VERSION = "v2.1 - Sincronizado"
 
   useEffect(() => {
     const clearSession = async () => {
       try {
         console.log(`[Recompor+] Inicializando Protocolo Zero-Cache: ${SYSTEM_VERSION}`);
-        console.log(`[Recompor+] Timestamp: ${new Date().toISOString()}`);
-        
-        // Limpeza agressiva de cache e sessões residuais
         if (typeof window !== 'undefined') {
           window.localStorage.clear();
           window.sessionStorage.clear();
         }
-        
         if (auth) {
           await signOut(auth);
         }
@@ -71,19 +67,15 @@ export default function LoginPage() {
   const checkProfileAndRedirect = async (firebaseUser: any) => {
     try {
       const normalizedEmail = firebaseUser.email.toLowerCase().trim();
-      console.log(`[Auth] Iniciando Protocolo Bavelloni para: ${normalizedEmail}`);
-      
-      // Busca Universal por E-mail (Normalizado)
       const teachersRef = collection(firestore, 'teachers');
       const q = query(teachersRef, where('email', '==', normalizedEmail));
       const qSnap = await getDocs(q);
       
       if (qSnap.empty) {
-        console.error(`[Auth] Nenhum perfil docente vinculado para: ${normalizedEmail}`);
         await signOut(auth);
         toast({
           title: "Acesso Não Autorizado",
-          description: "E-mail autenticado, mas nenhum perfil docente vinculado ao Recompor+.",
+          description: "E-mail autenticado, mas nenhum perfil docente vinculado.",
           variant: "destructive",
         });
         return;
@@ -93,30 +85,19 @@ export default function LoginPage() {
       const legacyData = foundDoc.data();
       const legacyId = foundDoc.id;
 
-      // Sincronização de Identidade: Se o ID for diferente do UID, migra agora.
       if (legacyId !== firebaseUser.uid) {
-        console.log(`[Migration] Sincronizando: ${legacyId} -> ${firebaseUser.uid}`);
-        
-        // 1. Cria/Atualiza o documento sob o UID correto
         const newDocRef = doc(firestore, 'teachers', firebaseUser.uid);
         await setDoc(newDocRef, { 
           ...legacyData, 
           id: firebaseUser.uid,
           role: legacyData.role || 'Professor'
         }, { merge: true });
-
-        // 2. Remove o registro legado (ID antigo)
         await deleteDoc(doc(firestore, 'teachers', legacyId));
-        console.log(`[Migration] Documento legado ${legacyId} removido.`);
       }
 
-      console.log(`[Auth] Perfil sincronizado com cargo: ${legacyData.role}`);
-      
-      // Aguarda propagação das Security Rules
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 800));
       router.push("/dashboard");
     } catch (error: any) {
-      console.error(`[Auth] Erro crítico no fluxo de login:`, error);
       handleAuthError(error);
     }
   }
@@ -137,10 +118,8 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
-    
     setIsLoading(true);
     const sanitizedEmail = email.toLowerCase().trim();
-
     try {
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
@@ -154,42 +133,22 @@ export default function LoginPage() {
 
   const handleAuthError = (error: any) => {
     const errorCode = error.code || 'unknown';
-    console.error(`[AuthError] Code: ${errorCode}`, error);
-
-    if (errorCode === "auth/unauthorized-domain") {
-      toast({ 
-        title: "Domínio Não Autorizado", 
-        description: "Adicione este domínio em 'Authorized Domains' no Console do Firebase.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    if (error.message?.includes("400") || errorCode === "auth/network-request-failed") {
-      toast({ 
-        title: "Falha na Comunicação", 
-        description: "Erro 400 ou rede. Limpe os dados do navegador e tente novamente.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
     toast({ 
       title: "Falha na Autenticação", 
-      description: "E-mail ou senha incorretos. Verifique suas credenciais.", 
+      description: "Verifique suas credenciais institucional.", 
       variant: "destructive" 
     });
   }
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast({ title: "E-mail Necessário", description: "Digite seu e-mail para receber o link.", variant: "destructive" });
+      toast({ title: "E-mail Necessário", variant: "destructive" });
       return;
     }
     setIsResetting(true);
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      toast({ title: "Recuperação Enviada", description: "Verifique sua caixa de entrada." });
+      toast({ title: "Recuperação Enviada" });
     } catch (error: any) {
       toast({ title: "Erro no Envio", variant: "destructive" });
     } finally {
@@ -201,7 +160,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4">
             <Brain className="h-8 w-8" />
