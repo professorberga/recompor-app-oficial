@@ -28,7 +28,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { TeacherProfile, TeacherAssignment, UserRole } from "@/lib/types"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { doc, setDoc, collection, query, getDocs, where, getDoc } from "firebase/firestore"
 import { initializeApp, deleteApp } from "firebase/app"
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth"
@@ -38,7 +39,6 @@ import { ptBR } from "date-fns/locale"
 
 const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
 
-// Grade Horária Atualizada
 const LESSONS_LIST = [
   "1ª aula (07:00 - 07:50)",
   "2ª aula (07:50 - 08:40)",
@@ -75,18 +75,20 @@ export default function SettingsPage() {
     activeBimestre: ""
   })
 
-  const teachersRef = useMemoFirebase(() => 
+  const teachersQuery = useMemoFirebase(() => 
     isAdmin ? collection(firestore, "teachers") : null, 
     [isAdmin, firestore]
   )
-  const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
+  const [teachersSnap, isTeachersLoading] = useCollection(teachersQuery)
+  const allTeachers = useMemo(() => teachersSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [teachersSnap])
 
   const sortedTeachers = useMemo(() => {
     return [...allTeachers].sort((a, b) => (a.name || "").localeCompare(b.name || "", 'pt-BR'));
   }, [allTeachers]);
 
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: globalClasses = [] } = useCollection(globalClassesRef)
+  const [classesSnap] = useCollection(globalClassesRef)
+  const globalClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const sortedGlobalClasses = useMemo(() => {
     return [...globalClasses].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -125,7 +127,6 @@ export default function SettingsPage() {
 
     try {
       for (const teacher of allTeachers) {
-        // REGRA MENTOR: Mentores não aparecem na lista de pendências de diários
         if (teacher.role === 'Mentor') continue;
         if (!teacher.assignments || teacher.assignments.length === 0) continue;
         
@@ -214,14 +215,12 @@ export default function SettingsPage() {
     try {
       let finalTeacherId = editingTeacher.id;
 
-      // Se for um novo professor ou forçado re-provisionamento de senha
       if (!finalTeacherId || editingTeacher.password) {
         try {
           const secondaryAppName = `provision-${Date.now()}`;
           const provisionApp = initializeApp(firebaseConfig, secondaryAppName);
           const provisionAuth = getAuth(provisionApp);
           
-          // Se não tem ID, cria no Auth para obter o UID
           if (!finalTeacherId) {
             const userCred = await createUserWithEmailAndPassword(
               provisionAuth, 
@@ -229,19 +228,15 @@ export default function SettingsPage() {
               editingTeacher.password || "padrao123"
             );
             finalTeacherId = userCred.user.uid;
-          } else {
-            // Se já tem ID, apenas tenta atualizar ou garantir existência (hack opcional)
           }
           await deleteApp(provisionApp);
         } catch (authErr: any) {
           if (authErr.code === 'auth/email-already-in-use' && !finalTeacherId) {
-            // Fallback: se o e-mail já existe, o handshake do login cuidará do pareamento
             finalTeacherId = editingTeacher.email.replace(/[.@]/g, '_');
           }
         }
       }
 
-      // Limpa os IDs temporários usados na interface antes de salvar no Firestore
       const assignmentsToSave = (editingTeacher.assignments || []).map(({ tempId, ...rest }: any) => rest);
 
       await setDoc(doc(firestore, "teachers", finalTeacherId!), {
@@ -261,10 +256,6 @@ export default function SettingsPage() {
     }
   }, [isAdmin, firestore, editingTeacher, toast]);
 
-  /**
-   * Executa a exclusão de um professor através da API Administrativa.
-   * Remove tanto o acesso (Auth) quanto os dados de perfil (Firestore).
-   */
   const handleDeleteTeacher = useCallback(async (uid: string) => {
     if (!isAdmin || !user) return;
     setIsSaving(true);

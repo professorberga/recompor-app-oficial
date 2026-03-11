@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.6 - Estabilização de Hooks"
+  const SYSTEM_VERSION = "v2.2.7 - Estabilização Global de Hooks"
 
   useEffect(() => {
     const clearSession = async () => {

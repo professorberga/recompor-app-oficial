@@ -15,11 +15,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { addDays, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { collection, doc, setDoc, query, where } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
-// Grade Horária Atualizada conforme solicitação
 const CLASS_SCHEDULES = [
   "1ª aula (07:00 - 07:50)",
   "2ª aula (07:50 - 08:40)",
@@ -53,9 +53,9 @@ export default function CalendarPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  // Coleção GLOBAL de Turmas filtrada por atribuição
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: rawClasses = [] } = useCollection(globalClassesRef)
+  const [classesSnap] = useCollection(globalClassesRef)
+  const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const classes = useMemo(() => {
     if (!profile) return [];
@@ -69,7 +69,6 @@ export default function CalendarPage() {
     return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
-  // Coleção GLOBAL de Registros de Aula
   const lessonsRef = useMemoFirebase(() => collection(firestore, 'lessons'), [firestore])
   const lessonsQuery = useMemoFirebase(() => {
     if (!user || !lessonsRef) return null;
@@ -77,7 +76,8 @@ export default function CalendarPage() {
     return query(lessonsRef, where('teacherId', '==', user.uid));
   }, [user, lessonsRef, isAdmin])
   
-  const { data: recordedLessons = [], isLoading: isLessonsLoading } = useCollection(lessonsQuery)
+  const [lessonsSnap, isLessonsLoading] = useCollection(lessonsQuery)
+  const recordedLessons = useMemo(() => lessonsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [lessonsSnap])
 
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -137,7 +137,6 @@ export default function CalendarPage() {
     const dailyRecorded = recordedLessons
       .filter(l => l.date === dateStr || l.lessonDate?.split('T')[0] === dateStr)
       .map(r => {
-        // Lookup dinâmico para evitar Undefined no nome da turma
         const classInfo = rawClasses.find(c => c.id === r.classId);
         return {
           ...r,
@@ -161,7 +160,6 @@ export default function CalendarPage() {
         recorded: dailyRecorded.some(r => r.classId === a.classId)
       }));
 
-    // Remove duplicados se já houver registro real para a aula prevista
     const uniquePlanned = plannedAssignments.filter(p => 
       !dailyRecorded.some(r => r.classId === p.classId && (r.time === p.time || r.lessonNumber === p.time))
     );

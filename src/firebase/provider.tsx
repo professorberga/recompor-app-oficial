@@ -39,12 +39,6 @@ export interface FirebaseServicesAndUser {
   userError: Error | null;
 }
 
-export interface UserHookResult { 
-  user: User | null;
-  isUserLoading: boolean;
-  userError: Error | null;
-}
-
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({

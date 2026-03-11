@@ -34,11 +34,8 @@ export function getSdks(firebaseApp: FirebaseApp) {
   };
 }
 
-// Exportações específicas para evitar colisões de nomes (Star Export Conflict)
 export { FirebaseProvider, useFirebase, useAuth, useFirestore, useFirebaseApp, useUser, useMemoFirebase } from './provider';
 export { FirebaseClientProvider } from './client-provider';
-export { useCollection } from './firestore/use-collection';
-export { useDoc } from './firestore/use-doc';
 export { FirestorePermissionError } from './errors';
 export { errorEmitter } from './error-emitter';
 export * from './non-blocking-updates';

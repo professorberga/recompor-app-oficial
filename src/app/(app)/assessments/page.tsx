@@ -33,7 +33,8 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
 import { AssessmentRecord, RubricCriterion } from "@/lib/types"
 import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
@@ -92,7 +93,6 @@ export default function AssessmentPage() {
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
   const [gradingClassId, setGradingClassId] = useState<string>("")
 
-  // Coleção GLOBAL de Avaliações
   const assessmentsRef = useMemoFirebase(() => collection(firestore, 'assessments'), [firestore])
   const assessmentsQuery = useMemoFirebase(() => {
     if (!user || !assessmentsRef) return null;
@@ -100,11 +100,12 @@ export default function AssessmentPage() {
     return query(assessmentsRef, where('teacherId', '==', user.uid));
   }, [user, assessmentsRef, isAdmin])
   
-  const { data: assessments = [], isLoading: isAssessmentsLoading } = useCollection(assessmentsQuery)
+  const [assessmentsSnap, isAssessmentsLoading] = useCollection(assessmentsQuery)
+  const assessments = useMemo(() => assessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [assessmentsSnap])
 
-  // Coleção GLOBAL de Turmas filtrada por atribuição (ou visão total se Admin)
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: rawClasses = [] } = useCollection(classesRef)
+  const [classesSnap] = useCollection(classesRef)
+  const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const classes = useMemo(() => {
     let list = [];

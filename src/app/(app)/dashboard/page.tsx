@@ -8,8 +8,8 @@ import { AbsenteeCard } from "@/components/dashboard/AbsenteeCard"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
-import { collection, query, where } from "firebase/firestore"
 import { useCollection } from 'react-firebase-hooks/firestore'
+import { collection, query, where } from "firebase/firestore"
 import { Loader2 } from "lucide-react"
 
 export default function Dashboard() {
@@ -21,7 +21,6 @@ export default function Dashboard() {
     setIsClient(true)
   }, [])
 
-  // Coleções Globais
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore])
   const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
@@ -37,7 +36,6 @@ export default function Dashboard() {
   const rawAttendance = useMemo(() => attendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [attendanceSnap])
   const rawAssessments = useMemo(() => assessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [assessmentsSnap])
 
-  // Filtros e Cálculos de Identidade
   const dashboardData = useMemo(() => {
     if (!profile) return { totalClasses: 0, totalStudents: 0, avgAttendance: 0, bloomEvolution: 0, chartData: [] };
     
@@ -54,12 +52,10 @@ export default function Dashboard() {
       filteredAssessments = rawAssessments.filter(a => a.classIds.some(id => assignedClassIds.includes(id)));
     }
 
-    // Cálculo de Presença Média
     const totalAttendanceDocs = filteredAttendance.length;
     const presentCount = filteredAttendance.filter(r => r.status === 'Presente').length;
     const avgAttendance = totalAttendanceDocs > 0 ? Math.round((presentCount / totalAttendanceDocs) * 100) : 0;
 
-    // Projeção de Gráfico baseada em Avaliações Reais
     const chartData = filteredAssessments
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .map(a => {
@@ -67,11 +63,10 @@ export default function Dashboard() {
         const avg = grades.length > 0 ? grades.reduce((acc, val) => acc + val, 0) / grades.length : 0;
         return {
           month: new Date(a.date).toLocaleDateString('pt-BR', { month: 'short' }),
-          value: Math.round(avg * 10) // Normaliza para 0-100
+          value: Math.round(avg * 10)
         }
       });
 
-    // Evolução (Diferença entre a última e a penúltima avaliação)
     let bloomEvolution = 0;
     if (chartData.length >= 2) {
       bloomEvolution = chartData[chartData.length - 1].value - chartData[chartData.length - 2].value;
@@ -144,7 +139,6 @@ export default function Dashboard() {
                     <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-sm">Chamada do Dia</span>
-                        {/* REGRA MENTOR: Mentores não são obrigados a fazer chamada */}
                         {profile?.role === 'Mentor' ? (
                           <Badge variant="secondary">Consultivo</Badge>
                         ) : (

@@ -34,16 +34,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Student, StudentEnrollment, TeacherProfile, StudentObservation } from "@/lib/types"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { collection, doc, setDoc, deleteDoc, query, where, getDocs, writeBatch, getDoc, orderBy } from "firebase/firestore"
 import { BIMESTRE_LABELS, getBimestreFromDate } from "@/lib/date-utils"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
-/**
- * Comprime uma imagem base64 para o formato 3:4 (Portrait)
- */
 const compressImage = (base64Str: string, maxWidth = 300, maxHeight = 400): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -101,27 +99,33 @@ function StudentsContent() {
   const [isSavingObs, setIsSavingObs] = useState(false)
   
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: classes = [] } = useCollection(classesRef)
-  const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore])
-  const { data: allTeachers = [] } = useCollection(teachersRef)
+  const [classesSnap] = useCollection(classesRef)
+  const classes = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
-  const studentsRef = useMemoFirebase(() => {
+  const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore])
+  const [teachersSnap] = useCollection(teachersRef)
+  const allTeachers = useMemo(() => teachersSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [teachersSnap])
+
+  const studentsQuery = useMemoFirebase(() => {
     const baseCol = collection(firestore, 'students');
     return classFilter ? query(baseCol, where('classId', '==', classFilter)) : baseCol;
   }, [classFilter, firestore]);
-  const { data: students = [], isLoading } = useCollection(studentsRef)
+  const [studentsSnap, isLoading] = useCollection(studentsQuery)
+  const students = useMemo(() => studentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [studentsSnap])
 
-  const attendanceHistoryRef = useMemoFirebase(() => {
+  const attendanceHistoryQuery = useMemoFirebase(() => {
     if (!selectedStudent?.id) return null;
     return query(collection(firestore, 'attendanceRecords'), where('studentId', '==', selectedStudent.id));
   }, [selectedStudent, firestore]);
-  const { data: rawAttendanceHistory = [] } = useCollection(attendanceHistoryRef)
+  const [attendanceSnap] = useCollection(attendanceHistoryQuery)
+  const rawAttendanceHistory = useMemo(() => attendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [attendanceSnap])
 
-  const obsHistoryRef = useMemoFirebase(() => {
+  const obsHistoryQuery = useMemoFirebase(() => {
     if (!selectedStudent?.id) return null;
     return query(collection(firestore, 'studentObservations'), where('studentId', '==', selectedStudent.id));
   }, [selectedStudent, firestore]);
-  const { data: rawObsHistory = [] } = useCollection(obsHistoryRef)
+  const [obsSnap] = useCollection(obsHistoryQuery)
+  const rawObsHistory = useMemo(() => obsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [obsSnap])
 
   const filteredAttendance = useMemo(() => {
     if (selectedBimestre === "all") return rawAttendanceHistory;
@@ -315,7 +319,6 @@ function StudentsContent() {
               <form id="teacher-form" onSubmit={handleRegisterSubmit} className="space-y-8">
                 <div className="flex flex-col md:flex-row gap-8 items-start">
                   
-                  {/* Foto Retrato 3:4 */}
                   <div className="flex flex-col items-center gap-4 shrink-0 w-full md:w-auto">
                     <Label className="text-[10px] uppercase font-black text-muted-foreground text-center w-full tracking-widest">Foto Institucional (3:4)</Label>
                     <div className="w-48 h-64 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative shadow-inner group transition-all">
@@ -344,7 +347,6 @@ function StudentsContent() {
 
                   <div className="flex-1 space-y-6 w-full">
                     <div className="grid gap-6">
-                      {/* Identificação */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserCheck className="h-4 w-4 text-primary" />
@@ -372,7 +374,6 @@ function StudentsContent() {
                         </div>
                       </div>
 
-                      {/* Tutoria */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserRound className="h-4 w-4 text-primary" />
@@ -387,7 +388,6 @@ function StudentsContent() {
                   </div>
                 </div>
 
-                {/* Área de Vínculo */}
                 <div className="space-y-4 pt-6 border-t border-dashed">
                   <div className="flex items-center gap-2 border-b pb-1">
                     <GraduationCap className="h-4 w-4 text-primary" />

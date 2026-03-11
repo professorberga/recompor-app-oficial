@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, Suspense } from "react"
@@ -20,7 +21,8 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { addDays, format, getDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { collection, doc, setDoc, query, where, deleteDoc, getDoc, getDocs } from "firebase/firestore"
 import { getBimestreFromDate, BIMESTRE_LABELS } from "@/lib/date-utils"
 
@@ -83,7 +85,8 @@ function AttendanceContent() {
   }, [profile, selectedClassId]);
 
   const globalClassesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore])
-  const { data: rawClasses = [] } = useCollection(globalClassesRef)
+  const [classesSnap] = useCollection(globalClassesRef)
+  const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const classes = useMemo(() => {
     let list = [];
@@ -96,12 +99,13 @@ function AttendanceContent() {
     return list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rawClasses, profile, isAdmin]);
 
-  const studentsRef = useMemoFirebase(() => {
+  const studentsQuery = useMemoFirebase(() => {
     if (!selectedClassId) return null;
     return query(collection(firestore, 'students'), where('classId', '==', selectedClassId));
   }, [selectedClassId, firestore]);
   
-  const { data: rawStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
+  const [studentsSnap, isStudentsLoading] = useCollection(studentsQuery)
+  const rawStudents = useMemo(() => studentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [studentsSnap])
 
   const students = useMemo(() => {
     if (!user || !selectedClassId) return [];
@@ -113,7 +117,7 @@ function AttendanceContent() {
     });
   }, [rawStudents, user, selectedClassId, isAdmin]);
 
-  const attendanceRecordsRef = useMemoFirebase(() => {
+  const attendanceRecordsQuery = useMemoFirebase(() => {
     if (!selectedClassId || !currentDate) return null;
     const dateStr = format(currentDate, "yyyy-MM-dd");
     return query(
@@ -124,7 +128,8 @@ function AttendanceContent() {
     );
   }, [selectedClassId, currentDate, firestore, user]);
 
-  const { data: existingRecords = [], isLoading: isRecordsLoading } = useCollection(attendanceRecordsRef);
+  const [recordsSnap, isRecordsLoading] = useCollection(attendanceRecordsQuery);
+  const existingRecords = useMemo(() => recordsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [recordsSnap])
 
   useEffect(() => {
     setMounted(true)
