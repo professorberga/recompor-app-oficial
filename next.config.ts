@@ -4,12 +4,6 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['firebase-admin'],
-  experimental: {
-    allowedDevOrigins: [
-      '6000-firebase-studio-1772738614944.cluster-c72u3gwiofapkvxrcwjq5zllcu.cloudworkstations.dev',
-      '*.cloudworkstations.dev'
-    ]
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
