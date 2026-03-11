@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -35,12 +34,12 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.7 - Estabilização Global de Hooks"
+  const SYSTEM_VERSION = "v2.2.8 - Preparado para Produção"
 
   useEffect(() => {
     const clearSession = async () => {
       try {
-        console.log(`[Recompor+] Protocolo Zero-Cache ${SYSTEM_VERSION}: Sincronizando Deploy`);
+        console.log(`[Recompor+] Protocolo de Estabilização ${SYSTEM_VERSION}`);
         if (typeof window !== 'undefined') {
           window.localStorage.clear();
           window.sessionStorage.clear();
@@ -98,7 +97,7 @@ export default function LoginPage() {
       await new Promise(resolve => setTimeout(resolve, 800));
       router.push("/dashboard");
     } catch (error: any) {
-      toast({ title: "Falha na Autenticação", description: "Verifique suas credenciais institucional.", variant: "destructive" });
+      toast({ title: "Falha na Autenticação", description: "Verifique suas credenciais institucionais.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
