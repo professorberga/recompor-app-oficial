@@ -7,8 +7,8 @@
   },
   "scripts": {
     "dev": "next dev -p 9002 -H 0.0.0.0",
-    "build": "rm -rf .next out next-env.d.ts node_modules/.cache package-lock.json && next build",
-    "start": "next start",
+    "build": "next build",
+    "start": "next start -p 8080",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },

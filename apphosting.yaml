@@ -1,11 +1,11 @@
-
 runConfig:
-  # Otimização de recursos para evitar erros de cota (429) e timeout de rollout
   cpu: 1
-  memoryMiB: 1024
-  # Limite de instâncias para economia e estabilidade
-  maxInstances: 1
+  memoryMiB: 512
 
-buildConfig:
-  # Limite de memória para a fase de compilação para evitar falhas de OOM (Out of Memory)
-  memoryMiB: 2048
+build:
+  commands:
+    - npm install
+    - npm run build
+
+run:
+  command: npm run start
