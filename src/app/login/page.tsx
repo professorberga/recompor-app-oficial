@@ -159,7 +159,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg mb-4">
             <Brain className="h-8 w-8" />
