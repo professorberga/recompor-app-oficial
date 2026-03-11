@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.4 - Correção de Configuração"
+  const SYSTEM_VERSION = "v2.2.4 - Recuperação de Infraestrutura"
 
   useEffect(() => {
     const clearSession = async () => {
