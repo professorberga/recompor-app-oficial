@@ -314,7 +314,7 @@ export default function AssessmentPage() {
             <Label>Turma:</Label>
             <Select value={gradingClassId} onValueChange={setGradingClassId}>
               <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-              <SelectContent>{selectedAssessment?.classIds.map(id => <SelectItem key={id} value={id}>{rawClasses.find(c => c.id === id)?.name || id}</SelectItem>)}</SelectContent>
+              <SelectContent>{selectedAssessment?.classIds.map(id => <SelectItem key={id} value={id}>{(rawClasses.find(c => (c as any).id === id) as any)?.name || id}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <ScrollArea className="flex-1 p-6">

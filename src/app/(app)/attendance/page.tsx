@@ -89,7 +89,7 @@ function AttendanceContent() {
   const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const classes = useMemo(() => {
-    let list = [];
+    let list: any[] = [];
     if (isAdmin) {
       list = [...rawClasses];
     } else if (profile?.assignments) {
