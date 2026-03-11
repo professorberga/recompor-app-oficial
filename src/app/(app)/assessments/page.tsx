@@ -288,7 +288,7 @@ export default function AssessmentPage() {
                 <Card key={a.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <Badge variant="outline">{a.subject === 'Portuguese' ? 'Português' : 'Matemática'}</Badge>
+                    <Badge variant="outline">{(a as any).subject === 'Portuguese' ? 'Português' : 'Matemática'}</Badge>
                       <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
                         {BIMESTRE_LABELS[a.bimestre || "1"]}
                       </Badge>
