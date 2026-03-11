@@ -117,17 +117,18 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    setIsLoading(true);
-    const sanitizedEmail = email.toLowerCase().trim();
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
-      await checkProfileAndRedirect(userCredential.user);
-    } catch (error: any) {
-      handleAuthError(error);
-    } finally {
-      setIsLoading(false);
+    if (email && password) {
+      setIsLoading(true);
+      const sanitizedEmail = email.toLowerCase().trim();
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+        await checkProfileAndRedirect(userCredential.user);
+      } catch (error: any) {
+        handleAuthError(error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   }
 
