@@ -30,12 +30,10 @@ export function AbsenteeCard() {
   const alerts = useMemo(() => {
     if (!profile || !user) return [];
 
-    // Filtra faltas correspondentes ao professor logado (ou todas se Admin)
     const absences = attendance.filter(r => 
       r.status === 'Falta' && (isAdmin || r.teacherId === user.uid)
     );
     
-    // Agrupa faltas por aluno
     const studentAbsenceCount: Record<string, number> = {};
     absences.forEach(r => {
       studentAbsenceCount[r.studentId] = (studentAbsenceCount[r.studentId] || 0) + 1;
@@ -46,7 +44,6 @@ export function AbsenteeCard() {
         const student = students.find(s => s.id === studentId);
         if (!student) return null;
         
-        // Verifica se o aluno ainda está matriculado com este professor
         const isMatriculado = isAdmin || student.enrollments?.some(e => e.teacherId === user.uid);
         if (!isMatriculado) return null;
         
@@ -74,7 +71,7 @@ export function AbsenteeCard() {
               </CardTitle>
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </div>
-            <CardDescription>Estudantes com faltas acumuladas em suas aulas</CardDescription>
+            <CardDescription>Estudantes com faltas acumuladas</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -111,7 +108,7 @@ export function AbsenteeCard() {
             Ausências Críticas
           </DialogTitle>
           <DialogDescription className="font-bold text-xs uppercase">
-            Alunos com 3 ou mais faltas registradas na sua disciplina.
+            Alunos com 3 ou mais faltas registradas.
           </DialogDescription>
         </DialogHeader>
 
@@ -151,7 +148,7 @@ export function AbsenteeCard() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-20 opacity-30 italic font-black uppercase text-xs tracking-widest">
-                    Tudo em ordem. Nenhum aluno com faltas críticas.
+                    Tudo em ordem.
                   </TableCell>
                 </TableRow>
               )}

@@ -12,7 +12,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "firebase/auth"
-import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from "firebase/firestore"
+import { doc, setDoc, collection, query, where, getDocs, deleteDoc } from "firebase/firestore"
 import { useAuth, useUser, useFirestore } from "@/firebase/provider"
 import { Brain, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Globe } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -98,7 +98,9 @@ export default function LoginPage() {
       await new Promise(resolve => setTimeout(resolve, 800));
       router.push("/dashboard");
     } catch (error: any) {
-      handleAuthError(error);
+      toast({ title: "Falha na Autenticação", description: "Verifique suas credenciais institucional.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -109,7 +111,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       await checkProfileAndRedirect(result.user);
     } catch (error: any) {
-      handleAuthError(error);
+      toast({ title: "Erro no Google Login", variant: "destructive" });
     } finally {
       setIsGoogleLoading(false);
     }
@@ -125,19 +127,11 @@ export default function LoginPage() {
         const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
         await checkProfileAndRedirect(userCredential.user);
       } catch (error: any) {
-        handleAuthError(error);
+        toast({ title: "Falha no Login", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-  }
-
-  const handleAuthError = (error: any) => {
-    toast({ 
-      title: "Falha na Autenticação", 
-      description: "Verifique suas credenciais institucional.", 
-      variant: "destructive" 
-    });
   }
 
   const handleForgotPassword = async () => {

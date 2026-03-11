@@ -8,8 +8,8 @@ import { AbsenteeCard } from "@/components/dashboard/AbsenteeCard"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { collection } from "firebase/firestore"
 import { useCollection } from 'react-firebase-hooks/firestore'
-import { collection, query, where } from "firebase/firestore"
 import { Loader2 } from "lucide-react"
 
 export default function Dashboard() {
@@ -139,25 +139,9 @@ export default function Dashboard() {
                     <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-sm">Chamada do Dia</span>
-                        {profile?.role === 'Mentor' ? (
-                          <Badge variant="secondary">Consultivo</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-accent border-accent">Pendente</Badge>
-                        )}
+                        <Badge variant="outline" className="text-accent border-accent">Pendente</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {profile?.role === 'Mentor' 
-                          ? 'Acompanhe os lançamentos e faça apontamentos qualitativos.' 
-                          : 'Lembre-se de registrar a frequência das turmas ativas.'}
-                      </p>
-                    </div>
-                    
-                    <div className="p-3 rounded-lg border border-border bg-muted/20 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm">Dados Sincronizados</span>
-                        <Badge variant="secondary">Tempo Real</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">O dashboard reflete os dados globais do Firestore.</p>
+                      <p className="text-xs text-muted-foreground">Lembre-se de registrar a frequência das turmas ativas.</p>
                     </div>
                   </>
                 )}
