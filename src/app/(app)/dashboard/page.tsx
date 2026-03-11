@@ -7,8 +7,9 @@ import { EvolutionChart } from "@/components/dashboard/EvolutionChart"
 import { AbsenteeCard } from "@/components/dashboard/AbsenteeCard"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
 import { collection, query, where } from "firebase/firestore"
+import { useCollection } from "react-firebase-hooks/firestore"
 import { Loader2 } from "lucide-react"
 
 export default function Dashboard() {
@@ -26,10 +27,15 @@ export default function Dashboard() {
   const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
   const assessmentsRef = useMemoFirebase(() => collection(firestore, 'assessments'), [firestore])
 
-  const { data: rawClasses = [] } = useCollection(classesRef)
-  const { data: rawStudents = [] } = useCollection(studentsRef)
-  const { data: rawAttendance = [] } = useCollection(attendanceRef)
-  const { data: rawAssessments = [] } = useCollection(assessmentsRef)
+  const [rawClassesSnap] = useCollection(classesRef)
+  const [rawStudentsSnap] = useCollection(studentsRef)
+  const [rawAttendanceSnap] = useCollection(attendanceRef)
+  const [rawAssessmentsSnap] = useCollection(assessmentsRef)
+
+  const rawClasses = useMemo(() => rawClassesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawClassesSnap])
+  const rawStudents = useMemo(() => rawStudentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawStudentsSnap])
+  const rawAttendance = useMemo(() => rawAttendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawAttendanceSnap])
+  const rawAssessments = useMemo(() => rawAssessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawAssessmentsSnap])
 
   // Filtros e Cálculos de Identidade
   const dashboardData = useMemo(() => {

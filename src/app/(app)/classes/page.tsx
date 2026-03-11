@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from "react-firebase-hooks/firestore"
 import { collection, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -30,11 +31,16 @@ export default function ClassesPage() {
   const { toast } = useToast()
 
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore]);
-  const { data: rawClasses = [], isLoading: isClassesLoading } = useCollection(classesRef)
+  const [rawClassesSnap, isClassesLoading] = useCollection(classesRef)
+  const rawClasses = useMemo(() => rawClassesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawClassesSnap])
+
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
-  const { data: allStudents = [], isLoading: isStudentsLoading } = useCollection(studentsRef)
+  const [allStudentsSnap, isStudentsLoading] = useCollection(studentsRef)
+  const allStudents = useMemo(() => allStudentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [allStudentsSnap])
+
   const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore]);
-  const { data: allTeachers = [], isLoading: isTeachersLoading } = useCollection(teachersRef)
+  const [allTeachersSnap, isTeachersLoading] = useCollection(teachersRef)
+  const allTeachers = useMemo(() => allTeachersSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [allTeachersSnap])
 
   const [classForm, setClassForm] = useState({
     name: "",

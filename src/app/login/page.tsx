@@ -35,7 +35,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2.5 - Sincronização de Dependências"
+  const SYSTEM_VERSION = "v2.2.6 - Estabilização de Hooks"
 
   useEffect(() => {
     const clearSession = async () => {
