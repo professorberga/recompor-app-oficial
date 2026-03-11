@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight, Pencil, Users, Check, UserPlus } from "lucide-react"
+import { Plus, Search, BookOpen, GraduationCap, User, Loader2, Trash2, ArrowRight, Pencil, Users, Check, UserPlus, Calculator } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -221,7 +221,11 @@ export default function ClassesPage() {
               <Card key={cls.id} className="border-none shadow-md overflow-hidden group hover:shadow-2xl transition-all duration-300 bg-white border-l-4 border-l-primary">
                 <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4">
                   <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-lg`}>
-                    <BookOpen className="h-6 w-6" />
+                    {cls.subject === 'Portuguese' ? (
+                      <BookOpen className="h-6 w-6" />
+                    ) : (
+                      <Calculator className="h-6 w-6" />
+                    )}
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <CardTitle className="text-xl font-black truncate uppercase tracking-tighter">{cls.name}</CardTitle>
