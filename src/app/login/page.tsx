@@ -35,12 +35,12 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.1 - Sincronizado"
+  const SYSTEM_VERSION = "v2.2 - Implantação Crítica"
 
   useEffect(() => {
     const clearSession = async () => {
       try {
-        console.log(`[Recompor+] Protocolo Zero-Cache v2.1: Sincronizando Deploy`);
+        console.log(`[Recompor+] Protocolo Zero-Cache v2.2: Sincronizando Deploy Crítico`);
         if (typeof window !== 'undefined') {
           window.localStorage.clear();
           window.sessionStorage.clear();
