@@ -2,16 +2,19 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  // Modo Standalone é obrigatório para Firebase App Hosting
   output: 'standalone',
-  // Garante que o SDK Admin não seja incluído no bundle do lado do cliente
   serverExternalPackages: ['firebase-admin'],
-  // Blindagem de Build: Ignora erros de lint/tipagem que travam o rollout AOT
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  experimental: {
+    allowedDevOrigins: [
+      '6000-firebase-studio-1772738614944.cluster-c72u3gwiofapkvxrcwjq5zllcu.cloudworkstations.dev',
+      '*.cloudworkstations.dev'
+    ]
   },
   images: {
     unoptimized: true,
