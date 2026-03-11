@@ -4,8 +4,6 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   // Modo Standalone é obrigatório para Firebase App Hosting
   output: 'standalone',
-  // Desativa o rastreamento de arquivos de saída para corrigir erro ENOENT no Cloud Build
-  outputFileTracing: false,
   // Garante que o SDK Admin não seja incluído no bundle do lado do cliente
   serverExternalPackages: ['firebase-admin'],
   // Blindagem de Build: Ignora erros de lint/tipagem que travam o rollout AOT
