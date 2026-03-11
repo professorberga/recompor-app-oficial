@@ -1,9 +1,6 @@
 
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
 runConfig:
-  # Otimização de recursos para evitar erros de cota (429)
+  # Otimização de recursos para evitar erros de cota (429) e timeout de rollout
   cpu: 1
   memoryMiB: 1024
   # Limite de instâncias para economia e estabilidade
