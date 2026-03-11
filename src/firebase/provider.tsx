@@ -1,166 +1,95 @@
-
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
+import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot, setDoc, getDoc, Unsubscribe, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
-// Re-exportando hooks de documentos e coleções para acesso centralizado
-export * from './firestore/use-collection';
-export * from './firestore/use-doc';
-
-interface TeacherAssignment {
-  classId: string;
-  className: string;
-  subject: string;
-  dayOfWeek?: string;
-  lessonNumber?: string;
-}
-
-interface TeacherProfile {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Admin' | 'Professor' | 'Mentor';
-  subjects: string[];
-  schoolName?: string;
-  academicYear?: string;
-  activeBimestre?: string;
-  assignments?: TeacherAssignment[];
-}
-
-interface SchoolConfig {
-  schoolName: string;
-  academicYear: string;
-  activeBimestre: string;
-}
-
-interface UserAuthState {
-  user: User | null;
-  profile: TeacherProfile | null;
-  schoolConfig: SchoolConfig | null;
-  isAdmin: boolean;
-  isUserLoading: boolean;
-  userError: Error | null;
-}
-
-export interface FirebaseContextState extends UserAuthState {
-  areServicesAvailable: boolean;
-  firebaseApp: FirebaseApp | null;
-  firestore: Firestore | null;
-  auth: Auth | null;
-}
-
-export interface FirebaseServicesAndUser extends FirebaseContextState {
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
-}
-
-export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
-
-// UID do Administrador conhecido
-const ADMIN_UID = "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1";
-
-export const FirebaseProvider: React.FC<{
+interface FirebaseProviderProps {
   children: ReactNode;
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
-}> = ({ children, firebaseApp, firestore, auth }) => {
+}
+
+// Internal state for user authentication
+interface UserAuthState {
+  user: User | null;
+  isUserLoading: boolean;
+  userError: Error | null;
+}
+
+// Combined state for the Firebase context
+export interface FirebaseContextState {
+  areServicesAvailable: boolean; // True if core services (app, firestore, auth instance) are provided
+  firebaseApp: FirebaseApp | null;
+  firestore: Firestore | null;
+  auth: Auth | null; // The Auth service instance
+  // User authentication state
+  user: User | null;
+  isUserLoading: boolean; // True during initial auth check
+  userError: Error | null; // Error from auth listener
+}
+
+// Return type for useFirebase()
+export interface FirebaseServicesAndUser {
+  firebaseApp: FirebaseApp;
+  firestore: Firestore;
+  auth: Auth;
+  user: User | null;
+  isUserLoading: boolean;
+  userError: Error | null;
+}
+
+// Return type for useUser() - specific to user auth state
+export interface UserHookResult { // Renamed from UserAuthHookResult for consistency if desired, or keep as UserAuthHookResult
+  user: User | null;
+  isUserLoading: boolean;
+  userError: Error | null;
+}
+
+// React Context
+export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
+
+/**
+ * FirebaseProvider manages and provides Firebase services and user authentication state.
+ */
+export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
+  children,
+  firebaseApp,
+  firestore,
+  auth,
+}) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
-    profile: null,
-    schoolConfig: null,
-    isAdmin: false,
-    isUserLoading: true,
+    isUserLoading: true, // Start loading until first auth event
     userError: null,
   });
 
-  const profileUnsubscribeRef = useRef<Unsubscribe | null>(null);
-  const schoolUnsubscribeRef = useRef<Unsubscribe | null>(null);
-
+  // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
-    // Log de Sincronização de Build para Depuração de Produção
-    console.log(`[Recompor+] Build Global Sincronizada em: ${new Date().toLocaleString()}`);
+    if (!auth) { // If no Auth service instance, cannot determine user state
+      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+      return;
+    }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Limpa inscrições anteriores
-      if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
-      if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
+    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
 
-      if (firebaseUser) {
-        console.log(`[Auth] Sessão ativa para: ${firebaseUser.email}`);
-        const teacherRef = doc(firestore, 'teachers', firebaseUser.uid);
-        const schoolRef = doc(firestore, 'settings', 'school');
-        
-        try {
-          // 1. Escuta Global de Configurações
-          schoolUnsubscribeRef.current = onSnapshot(schoolRef, (snapshot) => {
-            if (snapshot.exists()) {
-              setUserAuthState(prev => ({ 
-                ...prev, 
-                schoolConfig: snapshot.data() as SchoolConfig 
-              }));
-            }
-          });
-
-          // 2. Busca Híbrida e Verificação de Perfil
-          let profileDocSnap = await getDoc(teacherRef);
-          
-          if (profileDocSnap.exists()) {
-            profileUnsubscribeRef.current = onSnapshot(teacherRef, (snapshot) => {
-              if (snapshot.exists()) {
-                const data = snapshot.data() as TeacherProfile;
-                setUserAuthState(prev => ({
-                  ...prev,
-                  user: firebaseUser,
-                  profile: { ...data, id: snapshot.id },
-                  isAdmin: data.role === 'Admin' || firebaseUser.uid === ADMIN_UID,
-                  isUserLoading: false,
-                }));
-              }
-            });
-          } else {
-            // Caso o UID não exista, tenta localizar por e-mail para migração (contingência)
-            const normalizedEmail = firebaseUser.email?.toLowerCase().trim();
-            const q = query(collection(firestore, 'teachers'), where('email', '==', normalizedEmail));
-            const querySnap = await getDocs(q);
-            
-            if (!querySnap.empty) {
-              console.log("[Auth] Perfil legado detectado por e-mail. Aguardando migração do handleLogin.");
-              // O handleLogin no /login cuida da migração atômica. Aqui apenas aguardamos.
-            } else {
-              console.warn("[Auth] Perfil não localizado. Sessão limitada.");
-              setUserAuthState(prev => ({ ...prev, user: firebaseUser, isUserLoading: false }));
-            }
-          }
-
-        } catch (err: any) {
-          console.error("Erro na sincronização global:", err);
-          setUserAuthState(prev => ({ ...prev, isUserLoading: false, userError: err }));
-        }
-      } else {
-        setUserAuthState({
-          user: null,
-          profile: null,
-          schoolConfig: null,
-          isAdmin: false,
-          isUserLoading: false,
-          userError: null,
-        });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (firebaseUser) => { // Auth state determined
+        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+      },
+      (error) => { // Auth listener error
+        console.error("FirebaseProvider: onAuthStateChanged error:", error);
+        setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
-    });
+    );
+    return () => unsubscribe(); // Cleanup
+  }, [auth]); // Depends on the auth instance
 
-    return () => {
-      unsubscribeAuth();
-      if (profileUnsubscribeRef.current) profileUnsubscribeRef.current();
-      if (schoolUnsubscribeRef.current) schoolUnsubscribeRef.current();
-    };
-  }, [auth, firestore]);
-
+  // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth);
     return {
@@ -168,7 +97,9 @@ export const FirebaseProvider: React.FC<{
       firebaseApp: servicesAvailable ? firebaseApp : null,
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
-      ...userAuthState
+      user: userAuthState.user,
+      isUserLoading: userAuthState.isUserLoading,
+      userError: userAuthState.userError,
     };
   }, [firebaseApp, firestore, auth, userAuthState]);
 
@@ -180,23 +111,66 @@ export const FirebaseProvider: React.FC<{
   );
 };
 
+/**
+ * Hook to access core Firebase services and user authentication state.
+ * Throws error if core services are not available or used outside provider.
+ */
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-  if (context === undefined) throw new Error('useFirebase deve ser usado dentro de um FirebaseProvider.');
-  return context as FirebaseServicesAndUser;
-};
 
-export const useAuth = () => useFirebase().auth;
-export const useFirestore = () => useFirebase().firestore;
-export const useUser = () => {
-  const { user, profile, schoolConfig, isAdmin, isUserLoading, userError } = useFirebase();
-  return { user, profile, schoolConfig, isAdmin, isUserLoading, userError };
-};
-
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
-  const memoized = useMemo(factory, deps);
-  if(typeof memoized === 'object' && memoized !== null) {
-    (memoized as any).__memo = true;
+  if (context === undefined) {
+    throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
+
+  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
+    throw new Error('Firebase core services not available. Check FirebaseProvider props.');
+  }
+
+  return {
+    firebaseApp: context.firebaseApp,
+    firestore: context.firestore,
+    auth: context.auth,
+    user: context.user,
+    isUserLoading: context.isUserLoading,
+    userError: context.userError,
+  };
+};
+
+/** Hook to access Firebase Auth instance. */
+export const useAuth = (): Auth => {
+  const { auth } = useFirebase();
+  return auth;
+};
+
+/** Hook to access Firestore instance. */
+export const useFirestore = (): Firestore => {
+  const { firestore } = useFirebase();
+  return firestore;
+};
+
+/** Hook to access Firebase App instance. */
+export const useFirebaseApp = (): FirebaseApp => {
+  const { firebaseApp } = useFirebase();
+  return firebaseApp;
+};
+
+type MemoFirebase <T> = T & {__memo?: boolean};
+
+export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
+  const memoized = useMemo(factory, deps);
+  
+  if(typeof memoized !== 'object' || memoized === null) return memoized;
+  (memoized as MemoFirebase<T>).__memo = true;
+  
   return memoized;
 }
+
+/**
+ * Hook specifically for accessing the authenticated user's state.
+ * This provides the User object, loading status, and any auth errors.
+ * @returns {UserHookResult} Object with user, isUserLoading, userError.
+ */
+export const useUser = (): UserHookResult => { // Renamed from useAuthUser
+  const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
+  return { user, isUserLoading, userError };
+};

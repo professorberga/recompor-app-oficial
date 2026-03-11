@@ -2,71 +2,155 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /**
+     * MONITOR DO BEEM - SECURITY RULES DOCUMENTATION
+     *
+     * Core Philosophy:
+     * This ruleset implements a strict Authorization Independence model tailored for an educational
+     * management platform. Access is primarily driven by "Membership" (Teacher assignments to classes)
+     * and "Ownership" (Teacher profiles and private content).
+     *
+     * Data Structure:
+     * - /teachers/{teacherId}: Private profiles for teachers.
+     * - /classes/{classId}: Shared class definitions accessible to assigned teachers.
+     * - /classes/{classId}/[subcollections]: Contextual class data (assessments, attendance, etc.).
+     * - /students/{studentId}: Global student profiles accessible to any teacher of that student.
+     * - /competencies & /bloomTaxonomyLevels: Global read-only reference data.
+     *
+     * Key Security Decisions:
+     * 1. Authorization Independence: To ensure rules are performant and don't require costly get()
+     *    calls, authorization UIDs (e.g., classTeacherIds, associatedTeacherIds) are denormalized
+     *    directly onto documents. Rules verify access by checking if request.auth.uid exists
+     *    within these denormalized arrays.
+     * 2. Strict Scoping: Users can only see data they are explicitly linked to via these arrays.
+     * 3. Immutability: Critical relational fields (like classId or teacherId) are protected
+     *    from modification after creation to ensure data integrity.
+     */
+
+    // --- HELPER FUNCTIONS ---
+
+    // Simple check if the user is authenticated.
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == "U3vapjp9K2NqRpYdp2ZzJ8vfZsm1" || 
-        get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.role == "Admin"
-      );
+    // Checks if the user's UID matches the provided ID (Ownership).
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- CONFIGURAÇÕES GLOBAIS ---
-    match /settings/{settingId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    // Checks ownership and ensures the document exists (for update/delete).
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
     }
 
-    // --- PROFESSORES ---
+    // Checks if the user's UID is present in a list of authorized members.
+    function isMember(memberList) {
+      return isSignedIn() && request.auth.uid in memberList;
+    }
+
+    // Checks membership and ensures the document exists (for update/delete).
+    function isExistingMember(memberList) {
+      return resource != null && isMember(memberList);
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for Teacher profiles. Only the teacher themselves can access their profile.
+     * @path /teachers/{teacherId}
+     * @allow Authenticated user (create) where UID matches path.
+     * @deny Any user (get) attempting to read a profile not matching their UID.
+     * @principle Enforces strict user-ownership model.
+     */
     match /teachers/{teacherId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && (
-        request.auth.uid == teacherId || 
-        (resource != null && resource.data.email == request.auth.token.email) ||
-        (request.resource != null && request.resource.data.email == request.auth.token.email)
-      ));
+      allow get, list: if isOwner(teacherId);
+      allow create: if isOwner(teacherId) && request.resource.data.id == teacherId;
+      allow update: if isExistingOwner(teacherId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(teacherId);
+
+      /**
+       * @description Private learning materials created by a specific teacher.
+       * @path /teachers/{teacherId}/learningContent/{contentId}
+       * @allow Owner (create) where teacherId field matches path.
+       * @deny Non-owners (list) trying to browse another teacher's content.
+       * @principle Restricts access to a user's own data tree.
+       */
+      match /learningContent/{contentId} {
+        allow get, list: if isOwner(teacherId);
+        allow create: if isOwner(teacherId) && request.resource.data.teacherId == teacherId;
+        allow update: if isExistingOwner(teacherId) && request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if isExistingOwner(teacherId);
+      }
     }
 
-    // --- TURMAS (GLOBAL) ---
+    /**
+     * @description Shared classes. Accessible to any teacher listed in the teacherIds array.
+     * @path /classes/{classId}
+     * @allow Member teacher (get) if their UID is in teacherIds.
+     * @deny Authenticated teacher (update) if they were removed from the teacherIds list.
+     * @principle Shared access via membership arrays (Closed Collaborators).
+     */
     match /classes/{classId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow get, list: if isMember(resource.data.teacherIds);
+      allow create: if isMember(request.resource.data.teacherIds);
+      allow update: if isExistingMember(resource.data.teacherIds) && isMember(request.resource.data.teacherIds);
+      allow delete: if isExistingMember(resource.data.teacherIds);
+
+      /**
+       * @description Subcollections under a class. Uses denormalized classTeacherIds for authorization.
+       * Applies to: assessmentResults, attendanceRecords, observations, learningInsights, scheduleEntries, enrolledStudents.
+       */
+      match /{subcollection}/{docId} {
+        allow get, list: if isMember(resource.data.classTeacherIds);
+        allow create: if isMember(request.resource.data.classTeacherIds) && request.resource.data.classId == classId;
+        allow update: if isExistingMember(resource.data.classTeacherIds) && request.resource.data.classId == resource.data.classId;
+        allow delete: if isExistingMember(resource.data.classTeacherIds);
+      }
     }
 
-    // --- ESTUDANTES (GLOBAL) ---
+    /**
+     * @description Global Student profiles. Accessible to any teacher who teaches at least one of the student's classes.
+     * @path /students/{studentId}
+     * @allow Teacher (update) if their UID is in the denormalized associatedTeacherIds array.
+     * @deny Teacher (get) if the student is not enrolled in any of the teacher's classes.
+     * @principle Authorization Independence via denormalized association arrays.
+     */
     match /students/{studentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.teacherId || request.auth.uid == resource.data.teacherUid));
-      allow delete: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.teacherId || request.auth.uid == resource.data.teacherUid));
+      allow get, list: if isMember(resource.data.associatedTeacherIds);
+      allow create: if isMember(request.resource.data.associatedTeacherIds);
+      allow update: if isExistingMember(resource.data.associatedTeacherIds);
+      allow delete: if isExistingMember(resource.data.associatedTeacherIds);
     }
 
-    // --- FREQUÊNCIA (GLOBAL) ---
-    match /attendanceRecords/{recordId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
-      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.teacherId);
+    /**
+     * @description Reference data for competencies and skills. Read-only for all teachers.
+     * @path /competencies/{competencyId}
+     * @allow Any signed-in teacher (get/list).
+     * @deny Any user (create/update/delete). Managed by system/admin.
+     * @principle Global read-only reference data.
+     */
+    match /competencies/{competencyId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+
+      match /skills/{skillId} {
+        allow get, list: if isSignedIn();
+        allow create, update, delete: if false;
+      }
     }
 
-    // --- OBSERVACÕES PEDAGÓGICAS ---
-    match /studentObservations/{obsId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    /**
+     * @description Reference data for Bloom's Taxonomy. Read-only for all teachers.
+     * @path /bloomTaxonomyLevels/{levelId}
+     * @allow Any signed-in teacher (list).
+     * @deny Any user (write).
+     * @principle Global read-only reference data.
+     */
+    match /bloomTaxonomyLevels/{levelId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
-    // --- REGISTROS DE AULA (GLOBAL) ---
-    match /lessons/{lessonId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    // --- AVALIAÇÕES (GLOBAL) ---
-    match /assessments/{assessmentId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
   }
 }
