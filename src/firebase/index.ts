@@ -1,4 +1,3 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
@@ -7,23 +6,14 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 /**
- * Inicializa o Firebase SDK no cliente.
- * Suporta inicialização automática via App Hosting ou fallback via config.
+ * Inicializa o Firebase SDK no cliente com configuração explícita.
  */
 export function initializeFirebase() {
-  if (!getApps().length) {
-    let firebaseApp;
-    try {
-      firebaseApp = initializeApp();
-    } catch (e) {
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to config.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
-    }
-    return getSdks(firebaseApp);
-  }
-  return getSdks(getApp());
+  const app = !getApps().length 
+    ? initializeApp(firebaseConfig) 
+    : getApp();
+    
+  return getSdks(app);
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
