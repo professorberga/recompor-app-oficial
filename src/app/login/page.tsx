@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -35,7 +34,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const SYSTEM_VERSION = "v2.2 - Implantação Crítica"
+  const SYSTEM_VERSION = "v2.2.1 - Estabilização de Recursos"
 
   useEffect(() => {
     const clearSession = async () => {

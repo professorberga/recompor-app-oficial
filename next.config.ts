@@ -1,9 +1,10 @@
-
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  // Modo Standalone é obrigatório para Firebase App Hosting
   output: 'standalone',
   serverExternalPackages: ['firebase-admin'],
+  // Blindagem de Build: Ignora erros de lint/tipagem que travam o rollout AOT
   typescript: {
     ignoreBuildErrors: true,
   },
