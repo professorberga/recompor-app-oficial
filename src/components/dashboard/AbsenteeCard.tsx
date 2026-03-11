@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase/provider"
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
 import { collection } from "firebase/firestore"
+import { useCollection } from 'react-firebase-hooks/firestore'
 
 export function AbsenteeCard() {
   const [isOpen, setIsOpen] = useState(false)
@@ -20,8 +21,11 @@ export function AbsenteeCard() {
   const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore])
 
-  const { data: attendance = [], isLoading: isAttendanceLoading } = useCollection(attendanceRef)
-  const { data: students = [] } = useCollection(studentsRef)
+  const [attendanceSnap, isAttendanceLoading] = useCollection(attendanceRef)
+  const [studentsSnap] = useCollection(studentsRef)
+
+  const attendance = useMemo(() => attendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [attendanceSnap])
+  const students = useMemo(() => studentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [studentsSnap])
 
   const alerts = useMemo(() => {
     if (!profile || !user) return [];

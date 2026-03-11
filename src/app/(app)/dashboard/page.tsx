@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
 import { collection, query, where } from "firebase/firestore"
-import { useCollection } from "react-firebase-hooks/firestore"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { Loader2 } from "lucide-react"
 
 export default function Dashboard() {
@@ -27,15 +27,15 @@ export default function Dashboard() {
   const attendanceRef = useMemoFirebase(() => collection(firestore, 'attendanceRecords'), [firestore])
   const assessmentsRef = useMemoFirebase(() => collection(firestore, 'assessments'), [firestore])
 
-  const [rawClassesSnap] = useCollection(classesRef)
-  const [rawStudentsSnap] = useCollection(studentsRef)
-  const [rawAttendanceSnap] = useCollection(attendanceRef)
-  const [rawAssessmentsSnap] = useCollection(assessmentsRef)
+  const [classesSnap] = useCollection(classesRef)
+  const [studentsSnap] = useCollection(studentsRef)
+  const [attendanceSnap] = useCollection(attendanceRef)
+  const [assessmentsSnap] = useCollection(assessmentsRef)
 
-  const rawClasses = useMemo(() => rawClassesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawClassesSnap])
-  const rawStudents = useMemo(() => rawStudentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawStudentsSnap])
-  const rawAttendance = useMemo(() => rawAttendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawAttendanceSnap])
-  const rawAssessments = useMemo(() => rawAssessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawAssessmentsSnap])
+  const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
+  const rawStudents = useMemo(() => studentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [studentsSnap])
+  const rawAttendance = useMemo(() => attendanceSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [attendanceSnap])
+  const rawAssessments = useMemo(() => assessmentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [assessmentsSnap])
 
   // Filtros e Cálculos de Identidade
   const dashboardData = useMemo(() => {

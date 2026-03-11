@@ -13,7 +13,7 @@ import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase/provider"
-import { useCollection } from "react-firebase-hooks/firestore"
+import { useCollection } from 'react-firebase-hooks/firestore'
 import { collection, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -31,16 +31,16 @@ export default function ClassesPage() {
   const { toast } = useToast()
 
   const classesRef = useMemoFirebase(() => collection(firestore, 'classes'), [firestore]);
-  const [rawClassesSnap, isClassesLoading] = useCollection(classesRef)
-  const rawClasses = useMemo(() => rawClassesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [rawClassesSnap])
+  const [classesSnap, isClassesLoading] = useCollection(classesRef)
+  const rawClasses = useMemo(() => classesSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [classesSnap])
 
   const studentsRef = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
-  const [allStudentsSnap, isStudentsLoading] = useCollection(studentsRef)
-  const allStudents = useMemo(() => allStudentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [allStudentsSnap])
+  const [studentsSnap, isStudentsLoading] = useCollection(studentsRef)
+  const allStudents = useMemo(() => studentsSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [studentsSnap])
 
   const teachersRef = useMemoFirebase(() => collection(firestore, 'teachers'), [firestore]);
-  const [allTeachersSnap, isTeachersLoading] = useCollection(teachersRef)
-  const allTeachers = useMemo(() => allTeachersSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [allTeachersSnap])
+  const [teachersSnap, isTeachersLoading] = useCollection(teachersRef)
+  const allTeachers = useMemo(() => teachersSnap?.docs.map(d => ({ ...d.data(), id: d.id })) || [], [teachersSnap])
 
   const [classForm, setClassForm] = useState({
     name: "",
