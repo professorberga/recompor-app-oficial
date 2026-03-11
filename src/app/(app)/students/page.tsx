@@ -41,21 +41,41 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
+/**
+ * Comprime uma imagem base64 para o formato 3:4 (Portrait)
+ */
 const compressImage = (base64Str: string, maxWidth = 300, maxHeight = 400): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.src = base64Str;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      let width = img.width, height = img.height;
-      if (width / height > 3 / 4) {
-        width = height * (3 / 4);
+      canvas.width = maxWidth;
+      canvas.height = maxHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Lógica de crop centralizado para 3:4
+        const imgAspect = img.width / img.height;
+        const targetAspect = maxWidth / maxHeight;
+        
+        let sx, sy, sWidth, sHeight;
+        if (imgAspect > targetAspect) {
+          sHeight = img.height;
+          sWidth = img.height * targetAspect;
+          sx = (img.width - sWidth) / 2;
+          sy = 0;
+        } else {
+          sWidth = img.width;
+          sHeight = img.width / targetAspect;
+          sx = 0;
+          sy = (img.height - sHeight) / 2;
+        }
+        
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, maxWidth, maxHeight);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
       } else {
-        height = width * (4 / 3);
+        resolve("");
       }
-      canvas.width = maxWidth; canvas.height = maxHeight;
-      canvas.getContext('2d')?.drawImage(img, 0, 0, maxWidth, maxHeight);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
     img.onerror = () => resolve("");
   });
@@ -154,16 +174,16 @@ function StudentsContent() {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext('2d');
       if (context) {
-        // Force 3:4 aspect ratio in capture
-        const tw = 300;
-        const th = 400;
-        canvasRef.current.width = tw; canvasRef.current.height = th;
+        // Força proporção 3:4 na captura
+        const targetWidth = 300;
+        const targetHeight = 400;
+        canvasRef.current.width = targetWidth;
+        canvasRef.current.height = targetHeight;
         
-        // Calculate crop to center
         const videoWidth = videoRef.current.videoWidth;
         const videoHeight = videoRef.current.videoHeight;
         const videoAspect = videoWidth / videoHeight;
-        const targetAspect = 3 / 4;
+        const targetAspect = targetWidth / targetHeight;
 
         let sx, sy, sWidth, sHeight;
         if (videoAspect > targetAspect) {
@@ -178,8 +198,8 @@ function StudentsContent() {
           sy = (videoHeight - sHeight) / 2;
         }
 
-        context.drawImage(videoRef.current, sx, sy, sWidth, sHeight, 0, 0, tw, th);
-        setCapturedPhoto(canvasRef.current.toDataURL('image/jpeg', 0.6));
+        context.drawImage(videoRef.current, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+        setCapturedPhoto(canvasRef.current.toDataURL('image/jpeg', 0.8));
         stopCamera();
       }
     }
@@ -284,6 +304,7 @@ function StudentsContent() {
         </div>
       )}
 
+      {/* DIALOG DE CADASTRO REORGANIZADO */}
       <Dialog open={isRegisterOpen} onOpenChange={(o) => { if(!o) stopCamera(); setIsRegisterOpen(o); }}>
         <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 bg-white">
           <DialogHeader className="p-6 bg-primary text-white shrink-0">
@@ -296,10 +317,11 @@ function StudentsContent() {
             <div className="p-8">
               <form onSubmit={handleRegisterSubmit} className="space-y-8">
                 <div className="flex flex-col md:flex-row gap-8 items-start">
-                  {/* Photo Section: Fixed 3:4 Aspect Ratio */}
+                  
+                  {/* Coluna 1: Foto (3:4 Ratio) */}
                   <div className="flex flex-col items-center gap-4 shrink-0 w-full md:w-auto">
-                    <Label className="text-[10px] uppercase font-black text-muted-foreground text-center w-full">Foto do Estudante (3:4)</Label>
-                    <div className="w-36 h-48 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative shadow-inner group">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground text-center w-full tracking-widest">Foto do Estudante (3:4)</Label>
+                    <div className="w-48 h-64 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative shadow-inner group transition-all">
                       {capturedPhoto ? (
                         <img src={capturedPhoto} className="h-full w-full object-cover" />
                       ) : isCameraActive ? (
@@ -311,44 +333,44 @@ function StudentsContent() {
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2 w-36">
-                      <Button type="button" size="sm" variant="outline" className="h-8 font-black text-[10px] uppercase" onClick={isCameraActive ? capturePhoto : startCamera}>
-                        {isCameraActive ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Camera className="h-3 w-3 mr-1" />}
+                    <div className="flex flex-col gap-2 w-48">
+                      <Button type="button" size="sm" variant="outline" className="h-9 font-black text-[10px] uppercase tracking-wider" onClick={isCameraActive ? capturePhoto : startCamera}>
+                        {isCameraActive ? <CheckCircle2 className="h-4 w-4 mr-1.5" /> : <Camera className="h-4 w-4 mr-1.5" />}
                         {isCameraActive ? 'CAPTURAR' : 'LIGAR CÂMERA'}
                       </Button>
-                      <Button type="button" size="sm" variant="ghost" className="h-8 font-black text-[10px] uppercase text-muted-foreground" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="h-3 w-3 mr-1" /> ARQUIVO
+                      <Button type="button" size="sm" variant="ghost" className="h-9 font-black text-[10px] uppercase text-muted-foreground tracking-wider" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4 mr-1.5" /> ARQUIVO
                       </Button>
                       <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if(f){ const r = new FileReader(); r.onloadend = async () => setCapturedPhoto(await compressImage(r.result as string)); r.readAsDataURL(f); } }} />
                     </div>
                   </div>
 
-                  {/* Identification and Tutor Section */}
+                  {/* Coluna 2: Dados Cadastrais */}
                   <div className="flex-1 space-y-6 w-full">
                     <div className="grid gap-6">
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserCheck className="h-4 w-4 text-primary" />
-                          <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Identificação</h4>
+                          <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Identificação Institucional</h4>
                         </div>
-                        <div className="grid md:grid-cols-3 gap-4">
-                          <div className="md:col-span-2 space-y-1.5">
+                        <div className="grid md:grid-cols-4 gap-4">
+                          <div className="md:col-span-3 space-y-1.5">
                             <Label className="text-[10px] uppercase font-black">Nome Completo</Label>
-                            <Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="h-10 bg-slate-50 border-slate-200" />
+                            <Input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="h-11 bg-slate-50 border-slate-200" required />
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase font-black">Nº Chamada</Label>
-                            <Input value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} className="h-10 bg-slate-50 border-slate-200" placeholder="Ex: 01" />
+                            <Label className="text-[10px] uppercase font-black">Chamada</Label>
+                            <Input value={formData.callNumber} onChange={(e) => setFormData({...formData, callNumber: e.target.value})} className="h-11 bg-slate-50 border-slate-200" placeholder="01" />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase font-black">RA do Aluno</Label>
-                            <Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} className="h-10 bg-slate-50 border-slate-200" />
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div className="md:col-span-2 space-y-1.5">
+                            <Label className="text-[10px] uppercase font-black">Número RA</Label>
+                            <Input value={formData.ra} onChange={(e) => setFormData({...formData, ra: e.target.value})} className="h-11 bg-slate-50 border-slate-200" required />
                           </div>
                           <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase font-black">Dígito RA</Label>
-                            <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} className="h-10 bg-slate-50 border-slate-200" />
+                            <Label className="text-[10px] uppercase font-black">Dígito</Label>
+                            <Input value={formData.raDigit} onChange={(e) => setFormData({...formData, raDigit: e.target.value})} className="h-11 bg-slate-50 border-slate-200" />
                           </div>
                         </div>
                       </div>
@@ -356,68 +378,70 @@ function StudentsContent() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserRound className="h-4 w-4 text-primary" />
-                          <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Responsável</h4>
+                          <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Contato e Tutoria</h4>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] uppercase font-black">Tutor / Tutorado (Opcional)</Label>
-                          <Input placeholder="Nome completo do responsável" value={formData.tutor} onChange={(e) => setFormData({...formData, tutor: e.target.value})} className="h-10 bg-slate-50 border-slate-200" />
+                          <Label className="text-[10px] uppercase font-black">Nome do Tutor (Opcional)</Label>
+                          <Input placeholder="Responsável pelo aluno" value={formData.tutor} onChange={(e) => setFormData({...formData, tutor: e.target.value})} className="h-11 bg-slate-50 border-slate-200" />
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Enrollment Section */}
-                <div className="space-y-4 pt-6">
+                {/* Seção de Matrícula (Abaixo do cabeçalho) */}
+                <div className="space-y-4 pt-6 border-t border-dashed">
                   <div className="flex items-center gap-2 border-b pb-1">
                     <GraduationCap className="h-4 w-4 text-primary" />
-                    <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Matrículas e Enturmação</h4>
+                    <h4 className="font-black text-[11px] uppercase text-primary tracking-widest">Enturmação e Matrícula</h4>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-6 rounded-xl border border-slate-200">
                     <div className="space-y-1.5 md:col-span-1">
-                      <Label className="text-[10px] uppercase font-black">Turma</Label>
+                      <Label className="text-[10px] uppercase font-black">Turma Alvo</Label>
                       <Select value={newEnrollment.classId} onValueChange={(v) => setNewEnrollment({...newEnrollment, classId: v, teacherId: ""})}>
-                        <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectTrigger className="h-11 bg-white shadow-sm"><SelectValue placeholder="Selecione" /></SelectTrigger>
                         <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
                       <Label className="text-[10px] uppercase font-black">Disciplina</Label>
                       <Select value={newEnrollment.subject} onValueChange={(v) => setNewEnrollment({...newEnrollment, subject: v})}>
-                        <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-11 bg-white shadow-sm"><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="Língua Portuguesa">Português</SelectItem><SelectItem value="Matemática">Matemática</SelectItem></SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5 md:col-span-1">
-                      <Label className="text-[10px] uppercase font-black">Professor Regente</Label>
+                      <Label className="text-[10px] uppercase font-black">Docente Regente</Label>
                       <Select value={newEnrollment.teacherId} onValueChange={(v) => setNewEnrollment({...newEnrollment, teacherId: v})}>
-                        <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Docente" /></SelectTrigger>
+                        <SelectTrigger className="h-11 bg-white shadow-sm"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                         <SelectContent>{allTeachers.filter(t => t.assignments?.some(a => a.classId === newEnrollment.classId) || t.role === 'Admin').map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="flex items-end">
-                      <Button type="button" onClick={() => { if(!newEnrollment.classId || !newEnrollment.teacherId) return; setFormData({...formData, enrollments: [...formData.enrollments, { classId: newEnrollment.classId, className: classes.find(c => c.id === newEnrollment.classId)?.name || "", subject: newEnrollment.subject, teacherId: newEnrollment.teacherId, teacherName: allTeachers.find(t => t.id === newEnrollment.teacherId)?.name || "" }]}); setNewEnrollment({classId: "", subject: "Língua Portuguesa", teacherId: ""}); }} className="w-full h-10 uppercase text-[10px] font-black"><PlusCircle className="h-4 w-4 mr-2" /> ADICIONAR</Button>
+                      <Button type="button" onClick={() => { if(!newEnrollment.classId || !newEnrollment.teacherId) return; setFormData({...formData, enrollments: [...formData.enrollments, { classId: newEnrollment.classId, className: classes.find(c => c.id === newEnrollment.classId)?.name || "", subject: newEnrollment.subject, teacherId: newEnrollment.teacherId, teacherName: allTeachers.find(t => t.id === newEnrollment.teacherId)?.name || "" }]}); setNewEnrollment({classId: "", subject: "Língua Portuguesa", teacherId: ""}); }} className="w-full h-11 uppercase text-[10px] font-black tracking-widest shadow-md">
+                        <PlusCircle className="h-4 w-4 mr-2" /> VINCULAR
+                      </Button>
                     </div>
                   </div>
                   
-                  <div className="border rounded-xl overflow-hidden shadow-sm">
+                  <div className="border rounded-xl overflow-hidden shadow-sm bg-white">
                     <Table>
-                      <TableHeader className="bg-slate-50">
+                      <TableHeader className="bg-slate-50/80">
                         <TableRow>
-                          <TableHead className="text-[10px] font-black uppercase">Unidade/Turma</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase">Disciplina</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase">Professor</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase tracking-wider">Unidade/Turma</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase tracking-wider">Disciplina</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase tracking-wider">Docente</TableHead>
                           <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {formData.enrollments.map((e, idx) => (
-                          <TableRow key={idx} className="h-12 hover:bg-slate-50 transition-colors">
+                          <TableRow key={idx} className="h-14 hover:bg-slate-50 transition-colors">
                             <TableCell className="text-[11px] font-bold text-primary uppercase">{e.className}</TableCell>
                             <TableCell className="text-[11px] font-medium">{e.subject}</TableCell>
                             <TableCell className="text-[11px] uppercase text-muted-foreground">{e.teacherName}</TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setFormData({...formData, enrollments: formData.enrollments.filter((_, i) => i !== idx)})}>
+                              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setFormData({...formData, enrollments: formData.enrollments.filter((_, i) => i !== idx)})}>
                                 <X className="h-4 w-4" />
                               </Button>
                             </TableCell>
@@ -425,7 +449,7 @@ function StudentsContent() {
                         ))}
                         {formData.enrollments.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic text-xs">Nenhuma matrícula registrada para este aluno.</TableCell>
+                            <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic text-xs opacity-50">Nenhuma matrícula registrada.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -437,16 +461,17 @@ function StudentsContent() {
           </ScrollArea>
           <DialogFooter className="p-6 border-t bg-slate-50 shrink-0">
             <div className="flex gap-4 w-full">
-              <Button variant="outline" onClick={() => setIsRegisterOpen(false)} className="flex-1 h-12 font-bold uppercase text-xs">Cancelar</Button>
+              <Button variant="outline" onClick={() => setIsRegisterOpen(false)} className="flex-1 h-12 font-bold uppercase text-xs">Descartar</Button>
               <Button onClick={handleRegisterSubmit} disabled={isSubmitting} className="flex-1 h-12 font-black uppercase text-xs shadow-lg tracking-widest">
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                SINCROZINAR CADASTRO
+                SINCRONIZAR REGISTRO
               </Button>
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* FICHA DO ALUNO (Mantida original) */}
       <Dialog open={isFichaOpen} onOpenChange={setIsFichaOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 bg-white">
           <DialogHeader className="p-8 bg-primary text-white flex-row items-center gap-6">

@@ -13,16 +13,6 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['firebase-admin'],
 
   /**
-   * Configurações experimentais para suportar o ambiente de desenvolvimento
-   * do Cloud Workstations e evitar avisos de Cross-Origin.
-   */
-  experimental: {
-    allowedDevOrigins: [
-      '6000-firebase-studio-1772738614944.cluster-c72u3gwiofapkvxrcwjq5zllcu.cloudworkstations.dev'
-    ]
-  } as any,
-  
-  /**
    * Ignora erros de build para garantir que a sincronização do App Hosting ocorra 
    * mesmo com avisos de Lint ou Typescript.
    */
