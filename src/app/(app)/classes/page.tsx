@@ -127,8 +127,8 @@ export default function ClassesPage() {
         {filteredClasses.map((cls) => (
           <Card key={cls.id} className="border-none shadow-md overflow-hidden bg-white border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-4">
-              <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Portuguese' ? 'bg-primary' : 'bg-accent'} flex items-center justify-center text-white shadow-lg`}>
-                {cls.subject === 'Portuguese' ? <BookOpen className="h-6 w-6" /> : <Calculator className="h-6 w-6" />}
+              <div className={`h-12 w-12 rounded-xl ${cls.subject === 'Math' ? 'bg-accent' : 'bg-primary'} flex items-center justify-center text-white shadow-lg`}>
+                {cls.subject === 'Math' ? <Calculator className="h-6 w-6" /> : <BookOpen className="h-6 w-6" />}
               </div>
               <div className="flex-1 overflow-hidden">
                 <CardTitle className="text-xl font-black uppercase tracking-tighter truncate">{cls.name}</CardTitle>

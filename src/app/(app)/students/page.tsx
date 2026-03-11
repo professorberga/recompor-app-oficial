@@ -312,9 +312,10 @@ function StudentsContent() {
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="p-8">
-              <form onSubmit={handleRegisterSubmit} className="space-y-8">
+              <form id="teacher-form" onSubmit={handleRegisterSubmit} className="space-y-8">
                 <div className="flex flex-col md:flex-row gap-8 items-start">
                   
+                  {/* Foto Retrato 3:4 */}
                   <div className="flex flex-col items-center gap-4 shrink-0 w-full md:w-auto">
                     <Label className="text-[10px] uppercase font-black text-muted-foreground text-center w-full tracking-widest">Foto Institucional (3:4)</Label>
                     <div className="w-48 h-64 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative shadow-inner group transition-all">
@@ -343,6 +344,7 @@ function StudentsContent() {
 
                   <div className="flex-1 space-y-6 w-full">
                     <div className="grid gap-6">
+                      {/* Identificação */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserCheck className="h-4 w-4 text-primary" />
@@ -370,6 +372,7 @@ function StudentsContent() {
                         </div>
                       </div>
 
+                      {/* Tutoria */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 border-b pb-1">
                           <UserRound className="h-4 w-4 text-primary" />
@@ -384,6 +387,7 @@ function StudentsContent() {
                   </div>
                 </div>
 
+                {/* Área de Vínculo */}
                 <div className="space-y-4 pt-6 border-t border-dashed">
                   <div className="flex items-center gap-2 border-b pb-1">
                     <GraduationCap className="h-4 w-4 text-primary" />
